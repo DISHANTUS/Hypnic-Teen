@@ -9,7 +9,7 @@
 // a full night of games.
 
 import { spawn, execFile } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { networkInterfaces } from 'node:os';
 import path from 'node:path';
@@ -100,11 +100,24 @@ if (await portOpen(PORT)) {
   process.exit(1);
 }
 
+/* ---------------------------- study, decided early ------------------------ */
+
+// Serving Study under a prefix on this port is what lets one tunnel carry
+// both — a second port has no route from outside the house. Decided before
+// the server starts, because the server has to know whether to mount the
+// proxy, and Study has to be built knowing its own prefix.
+const STUDY_BASE = process.env.STUDY_BASE_PATH ?? '/study';
+// Dev mode cannot be proxied under a prefix reliably — its hot-reload client
+// assumes the root — so the two are mutually exclusive.
+const STUDY_DEV = process.env.STUDY_DEV === '1';
+const willProxy = Boolean(STUDY_BASE) && !STUDY_DEV && process.env.NO_STUDY !== '1'
+  && existsSync(path.join(STUDY_ROOT, 'package.json'));
+
 /* ------------------------------- the server ------------------------------- */
 
 const server = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], {
   stdio: 'inherit',
-  env: process.env,
+  env: { ...process.env, STUDY_PROXY: willProxy ? '1' : '0', STUDY_PORT: String(STUDY_PORT) },
 });
 
 /* ------------------------------ hypnic study ------------------------------ */
@@ -117,7 +130,53 @@ const STUDY_PORT = Number(process.env.STUDY_PORT) || 3000;
 
 let study = null;
 
-function startStudy() {
+const NEXT_BIN = path.join(STUDY_ROOT, 'node_modules', 'next', 'dist', 'bin', 'next');
+
+/** Runs one Next command to completion. Resolves to its exit code. */
+function runNext(args, label) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [NEXT_BIN, ...args], {
+      cwd: STUDY_ROOT,
+      stdio: process.env.STUDY_LOGS === '1' ? 'inherit' : 'ignore',
+      env: { ...process.env, PORT: String(STUDY_PORT), BASE_PATH: STUDY_DEV ? '' : STUDY_BASE },
+    });
+    child.on('error', () => resolve(-1));
+    child.on('exit', (code) => resolve(code ?? -1));
+    for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => child.kill());
+    void label;
+  });
+}
+
+/**
+ * Whether the compiled build is older than the source it was compiled from.
+ * Cheap and approximate on purpose — comparing every file would cost more than
+ * the occasional unnecessary rebuild.
+ */
+function buildIsStale() {
+  const built = path.join(STUDY_ROOT, '.next', 'BUILD_ID');
+  if (!existsSync(built)) return true;
+  const builtAt = statSync(built).mtimeMs;
+  let newest = 0;
+  const walk = (dir, depth = 0) => {
+    if (depth > 4 || !existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full, depth + 1);
+      else if (/\.(tsx?|jsx?|css|json)$/.test(entry.name)) {
+        newest = Math.max(newest, statSync(full).mtimeMs);
+      }
+    }
+  };
+  for (const sub of ['src', 'app', 'public']) walk(path.join(STUDY_ROOT, sub));
+  for (const f of ['next.config.ts', 'next.config.js', 'next.config.mjs', 'package.json']) {
+    const full = path.join(STUDY_ROOT, f);
+    if (existsSync(full)) newest = Math.max(newest, statSync(full).mtimeMs);
+  }
+  return newest > builtAt;
+}
+
+async function startStudy() {
   if (process.env.NO_STUDY === '1') return 'skipped (NO_STUDY=1)';
   if (!existsSync(path.join(STUDY_ROOT, 'package.json'))) {
     return `not found at ${STUDY_ROOT}`;
@@ -126,14 +185,32 @@ function startStudy() {
     return 'found, but its dependencies are not installed yet';
   }
 
+  // Dev mode is for the person writing it, not for the people using it: it is
+  // slow, and it puts a React error overlay with a stack trace in front of any
+  // guest who trips a transient fault. Friends using it is the common case, so
+  // a production build is the default and dev is the flag.
+  const dev = STUDY_DEV;
+
+  if (!dev && buildIsStale()) {
+    process.stdout.write(dim('  building IELTS training… '));
+    const code = await runNext(['build'], 'build');
+    if (code !== 0) {
+      console.log(yellow('failed'));
+      return `build failed (exit ${code}) — run it with STUDY_LOGS=1 to see why`;
+    }
+    console.log(green('done'));
+  }
+
   try {
     study = spawn(
       process.execPath,
-      [path.join(STUDY_ROOT, 'node_modules', 'next', 'dist', 'bin', 'next'), 'dev', '-H', '0.0.0.0'],
+      dev
+        ? [NEXT_BIN, 'dev', '-H', '0.0.0.0']
+        : [NEXT_BIN, 'start', '-H', '0.0.0.0', '-p', String(STUDY_PORT)],
       {
         cwd: STUDY_ROOT,
-        // Quiet by default: two dev servers interleaving output in one
-        // terminal is unreadable. STUDY_LOGS=1 when you need to debug it.
+        // Quiet by default: two servers interleaving output in one terminal is
+        // unreadable. STUDY_LOGS=1 when you need to debug it.
         stdio: process.env.STUDY_LOGS === '1' ? 'inherit' : 'ignore',
         env: { ...process.env, PORT: String(STUDY_PORT) },
       },
@@ -166,7 +243,7 @@ async function studyReady() {
   return false;
 }
 
-const studyNote = startStudy();
+const studyNote = await startStudy();
 
 // Ctrl-C should take both down with it, not orphan them.
 for (const sig of ['SIGINT', 'SIGTERM']) {
@@ -262,6 +339,9 @@ if (study && (await studyReady())) {
   if (primary) console.log(`    for friends     http://${primary}:${STUDY_PORT}`);
   console.log(dim(`    on this laptop: http://localhost:${STUDY_PORT}`));
   console.log(dim('    same Hypnic ID, no second signup'));
+  console.log(dim(process.env.STUDY_DEV === '1'
+    ? '    dev mode — guests may see error overlays; unset STUDY_DEV for a real build'
+    : '    production build'));
   // The tunnel only ever carries the studio's own port, so anybody who came
   // in from outside cannot reach this at all. Better said here than
   // discovered by a friend clicking a link that hangs.

@@ -1,4 +1,4 @@
-import { createServer } from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
@@ -216,6 +216,13 @@ if (CLUE_DIR && existsSync(CLUE_DIR)) {
 const STUDY_PORT = Number(process.env.STUDY_PORT) || 3000;
 let studyLastSeen = 0;
 let studyUp = false;
+// The proxy only counts as a route once Study is actually answering — an
+// enabled proxy in front of nothing is a 503, not a destination.
+// Explicit opt-in, set by the launcher and only when it built Study with a
+// matching BASE_PATH. Proxying to a Study that does not know its own prefix
+// serves a page whose every asset 404s — worse than no link at all.
+const STUDY_PROXIED = process.env.STUDY_PROXY === '1';
+let proxyReady = false;
 
 async function pollStudy() {
   try {
@@ -227,6 +234,7 @@ async function pollStudy() {
   } catch {
     studyUp = false;
   }
+  proxyReady = STUDY_PROXIED && studyUp;
   studyLastSeen = Date.now();
   return studyUp;
 }
@@ -236,9 +244,16 @@ app.get('/api/study', async (req, res) => {
   // phones should not become a HEAD flood against a dev server.
   if (Date.now() - studyLastSeen > 10_000) await pollStudy();
 
-  // Only somebody on the same network can reach a second port on this laptop.
-  // For anybody who arrived through the tunnel there is no route to it at all,
-  // so the honest answer is "not for you" rather than a link that hangs.
+  // With the proxy on, /study is served from this very port, so it reaches
+  // whoever this page reached — including a friend who came through the
+  // tunnel. Same-origin, so no mixed content and no second port to expose.
+  if (proxyReady) {
+    return res.json({ running: true, reachable: true, url: '/study', why: null });
+  }
+
+  // Without it, Study is only on its own port, and a second port on this
+  // laptop is reachable from the same WiFi and never from outside. Saying so
+  // beats handing somebody in another city a link that will hang.
   const host = String(req.hostname ?? '');
   const local = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
 
@@ -250,6 +265,68 @@ app.get('/api/study', async (req, res) => {
     why: !studyUp ? 'not running' : local ? null : 'only on the same WiFi',
   });
 });
+
+/* --------------------------- hypnic study, proxied ------------------------ */
+
+// Study runs on its own port, which is fine in the room and useless outside
+// it: the tunnel carries this port and only this port, so a second one has no
+// route from another city. Passing /study through to it means one address
+// covers both, and a friend who is not here can use the trainer too.
+//
+// Study must be built with BASE_PATH=/study for this to work — Next has to
+// know its own prefix or it will hand out asset URLs that land back here.
+if (STUDY_PROXIED) {
+  app.use('/study', (req, res) => {
+    const proxied = httpRequest(
+      {
+        host: '127.0.0.1',
+        port: STUDY_PORT,
+        // express strips the mount path, so it has to go back on.
+        path: `/study${req.originalUrl.slice('/study'.length)}`,
+        method: req.method,
+        headers: { ...req.headers, host: `127.0.0.1:${STUDY_PORT}` },
+      },
+      (upstream) => {
+        res.writeHead(upstream.statusCode ?? 502, upstream.headers);
+        upstream.pipe(res);
+      }
+    );
+    proxied.on('error', () => {
+      if (!res.headersSent) {
+        res
+          .status(503)
+          .type('html')
+          .send('<h1>IELTS training is not running</h1><p>Start it on the laptop, then reload.</p>');
+      }
+    });
+    req.pipe(proxied);
+  });
+
+  // Next's hot-reload and any websocket it opens ride an upgrade, which
+  // express never sees. Without this the page loads and then sits there.
+  httpServer.on('upgrade', (req, socket, head) => {
+    if (!req.url?.startsWith('/study')) return; // socket.io handles its own
+    const proxied = httpRequest({
+      host: '127.0.0.1',
+      port: STUDY_PORT,
+      path: req.url,
+      method: 'GET',
+      headers: { ...req.headers, host: `127.0.0.1:${STUDY_PORT}` },
+    });
+    proxied.on('upgrade', (upstreamRes, upstreamSocket, upstreamHead) => {
+      socket.write(
+        `HTTP/1.1 101 Switching Protocols\r\n${Object.entries(upstreamRes.headers)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join('\r\n')}\r\n\r\n`
+      );
+      if (upstreamHead?.length) socket.unshift(upstreamHead);
+      upstreamSocket.pipe(socket).pipe(upstreamSocket);
+    });
+    proxied.on('error', () => socket.destroy());
+    if (head?.length) proxied.write(head);
+    proxied.end();
+  });
+}
 
 app.get('/api/games', (_req, res) => res.json(listGames()));
 app.get('/api/health', (_req, res) => res.json({ ok: true, members: memberCount(), ...roomStats() }));
