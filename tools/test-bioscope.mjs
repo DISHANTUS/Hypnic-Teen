@@ -181,6 +181,22 @@ mate = io(base, { transports: ['websocket'], reconnection: false });
 await new Promise((r) => mate.once('connect', r));
 await new Promise((r) => mate.emit('room:join', { code, token: acct.token }, r));
 mate.on('game:state', (s) => { if (s.phase === 'intro') mate.emit('game:action', { type: 'ready' }); });
+// Rounds run 38 seconds apiece by default, so a ninety-second watch only ever
+// saw two of them — and with roughly half the deck carrying pictures, one run
+// in twenty saw none at all and failed for no reason. Blitz pace and a long
+// deck put many rounds inside the window instead of gambling on the first two.
+await click('#editSetup');
+await waitFor('.setup-field', 4000);
+await evaluate(`
+  const r = document.querySelector('.setup-field input[type=range]');
+  if (r) { r.value = r.max; r.dispatchEvent(new Event('input',{bubbles:true})); r.dispatchEvent(new Event('change',{bubbles:true})); }
+  return true;
+`);
+await wait(400);
+await click('.setup-choice[data-id="blitz"]');
+await wait(400);
+await click('#editSetup');
+
 await wait(1200);
 await click('#startBtn');
 
@@ -190,7 +206,7 @@ if (!check('the match starts', await waitFor('.prompt-card', 20000))) { cleanup(
 // Rounds are dealt from a mixed deck, so play forward until a picture round
 // comes up rather than assuming the first one is.
 let strip = null;
-const deadline = Date.now() + 90_000;
+const deadline = Date.now() + 150_000;
 while (Date.now() < deadline && !strip) {
   if (await evaluate(`return document.querySelectorAll('.bio-frame').length > 0`)) {
     strip = await evaluate(`
