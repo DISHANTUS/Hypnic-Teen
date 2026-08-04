@@ -60,6 +60,11 @@
     <a href="#/leaderboard" data-nav data-route="#/leaderboard">Leaderboard</a>
     <a href="#/titles" data-nav data-route="#/titles">Titles</a>
     <a href="#/studio" data-nav data-route="#/studio">Studio</a>
+    <!-- Hypnic Study is a separate app on its own port, so this is a real
+         link rather than a hash route. It resolves at click time from the
+         current host, so it works from a phone on the WiFi too, not just
+         from this laptop. Hidden when Study is not running. -->
+    <a id="studyLink" href="#" hidden rel="noopener">IELTS</a>
   </nav>
 
   <div class="topbar-right">
@@ -714,5 +719,6 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script type="module" src="/js/site.js"></script>
+<script src="/js/study-link.js" defer></script>
 </body>
 </html>

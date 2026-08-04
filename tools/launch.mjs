@@ -107,14 +107,59 @@ const server = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], 
   env: process.env,
 });
 
-// Ctrl-C should take the server down with it, not orphan it.
+/* ------------------------------ hypnic study ------------------------------ */
+
+// The IELTS trainer is a separate project that signs people in with their
+// Hypnic ID, so it belongs to the same evening as the studio. Missing or
+// broken, it becomes a line of explanation rather than a failed launch.
+const STUDY_ROOT = process.env.HYPNIC_STUDY_ROOT || path.join(ROOT, '..', 'IELTS');
+const STUDY_PORT = Number(process.env.STUDY_PORT) || 3000;
+
+let study = null;
+
+function startStudy() {
+  if (process.env.NO_STUDY === '1') return 'skipped (NO_STUDY=1)';
+  if (!existsSync(path.join(STUDY_ROOT, 'package.json'))) {
+    return `not found at ${STUDY_ROOT}`;
+  }
+  if (!existsSync(path.join(STUDY_ROOT, 'node_modules'))) {
+    return 'found, but its dependencies are not installed yet';
+  }
+
+  try {
+    study = spawn(
+      process.execPath,
+      [path.join(STUDY_ROOT, 'node_modules', 'next', 'dist', 'bin', 'next'), 'dev', '-H', '0.0.0.0'],
+      {
+        cwd: STUDY_ROOT,
+        // Quiet by default: two dev servers interleaving output in one
+        // terminal is unreadable. STUDY_LOGS=1 when you need to debug it.
+        stdio: process.env.STUDY_LOGS === '1' ? 'inherit' : 'ignore',
+        env: { ...process.env, PORT: String(STUDY_PORT) },
+      },
+    );
+  } catch {
+    return 'could not start';
+  }
+
+  study.on('error', () => { study = null; });
+  return null;
+}
+
+const studyNote = startStudy();
+
+// Ctrl-C should take both down with it, not orphan them.
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => {
     server.kill();
+    study?.kill();
     process.exit(0);
   });
 }
-server.on('exit', (code) => process.exit(code ?? 0));
+server.on('exit', (code) => {
+  study?.kill();
+  process.exit(code ?? 0);
+});
 
 /* ------------------------------ where to join ----------------------------- */
 
@@ -185,7 +230,20 @@ if (publicUrl) {
   }
 }
 console.log(dim(`\n    on this laptop: http://localhost:${PORT}`));
-console.log(dim(`    stop everything: Ctrl-C\n`));
+
+// Study runs beside the studio and shares the same Hypnic ID, so its address
+// belongs in the same list rather than in a second terminal nobody reads.
+if (study) {
+  const primary = (addresses.find((a) => a.hotspot) ?? addresses[0])?.ip;
+  console.log(`\n  ${bold('IELTS training')}`);
+  if (primary) console.log(`    for friends     http://${primary}:${STUDY_PORT}`);
+  console.log(dim(`    on this laptop: http://localhost:${STUDY_PORT}`));
+  console.log(dim('    same Hypnic ID, no second signup'));
+} else if (studyNote) {
+  console.log(dim(`\n  IELTS training: ${studyNote}`));
+}
+
+console.log(dim(`\n    stop everything: Ctrl-C\n`));
 
 /* ------------------------------- the tunnel ------------------------------- */
 
