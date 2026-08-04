@@ -1,0 +1,53 @@
+{
+  "name": "hypnic-teens-fun-world",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hypnic Teens Fun World - local + online multiplayer games for PC and Android",
+  "scripts": {
+    "start": "node tools/launch.mjs",
+    "dev": "node --watch server/index.js",
+    "icons": "node tools/gen-icons.mjs",
+    "check": "node tools/check-ui.mjs",
+    "test:games": "node tools/test-games.mjs",
+    "test:identity": "node tools/test-identity.mjs",
+    "smoke": "node tools/smoke-test.mjs",
+    "verify": "node tools/verify-games.mjs",
+    "test:invite": "node tools/test-invite.mjs",
+    "load": "node tools/load-test.mjs",
+    "dry-run": "node tools/journey-dry-run.mjs",
+    "device-test": "node tools/device-test.mjs",
+    "seed": "node tools/seed-demo.mjs",
+    "share": "node tools/share.mjs",
+    "film": "powershell -ExecutionPolicy Bypass -File tools/make-film.ps1",
+    "apk": "powershell -ExecutionPolicy Bypass -File android/build.ps1",
+    "apk:test": "powershell -ExecutionPolicy Bypass -File android/build.ps1 -Testing",
+    "test:battleship": "node tools/test-battleship.mjs",
+    "test:battleship:ui": "node tools/test-battleship-ui.mjs",
+    "test:bots": "node tools/test-bots.mjs",
+    "test:llm": "node tools/test-llm.mjs",
+    "grow": "node tools/grow-bank.mjs",
+    "serve": "node server/index.js",
+    "fleet": "powershell -ExecutionPolicy Bypass -File tools/make-fleet.ps1",
+    "test:endgame": "node tools/test-endgame.mjs",
+    "test:tournament": "node tools/test-tournament.mjs",
+    "test:cup:ui": "node tools/test-cup-ui.mjs",
+    "clues": "node tools/fetch-clues.mjs",
+    "test:truth-dare": "node tools/test-truth-dare.mjs",
+    "test:quiz-written": "node tools/test-quiz-written.mjs",
+    "test:td:ui": "node tools/test-truth-dare-ui.mjs",
+    "test:account": "node tools/test-account.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "compression": "^1.8.1",
+    "express": "^4.21.2",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
+  }
+}

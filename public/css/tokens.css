@@ -1,0 +1,492 @@
+/* ============================================================================
+   Hypnic UI — design tokens.
+
+   TOKENS ONLY. Components live in site.css and must never hardcode a raw
+   colour, radius or duration — they consume these variables, which is what
+   lets a skin repaint the entire studio without touching a single layout rule.
+
+   The token architecture (4pt grid, motion scale, switchable skins) follows the
+   discipline we already use in DD Power Tools; the visual identity below is
+   Hypnic Teen's own.
+   ========================================================================= */
+
+:root {
+  /* ---- spacing: 4pt grid, never magic numbers ---- */
+  --sp-xs: 4px;
+  --sp-sm: 8px;
+  --sp-md: 12px;
+  --sp-lg: 16px;
+  --sp-xl: 20px;
+  --sp-2x: 24px;
+  --sp-3x: 32px;
+  --sp-4x: 40px;
+  --sp-6x: 64px;
+  --sp-8x: 96px;
+
+  /* ---- radii: cards default to lg ---- */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+  --r-pill: 999px;
+
+  /* ---- type scale ---- */
+  --t-caption: 12px;
+  --t-label: 13px;
+  --t-body: 15px;
+  --t-title: 17px;
+  --t-h3: 20px;
+  --t-h2: 24px;
+  --t-h1: 32px;
+  --t-display: 40px;
+
+  --font-ui: Inter, 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  --font-display: 'Space Grotesk', 'Segoe UI Variable Display', Inter, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', 'JetBrains Mono', Consolas, monospace;
+
+  /* ---- motion: nothing pops in ---- */
+  --m-instant: 90ms;
+  --m-fast: 160ms;
+  --m-base: 240ms;
+  --m-slow: 360ms;
+  --m-expressive: 480ms;
+  --m-cinematic: 720ms;
+
+  --ease-standard: cubic-bezier(0.215, 0.61, 0.355, 1);  /* easeOutCubic */
+  --ease-entrance: cubic-bezier(0.34, 1.56, 0.64, 1);     /* easeOutBack  */
+  --ease-exit: cubic-bezier(0.55, 0.055, 0.675, 0.19);    /* easeInCubic  */
+
+  /* ---- semantic colours: these carry meaning, no skin may repaint them ---- */
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #3b82f6;
+
+  /* ---- elevation ---- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 24px 60px -16px rgba(0, 0, 0, 0.7);
+
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+
+/* ============================================================================
+   Skins. Each sets eight values; every component inherits them.
+   `hypnic` is the studio default.
+   ========================================================================= */
+
+/* ---- the studio default: pale peach comic ----
+   Peach paper, warm espresso ink (never pure black — pure black is a printer
+   setting, not a drawn line), and a soft coral accent. Nothing here glows: no
+   gradient fills, no blur, no neon. Depth is solid offset shadow, like print. */
+:root,
+[data-theme='peach'] {
+  --base: #ffeee2;
+  --surface: #fffaf5;
+  --glass: rgba(46, 33, 24, 0.045);
+  --text: #2e2118;
+  --text-2: #6e5a4c;
+  --text-3: #9c877a;
+  --accent: #f97a5a;
+  --on-accent: #ffffff;
+  --border: #2e2118;
+  --ink: #2e2118;
+}
+
+/* Dark, but warm — a night comic, not a neon one. Same espresso-and-cream ink
+   language as the default, simply inverted. */
+[data-theme='ink-night'] {
+  --base: #1b1613;
+  --surface: #261f1a;
+  --glass: rgba(242, 228, 214, 0.05);
+  --text: #f6ece2;
+  --text-2: #bda897;
+  --text-3: #8b7565;
+  --accent: #ff9e6b;
+  --on-accent: #2a1408;
+  --border: #f2e4d6;
+  --ink: #f2e4d6;
+}
+
+[data-theme='sunburst'] {
+  --base: #fff7ec;
+  --surface: #ffffff;
+  --glass: rgba(26, 26, 26, 0.045);
+  --text: #1a1a1a;
+  --text-2: #55524c;
+  --text-3: #8a867e;
+  --accent: #ff5a4d;
+  --on-accent: #ffffff;
+  --border: #1a1a1a;
+  --ink: #1a1a1a;
+}
+
+[data-theme='skyline'] {
+  --base: #eaf3ff;
+  --surface: #ffffff;
+  --glass: rgba(16, 24, 43, 0.045);
+  --text: #10182b;
+  --text-2: #4a5468;
+  --text-3: #7d8698;
+  --accent: #2f6bff;
+  --on-accent: #ffffff;
+  --border: #10182b;
+  --ink: #10182b;
+}
+
+[data-theme='sherbet'] {
+  --base: #fdf0f7;
+  --surface: #ffffff;
+  --glass: rgba(40, 22, 38, 0.045);
+  --text: #281626;
+  --text-2: #5e4a5a;
+  --text-3: #91808c;
+  --accent: #a855f7;
+  --on-accent: #ffffff;
+  --border: #281626;
+  --ink: #281626;
+}
+
+/* Dark modern comic — same flat ink language, inverted. */
+[data-theme='midnight-ink'] {
+  --base: #16161b;
+  --surface: #202028;
+  --glass: rgba(247, 244, 236, 0.05);
+  --text: #f7f4ec;
+  --text-2: #b5b1a8;
+  --text-3: #86827a;
+  --accent: #ffc93c;
+  --on-accent: #1a1405;
+  --border: #f7f4ec;
+  --ink: #f7f4ec;
+}
+
+/* Hypnic Signal — deep night with one cold luminous accent: the glow at the
+   edge of sleep the studio is named after. */
+[data-theme='hypnic'] {
+  --base: #07070a;
+  --surface: #0e0e13;
+  --glass: rgba(255, 255, 255, 0.04);
+  --text: #f2f3f5;
+  --text-2: #9b9daa;
+  --text-3: #63656f;
+  --accent: #2de2e6;
+  --on-accent: #04141a;
+  --border: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='rose'] {
+  --base: #08070a;
+  --surface: #100e14;
+  --glass: rgba(255, 255, 255, 0.04);
+  --text: #f4f2f5;
+  --text-2: #a49ba8;
+  --text-3: #6b6470;
+  --accent: #ff3d6e;
+  --on-accent: #ffffff;
+  --border: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='iris'] {
+  --base: #09090b;
+  --surface: #111114;
+  --glass: rgba(255, 255, 255, 0.04);
+  --text: #f4f4f5;
+  --text-2: #a1a1aa;
+  --text-3: #71717a;
+  --accent: #7c6cf0;
+  --on-accent: #ffffff;
+  --border: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='ember'] {
+  --base: #09090b;
+  --surface: #111114;
+  --glass: rgba(255, 255, 255, 0.04);
+  --text: #f4f4f5;
+  --text-2: #a1a1aa;
+  --text-3: #71717a;
+  --accent: #f97316;
+  --on-accent: #170701;
+  --border: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='acid'] {
+  --base: #0a0b08;
+  --surface: #12140f;
+  --glass: rgba(255, 255, 255, 0.04);
+  --text: #f2f5ec;
+  --text-2: #9ba58c;
+  --text-3: #656d5a;
+  --accent: #c8ff3d;
+  --on-accent: #101504;
+  --border: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='cyberpunk'] {
+  --base: #060310;
+  --surface: #0d0a1e;
+  --glass: rgba(0, 255, 255, 0.05);
+  --text: #e8f6ff;
+  --text-2: #77ddee;
+  --text-3: #4a9aab;
+  --accent: #00ffff;
+  --on-accent: #001416;
+  --border: rgba(0, 255, 255, 0.35);
+}
+
+[data-theme='molten'] {
+  --base: #180a06;
+  --surface: #221009;
+  --glass: rgba(255, 120, 50, 0.07);
+  --text: #f6efec;
+  --text-2: #b8988a;
+  --text-3: #8a6a5c;
+  --accent: #ff4d00;
+  --on-accent: #ffffff;
+  --border: rgba(255, 120, 50, 0.22);
+}
+
+[data-theme='sunset'] {
+  --base: #12062e;
+  --surface: #1e0b3e;
+  --glass: rgba(255, 158, 205, 0.07);
+  --text: #ffe9f7;
+  --text-2: #ff9ecd;
+  --text-3: #b9739a;
+  --accent: #ff6b9d;
+  --on-accent: #2b0616;
+  --border: rgba(255, 105, 180, 0.3);
+}
+
+[data-theme='pixel'] {
+  --base: #1a1b2e;
+  --surface: #232544;
+  --glass: rgba(255, 255, 255, 0.07);
+  --text: #e8e9ff;
+  --text-2: #9ea3ff;
+  --text-3: #6f74c4;
+  --accent: #7cff6b;
+  --on-accent: #06180a;
+  --border: #3c4076;
+}
+
+[data-theme='bit16'] {
+  --base: #1b2a4a;
+  --surface: #243560;
+  --glass: rgba(255, 255, 255, 0.07);
+  --text: #eaf0ff;
+  --text-2: #8fa3d6;
+  --text-3: #6b7fb0;
+  --accent: #ffce3e;
+  --on-accent: #1b1403;
+  --border: #455e9c;
+}
+
+[data-theme='velvet'] {
+  --base: #1a0b14;
+  --surface: #24101c;
+  --glass: rgba(224, 180, 85, 0.07);
+  --text: #f4eadb;
+  --text-2: #b39a7e;
+  --text-3: #8a765f;
+  --accent: #e0b455;
+  --on-accent: #1d1305;
+  --border: rgba(224, 180, 85, 0.25);
+}
+
+[data-theme='noir'] {
+  --base: #0d0d0d;
+  --surface: #161616;
+  --glass: rgba(237, 237, 237, 0.05);
+  --text: #ededed;
+  --text-2: #8a8a8a;
+  --text-3: #5a5a5a;
+  --accent: #d22b2b;
+  --on-accent: #ffffff;
+  --border: rgba(237, 237, 237, 0.16);
+}
+
+[data-theme='paper'] {
+  --base: #faf7f2;
+  --surface: #ffffff;
+  --glass: rgba(0, 0, 0, 0.035);
+  --text: #17171a;
+  --text-2: #5f5f66;
+  --text-3: #8c8c93;
+  --accent: #0f766e;
+  --on-accent: #ffffff;
+  --border: rgba(20, 20, 25, 0.12);
+}
+
+/* ---- palettes built for the comic style pack: ink is a real colour here,
+        so borders read as drawn outlines rather than hairlines ---- */
+
+[data-theme='newsprint'] {
+  --base: #f4ecd8;
+  --surface: #fffdf6;
+  --glass: rgba(17, 17, 17, 0.05);
+  --text: #141414;
+  --text-2: #4a4a4a;
+  --text-3: #7a7268;
+  --accent: #e4002b;
+  --on-accent: #ffffff;
+  --border: #141414;
+  --ink: #141414;
+}
+
+[data-theme='inkwell'] {
+  --base: #17161c;
+  --surface: #221f2b;
+  --glass: rgba(255, 255, 255, 0.06);
+  --text: #f7f3e8;
+  --text-2: #b9b2a4;
+  --text-3: #8a8478;
+  --accent: #ffd23f;
+  --on-accent: #1a1505;
+  --border: #f7f3e8;
+  --ink: #f7f3e8;
+}
+
+/* ---- palettes built for the cartoon style pack ---- */
+
+[data-theme='bubblegum'] {
+  --base: #fff0f6;
+  --surface: #ffffff;
+  --glass: rgba(43, 34, 51, 0.05);
+  --text: #2b2233;
+  --text-2: #6b5f78;
+  --text-3: #9c90a8;
+  --accent: #ff4fa3;
+  --on-accent: #ffffff;
+  --border: #2b2233;
+  --ink: #2b2233;
+}
+
+[data-theme='slime'] {
+  --base: #eafff4;
+  --surface: #ffffff;
+  --glass: rgba(18, 48, 38, 0.05);
+  --text: #123026;
+  --text-2: #46695c;
+  --text-3: #7a988c;
+  --accent: #00c07a;
+  --on-accent: #04180f;
+  --border: #123026;
+  --ink: #123026;
+}
+
+/* ---- palettes built for the hyperreal style pack: near-black bases so the
+        glass, specular highlights and depth have something to sit on ---- */
+
+[data-theme='obsidian'] {
+  --base: #05060a;
+  --surface: #0d1017;
+  --glass: rgba(255, 255, 255, 0.05);
+  --text: #eef2f8;
+  --text-2: #9aa4b4;
+  --text-3: #626d7d;
+  --accent: #4da3ff;
+  --on-accent: #04101f;
+  --border: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='aurora'] {
+  --base: #04070c;
+  --surface: #0a121c;
+  --glass: rgba(255, 255, 255, 0.05);
+  --text: #eaf5ff;
+  --text-2: #93a8bb;
+  --text-3: #5d7286;
+  --accent: #57e8c0;
+  --on-accent: #032018;
+  --border: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='magma'] {
+  --base: #08050a;
+  --surface: #140d12;
+  --glass: rgba(255, 255, 255, 0.05);
+  --text: #f7eef0;
+  --text-2: #b39aa2;
+  --text-3: #7d6870;
+  --accent: #ff6a3d;
+  --on-accent: #1c0703;
+  --border: rgba(255, 255, 255, 0.1);
+}
+
+/* Structural defaults. The `flat` style pack leaves these alone; comic, toon
+   and hyperreal override them in styles.css to change the studio's whole
+   material, not just its colours. */
+:root {
+  --bd-w: 1px;                 /* outline weight on cards, buttons, inputs */
+  --ink: var(--border);        /* the "drawn line" colour */
+  --card-shadow: none;         /* extra shadow layer components opt into */
+  --card-shadow-hover: none;
+  --tilt: 0deg;                /* cards sit straight unless a pack tilts them */
+  --texture: none;             /* halftone / paper / grain overlay */
+  --texture-size: 8px 8px;
+  --texture-opacity: 0;
+
+  /* A hand-drawn rule, used as a mask so it takes the accent colour of
+     whatever skin is active. Inline, because a phone on college WiFi has no
+     internet to fetch an asset. */
+  --squiggle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 14' preserveAspectRatio='none'%3E%3Cpath d='M3 9 C25 2 45 12 68 7 S112 2 134 8 S178 12 197 5' fill='none' stroke='%23000' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+/* Derived tones — defined once, so every skin gets them for free. */
+:root {
+  --accent-hi: color-mix(in srgb, var(--accent) 80%, #fff);
+  --accent-lo: color-mix(in srgb, var(--accent) 84%, #000);
+  --accent-weak: color-mix(in srgb, var(--accent) 15%, transparent);
+  --accent-ghost: color-mix(in srgb, var(--accent) 8%, transparent);
+  color-scheme: light;
+}
+
+/* Light skins want gentler ambient shadows than the dark ones. */
+:root,
+[data-theme='peach'],
+[data-theme='sunburst'],
+[data-theme='skyline'],
+[data-theme='sherbet'],
+[data-theme='paper'],
+[data-theme='newsprint'],
+[data-theme='bubblegum'],
+[data-theme='slime'] {
+  --shadow-md: 0 8px 24px -10px rgba(0, 0, 0, 0.16);
+  --shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme='ink-night'],
+[data-theme='midnight-ink'],
+[data-theme='hypnic'],
+[data-theme='rose'],
+[data-theme='iris'],
+[data-theme='ember'],
+[data-theme='acid'],
+[data-theme='cyberpunk'],
+[data-theme='molten'],
+[data-theme='sunset'],
+[data-theme='pixel'],
+[data-theme='bit16'],
+[data-theme='velvet'],
+[data-theme='noir'],
+[data-theme='inkwell'],
+[data-theme='obsidian'],
+[data-theme='aurora'],
+[data-theme='magma'] {
+  color-scheme: dark;
+  --shadow-md: 0 8px 24px -8px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 24px 60px -16px rgba(0, 0, 0, 0.7);
+}
+
+/* Engines without color-mix still get a usable studio. */
+@supports not (color: color-mix(in srgb, red 50%, blue)) {
+  :root {
+    --accent-hi: var(--accent);
+    --accent-lo: var(--accent);
+    --accent-weak: rgba(255, 90, 77, 0.15);
+    --accent-ghost: rgba(255, 90, 77, 0.08);
+  }
+}

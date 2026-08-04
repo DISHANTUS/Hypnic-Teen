@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en" data-theme="peach" data-style="modern">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>Hypnic Teen — Fun World</title>
+<meta name="description" content="Hypnic Teen is a game studio. Fun World is its arcade — play together on PC and Android, on college WiFi or online." />
+<meta name="theme-color" content="#ffeee2" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta property="og:title" content="Hypnic Teen — Fun World" />
+<meta property="og:description" content="8 party games you can play together on any phone or laptop. No installs. Get your Hypnic ID and jump in." />
+<meta property="og:type" content="website" />
+<meta property="og:image" content="/icons/share-card.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Hypnic Teen — Fun World" />
+<meta name="twitter:description" content="8 party games for you and your friends. One link, any device." />
+<meta name="twitter:image" content="/icons/share-card.png" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" href="/icons/icon-192.png" />
+<link rel="apple-touch-icon" href="/icons/icon-192.png" />
+<link rel="stylesheet" href="/css/tokens.css" />
+<link rel="stylesheet" href="/css/site.css" />
+<link rel="stylesheet" href="/css/styles.css" />
+<script>
+  // Applied before first paint so the studio never flashes the wrong theme.
+  // Must honour the same version gate as theme.js, or a stale saved choice
+  // would paint once and then get corrected a moment later.
+  try {
+    if (localStorage.getItem('htfw:themeVersion') === '3') {
+      var t = localStorage.getItem('htfw:theme');
+      var s = localStorage.getItem('htfw:style');
+      if (t) document.documentElement.setAttribute('data-theme', t);
+      if (s) document.documentElement.setAttribute('data-style', s);
+    }
+  } catch (e) {}
+</script>
+</head>
+<body>
+
+<div class="ambience" aria-hidden="true">
+  <div class="ambience-grid"></div>
+  <div class="ambience-grain"></div>
+</div>
+
+<header class="topbar">
+  <a class="brand" href="#/" data-nav aria-label="Hypnic Teen home">
+    <span class="brand-mark">H</span>
+    <span class="brand-text">
+      <b>Hypnic Teen</b>
+      <small>Fun World</small>
+    </span>
+  </a>
+
+  <nav class="topnav" id="topnav" hidden>
+    <a href="#/" data-nav data-route="#/">Arcade</a>
+    <a href="#/leaderboard" data-nav data-route="#/leaderboard">Leaderboard</a>
+    <a href="#/titles" data-nav data-route="#/titles">Titles</a>
+    <a href="#/studio" data-nav data-route="#/studio">Studio</a>
+  </nav>
+
+  <div class="topbar-right">
+    <span class="conn" id="conn" data-state="off" title="Connection status"></span>
+    <button class="icon-btn" id="newsBtn" type="button" title="Word from the studio" aria-label="Notices" hidden>
+      🔔<span class="news-badge" id="newsCount" hidden>0</span>
+    </button>
+    <button class="icon-btn" id="soundBtn" type="button" title="Sound on/off" aria-label="Sound on/off">🔊</button>
+    <button class="icon-btn" id="themeBtn" type="button" title="Change skin" aria-label="Change skin">◐</button>
+    <button class="profile-chip" id="profileChip" type="button" hidden>
+      <span class="avatar" id="chipAvatar">?</span>
+      <span class="chip-meta">
+        <b id="chipName">—</b>
+        <small id="chipLevel">Lv 1</small>
+      </span>
+    </button>
+  </div>
+</header>
+
+<main id="view"></main>
+
+<footer class="site-foot">
+  <b>Hypnic Teen</b> · Fun World · built for college WiFi and the open internet
+</footer>
+
+<!-- ========================= THE STUDIO LANDING ========================== -->
+
+<template id="view-landing">
+  <div class="landing">
+    <section class="landing-hero">
+      <span class="eyebrow"><span class="pulse"></span>Hypnic Teen Studio</span>
+      <h1 class="wordmark">
+        <span class="line"><span>Hypnic</span></span>
+        <span class="line hollow"><span>Teen</span></span>
+      </h1>
+      <p class="landing-lede">
+        We build worlds you can walk into &mdash; and games you can play with the people
+        sitting next to you. <b>Fun World</b> is our arcade: one link, any phone or
+        laptop, no installs, no app store.
+      </p>
+      <div class="landing-cta">
+        <button class="btn btn-primary btn-lg" id="createIdBtn" type="button">Get your Hypnic ID</button>
+        <button class="btn btn-ghost btn-lg" id="haveIdBtn" type="button">I already have one</button>
+      </div>
+    </section>
+
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee-track" id="marqueeTrack"></div>
+    </div>
+
+    <section class="reveal">
+      <div class="band-head">
+        <span class="eyebrow">The arcade</span>
+        <h2>Games made to be played in the same room.</h2>
+        <p>
+          Everything runs on one server. Host it on your laptop at college and your friends
+          join over WiFi &mdash; or point it at the internet and play from anywhere. The rules
+          run on the server, so nobody can cheat.
+        </p>
+      </div>
+      <div class="game-grid" id="landingGames"></div>
+    </section>
+
+    <section class="reveal">
+      <div class="id-pitch">
+        <div class="studio-mark centered">H</div>
+        <div class="band-head" style="margin: 0 auto; text-align: center;">
+          <h2>No email. No password reset. Just an ID.</h2>
+          <p>
+            Answer six questions and the studio derives an identity from your name, your age
+            and your answers. It is yours, nobody else gets it, and it carries your points,
+            your stats and your titles to any device you sign in on.
+          </p>
+        </div>
+        <div class="id-sample">Hypnic&gt;<span id="sampleWord">ShadowFox</span>&lt;Teen</div>
+        <div class="gate-actions">
+          <button class="btn btn-primary" id="createIdBtn2" type="button">Make mine</button>
+        </div>
+        <p class="caption dim" id="memberCount"></p>
+      </div>
+    </section>
+
+    <section class="reveal">
+      <div class="band-head">
+        <span class="eyebrow">In development</span>
+        <h2>The Hypnic ecosystem.</h2>
+        <p>
+          Four projects that turn a photograph into a world you can explore. Fun World is
+          where we test what makes people actually want to keep playing.
+        </p>
+      </div>
+      <div class="rows">
+        <article class="row">
+          <span class="row-num">01</span>
+          <div><h3>Hypnic Weaver</h3><span class="row-tag">Reconstruction</span></div>
+          <p>What does this place look like? Rebuilds explorable environments from photos and video.</p>
+        </article>
+        <article class="row">
+          <span class="row-num">02</span>
+          <div><h3>COHERATION</h3><span class="row-tag">Knowledge</span></div>
+          <p>What is this thing, and how does it behave? Explainable, evidence-backed knowledge about every entity.</p>
+        </article>
+        <article class="row">
+          <span class="row-num">03</span>
+          <div><h3>Teen's Hypnic</h3><span class="row-tag">Assets</span></div>
+          <p>How should it be built? Turns specifications into production-ready assets.</p>
+        </article>
+        <article class="row">
+          <span class="row-num">04</span>
+          <div><h3>Hypnic Core</h3><span class="row-tag live">Runtime</span></div>
+          <p>How does it all run together? A deterministic, engine-independent kernel where replay is re-simulation &mdash; bit-identical in the browser and on a server.</p>
+        </article>
+        <article class="row">
+          <span class="row-num">05</span>
+          <div><h3>Fun World</h3><span class="row-tag live">Live now</span></div>
+          <p>The arcade you are looking at. Local and online multiplayer, one identity, one leaderboard.</p>
+        </article>
+      </div>
+    </section>
+  </div>
+</template>
+
+<!-- ============================ MEMBERSHIP =============================== -->
+
+<template id="view-signup">
+  <section class="wizard">
+    <a class="back" href="#/gate" data-nav>&larr; Back to the studio</a>
+    <div class="wizard-card">
+      <div class="progress"><span id="progressBar"></span></div>
+      <p class="step-count" id="stepCount"></p>
+      <div id="stepBody"></div>
+      <p class="error" id="signupError" hidden></p>
+      <div class="wizard-actions">
+        <button class="btn btn-quiet" id="prevStep" type="button">Back</button>
+        <button class="btn btn-primary" id="nextStep" type="button">Next</button>
+      </div>
+    </div>
+  </section>
+</template>
+
+<template id="view-login">
+  <section class="wizard">
+    <a class="back" href="#/gate" data-nav>&larr; Back to the studio</a>
+    <div class="wizard-card">
+      <h2>Welcome back</h2>
+      <p class="muted small">Type your whole ID, or just the word in the middle.</p>
+      <label class="field">
+        <span>Hypnic ID</span>
+        <input id="loginId" type="text" placeholder="Hypnic&gt;ShadowFox&lt;Teen" autocomplete="username" spellcheck="false" />
+      </label>
+      <label class="field">
+        <span>4-digit PIN</span>
+        <input id="loginPin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="current-password" class="pin-input" />
+      </label>
+      <p class="error" id="loginError" hidden></p>
+      <div class="wizard-actions">
+        <button class="btn btn-quiet" id="toSignup" type="button">I need an ID</button>
+        <button class="btn btn-primary" id="loginBtn" type="button">Enter studio</button>
+      </div>
+      <button class="link-btn" id="forgotId" type="button">I forgot my ID</button>
+    </div>
+  </section>
+</template>
+
+<!-- A Hypnic ID is memorable to read and impossible to remember, which is a
+     fine trade until somebody clears their browser. This gets it back without
+     handing it to whoever knows your first name. -->
+<template id="view-recover">
+  <section class="wizard">
+    <a class="back" href="#/login" data-nav>&larr; Back to signing in</a>
+    <div class="wizard-card">
+      <h2>Find your ID</h2>
+      <p class="muted small">Your name and your PIN. If you set a recovery question, that too.</p>
+      <label class="field">
+        <span>The name you signed up with</span>
+        <input id="recName" type="text" maxlength="16" placeholder="Your name" spellcheck="false" />
+      </label>
+      <label class="field">
+        <span>4-digit PIN</span>
+        <input id="recPin" type="password" inputmode="numeric" maxlength="4" placeholder="••••" class="pin-input" />
+      </label>
+      <label class="field" id="recAnswerField" hidden>
+        <span id="recQuestion">Your recovery answer</span>
+        <input id="recAnswer" type="text" maxlength="60" placeholder="Your answer" spellcheck="false" />
+      </label>
+      <p class="error" id="recError" hidden></p>
+      <div class="recovered" id="recFound" hidden>
+        <span class="muted small">Your Hypnic ID</span>
+        <div class="code" id="recId">—</div>
+        <p class="muted small" id="recSince"></p>
+        <button class="btn btn-primary" id="recGo" type="button">Sign in with it</button>
+      </div>
+      <div class="wizard-actions" id="recActions">
+        <button class="btn btn-primary" id="recFind" type="button">Find it</button>
+      </div>
+    </div>
+  </section>
+</template>
+
+<!-- Word from the studio: maintenance, rewards, and anything the owner wants
+     the room to know before they wonder why the server went quiet. -->
+<dialog id="newsDialog" class="dlg">
+  <h3 id="newsTitle">From the studio</h3>
+  <div class="news-list" id="newsList"></div>
+  <div class="dlg-actions">
+    <button class="btn btn-primary" id="newsClose" type="button">Got it</button>
+  </div>
+</dialog>
+
+<template id="view-reveal">
+  <section class="reveal-screen">
+    <p class="reveal-kicker">The studio has decided</p>
+    <h1>You are</h1>
+    <div class="reveal-id" id="revealId"></div>
+    <p class="reveal-spirit" id="revealSpirit"></p>
+    <div class="reveal-note">
+      <b>Write this down.</b> Your ID and PIN are the only way back to your profile,
+      your points and your titles. There is no email to reset.
+    </div>
+    <div class="gate-actions">
+      <button class="btn btn-ghost" id="copyIdBtn" type="button">Copy my ID</button>
+      <button class="btn btn-primary btn-lg" id="enterStudioBtn" type="button">Enter the arcade</button>
+    </div>
+  </section>
+</template>
+
+<!-- ============================== ARCADE ================================= -->
+
+<template id="view-home">
+  <section class="hero">
+    <span class="eyebrow"><span class="pulse"></span>The arcade is open</span>
+    <h1>Pick a game.<br /><span class="underline">Bring your friends.</span></h1>
+    <p>
+      Host a room, share the four-letter code, and everyone plays from whatever they
+      already have in their pocket.
+    </p>
+    <div class="hero-actions">
+      <button class="btn btn-primary btn-lg" id="hostCta" type="button">Host a game</button>
+      <button class="btn btn-ghost btn-lg" id="joinCta" type="button">Join with a code</button>
+    </div>
+    <div class="stat-strip" id="statStrip"></div>
+  </section>
+
+  <!-- Tournaments get their own column on the front page: an open cup is the
+       one thing on the site with a deadline, so burying it under the games
+       would mean people miss it. -->
+  <section class="cups" id="cupColumn" hidden>
+    <div class="section-head">
+      <h2>Tournaments</h2>
+      <button class="btn btn-ghost btn-sm" id="newCupBtn" type="button">Run one</button>
+    </div>
+    <div class="cup-list" id="cupList"></div>
+  </section>
+
+  <div class="section-head">
+    <h2>Games</h2>
+    <span class="count" id="gameCount"></span>
+  </div>
+  <div class="game-grid" id="gameGrid" data-stagger></div>
+</template>
+
+<template id="view-cup">
+  <section class="cup-page">
+    <a class="back" href="#/" data-nav>&larr; All games</a>
+    <div class="panel">
+      <div class="cup-head">
+        <span class="emoji" id="cupEmoji">🏆</span>
+        <div>
+          <h2 id="cupName">Tournament</h2>
+          <p class="muted small" id="cupMeta" style="margin:4px 0 0"></p>
+        </div>
+      </div>
+      <p class="cup-reward" id="cupReward" hidden></p>
+      <p class="cup-clock" id="cupClock"></p>
+
+      <div class="cup-actions" id="cupActions"></div>
+      <p class="form-error" id="cupError" hidden></p>
+
+      <div id="cupEntrants">
+        <h3 class="section-label">Entered <span class="dim" id="cupCount"></span></h3>
+        <div class="cup-teams" id="cupTeams"></div>
+      </div>
+
+      <div id="cupBracketWrap" hidden>
+        <h3 class="section-label">Bracket</h3>
+        <div class="bracket" id="cupBracket"></div>
+      </div>
+    </div>
+  </section>
+</template>
+
+<template id="view-lobby">
+  <section class="lobby">
+    <a class="back" href="#/" data-nav>&larr; All games</a>
+    <div class="panel">
+      <div class="lobby-head">
+        <span class="emoji" id="lobbyEmoji">🎮</span>
+        <div>
+          <h2 id="lobbyGame">Game</h2>
+          <p class="muted small" id="lobbyTagline" style="margin:4px 0 0"></p>
+        </div>
+      </div>
+
+      <div class="code-block">
+        <span class="code-label">Room code</span>
+        <div class="code" id="roomCode">----</div>
+        <div class="code-actions">
+          <button class="btn btn-ghost btn-sm" id="showQr" type="button">Show QR</button>
+          <button class="btn btn-ghost btn-sm" id="copyLink" type="button">Copy invite link</button>
+          <button class="btn btn-ghost btn-sm" id="shareLink" type="button" hidden>Share</button>
+          <button class="btn btn-ghost btn-sm" id="callEveryone" type="button" hidden>📣 Call everyone</button>
+        </div>
+        <p class="join-hint" id="joinHint"></p>
+      </div>
+
+      <div class="setup">
+        <div class="setup-head">
+          <h3 class="section-label">Setup</h3>
+          <button class="btn btn-ghost btn-sm" id="editSetup" type="button" hidden>Edit</button>
+        </div>
+        <p class="setup-summary" id="setupSummary"></p>
+        <div class="setup-fields" id="setupFields" hidden></div>
+      </div>
+
+      <div class="players">
+        <div class="setup-head">
+          <h3 class="section-label">Players <span class="dim" id="playerCount"></span></h3>
+          <div class="bot-actions" id="botActions" hidden>
+            <button class="btn btn-ghost btn-sm" id="addBot" type="button">+ CPU</button>
+            <button class="btn btn-ghost btn-sm" id="dropBot" type="button">− CPU</button>
+            <button class="btn btn-ghost btn-sm" id="fillBots" type="button">Fill</button>
+          </div>
+        </div>
+        <ul id="playerList"></ul>
+      </div>
+
+      <div class="lobby-actions">
+        <button class="btn btn-primary" id="startBtn" type="button">Start game</button>
+        <button class="btn btn-quiet" id="leaveBtn" type="button">Leave room</button>
+      </div>
+      <p class="error" id="lobbyError" hidden></p>
+    </div>
+
+    <div class="panel chat-card">
+      <h3 class="section-label" style="margin-top:0">Room chat</h3>
+      <ul id="chatLog" class="chat-log"></ul>
+      <form id="chatForm" class="chat-form">
+        <input id="chatInput" type="text" placeholder="Say something…" maxlength="200" autocomplete="off" />
+        <button class="btn btn-ghost btn-sm" type="submit">Send</button>
+      </form>
+    </div>
+  </section>
+</template>
+
+<template id="view-play">
+  <section class="play">
+    <div class="play-bar">
+      <button class="btn btn-quiet btn-sm" id="quitBtn" type="button">&larr; Lobby</button>
+      <div class="hud" id="hud"></div>
+    </div>
+    <div class="stage-wrap" id="stageWrap">
+      <canvas id="stage"></canvas>
+    </div>
+  </section>
+</template>
+
+<template id="view-leaderboard">
+  <section>
+    <div class="board-head">
+      <h2>Leaderboard</h2>
+      <div class="filters">
+        <select id="boardGame" aria-label="Filter by game">
+          <option value="">All games · studio points</option>
+        </select>
+        <select id="boardSort" aria-label="Sort by">
+          <option value="points">Points</option>
+          <option value="wins">Wins</option>
+          <option value="best">Best score</option>
+        </select>
+      </div>
+    </div>
+    <ol class="board-list" id="boardList" data-stagger></ol>
+  </section>
+</template>
+
+<template id="view-profile">
+  <section class="profile">
+    <div class="panel">
+      <div class="profile-top">
+        <div class="avatar big" id="profAvatar">?</div>
+        <div>
+          <h2 id="profName">—</h2>
+          <p class="profile-id" id="profId"></p>
+          <p class="caption dim" id="profSpirit"></p>
+        </div>
+      </div>
+
+      <!-- The only way back in if the ID is lost, which is why it sits here
+           in plain sight rather than behind a settings menu. -->
+      <section class="recovery-box" id="recoveryBox">
+        <div class="setup-head">
+          <h3 class="section-label">Getting back in</h3>
+          <span class="recovery-state" id="recoveryState"></span>
+        </div>
+        <p class="muted small" id="recoveryBlurb"></p>
+        <div class="recovery-form" id="recoveryForm" hidden>
+          <label class="field">
+            <span>A question only you can answer</span>
+            <input id="recQ" type="text" maxlength="80" list="recQIdeas" placeholder="What was my first school?" />
+            <datalist id="recQIdeas">
+              <option value="What was my first school?"></option>
+              <option value="What is my mother's first name?"></option>
+              <option value="What street did I grow up on?"></option>
+              <option value="What was my first phone?"></option>
+              <option value="Who was my best friend in school?"></option>
+              <option value="What are the last 4 digits of my phone number?"></option>
+            </datalist>
+          </label>
+          <label class="field">
+            <span>The answer</span>
+            <input id="recA" type="text" maxlength="60" placeholder="Your answer" />
+          </label>
+          <p class="error" id="recSaveError" hidden></p>
+          <button class="btn btn-primary" id="recSave" type="button">Save it</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="recToggle" type="button">Set it up</button>
+      </section>
+
+      <div class="stat-row" id="statRow"></div>
+
+      <h3 class="section-label">Titles <span class="dim" id="titleCount"></span></h3>
+      <div class="title-wall" id="titleWall"></div>
+
+      <h3 class="section-label">Per game</h3>
+      <div class="game-stats" id="gameStats"></div>
+
+      <div class="wizard-actions">
+        <button class="btn btn-ghost" id="copyProfileId" type="button">Copy my ID</button>
+        <button class="btn btn-quiet btn-danger" id="logoutBtn" type="button">Sign out</button>
+      </div>
+    </div>
+  </section>
+</template>
+
+<template id="view-titles">
+  <section>
+    <div class="board-head"><h2>Titles you can earn</h2></div>
+    <p class="muted small" style="margin-top:calc(var(--sp-2x) * -1); margin-bottom:var(--sp-2x)">
+      Earned automatically the moment a match ends. They stay on your profile forever.
+    </p>
+    <div class="title-wall" id="allTitles" data-stagger></div>
+  </section>
+</template>
+
+<template id="view-studio">
+  <section class="doc">
+    <span class="eyebrow">About</span>
+    <h2 style="font-size:clamp(24px,5vw,36px);margin:var(--sp-md) 0 var(--sp-lg)">Hypnic Teen</h2>
+    <p class="muted"><em>&ldquo;Imagination is the limit.&rdquo;</em></p>
+    <p>
+      A studio building tools and runtimes for AI-generated interactive worlds &mdash;
+      and, on the side, the arcade you are signed in to.
+    </p>
+    <p>
+      <button class="btn btn-ghost" id="replayIntro" type="button">&#9654; Watch our opening</button>
+    </p>
+    <h2>What we are building</h2>
+    <p>
+      Four projects that take a photograph and turn it into a world you can walk into:
+      <b>Hypnic Weaver</b> reconstructs the place, <b>COHERATION</b> works out what everything
+      in it is and how it behaves, <b>Teen's Hypnic</b> builds the assets, and <b>Hypnic Core</b>
+      runs the whole thing deterministically &mdash; the same session replays bit-for-bit in a
+      browser and on a server.
+    </p>
+    <h2>Why an arcade</h2>
+    <p>
+      Fun World is not a side quest. It is where we learn what actually keeps people playing:
+      how a lobby should feel, how fast a match should end, what makes someone come back
+      tomorrow. Every game here runs its rules on the server, exactly like Core does.
+    </p>
+    <h2>Play with us</h2>
+    <p>
+      Grab a Hypnic ID, host a room on your laptop, and send the code to whoever is nearby.
+      <a href="#/how" data-nav class="accent-text">Here's how to host at college.</a>
+    </p>
+  </section>
+</template>
+
+<template id="view-how">
+  <section class="doc">
+    <a class="back" href="#/" data-nav>&larr; Back</a>
+    <h2>Hosting at college</h2>
+    <ol>
+      <li>On your laptop run <code>npm start</code>.</li>
+      <li>The terminal prints a <b>Friends join</b> address like <code>http://192.168.1.7:8008</code>.</li>
+      <li>Everyone connects to the <b>same WiFi</b> (or your phone's hotspot) and opens that address.</li>
+      <li>They make a Hypnic ID once, then join your room with the four-letter code.</li>
+    </ol>
+    <p>No internet needed for local play &mdash; the hotspot alone is enough.</p>
+    <h2>Sending someone a link</h2>
+    <p>
+      For a friend who isn't on your WiFi, run <code>npm run share</code> in a second terminal.
+      It prints a public <code>https://</code> link that works from anywhere, for as long as you
+      leave it running. For a permanent link, deploy the folder to any Node host.
+    </p>
+    <p>
+      Room codes work identically either way, and IDs, points and titles carry across both.
+    </p>
+    <h2>Install on Android</h2>
+    <p>Open the site in Chrome &rarr; menu &rarr; <b>Add to Home screen</b>. It launches fullscreen like a real app.</p>
+  </section>
+</template>
+
+<!-- ============================== DIALOGS ================================ -->
+
+<dialog id="joinDialog" class="dlg">
+  <form method="dialog">
+    <h3>Enter room code</h3>
+    <input id="codeInput" type="text" maxlength="4" placeholder="ABCD" autocomplete="off"
+           autocapitalize="characters" spellcheck="false" class="code-input" />
+    <p class="error" id="joinError" hidden></p>
+    <div class="dlg-actions">
+      <button class="btn btn-quiet" value="cancel" type="submit">Cancel</button>
+      <button class="btn btn-primary" value="join" type="submit">Join</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="overDialog" class="dlg">
+  <h3 id="overTitle">Game over</h3>
+  <ol id="resultsList" class="results"></ol>
+  <div class="reward" id="rewardBox" hidden></div>
+  <!-- This dialog is modal, so while it is up it covers the header and its
+       Lobby button. Every way out of a finished match therefore has to be
+       here, or it cannot be pressed at all. -->
+  <div class="dlg-actions">
+    <button class="btn btn-quiet" id="overLeaveBtn" type="button">Leave</button>
+    <button class="btn btn-primary" id="againBtn" type="button">Back to lobby</button>
+  </div>
+</dialog>
+
+<dialog id="cupDialog" class="dlg">
+  <h3>Run a tournament</h3>
+  <div class="field">
+    <label for="cupGame">Game</label>
+    <select id="cupGame"></select>
+  </div>
+  <div class="field">
+    <label for="cupTitle">Name it</label>
+    <input id="cupTitle" type="text" maxlength="48" placeholder="Friday Night Cup" autocomplete="off" />
+  </div>
+  <div class="field">
+    <label for="cupMode">Who plays</label>
+    <select id="cupMode">
+      <option value="solo">Every player for themselves</option>
+      <option value="teams">Teams</option>
+    </select>
+  </div>
+  <div class="field" id="cupSizeField" hidden>
+    <label for="cupTeamSize">Players per team</label>
+    <select id="cupTeamSize">
+      <option value="2">2 a side</option>
+      <option value="3">3 a side</option>
+      <option value="4">4 a side</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="cupStart">Starts at</label>
+    <input id="cupStart" type="time" />
+    <small class="muted">Registration is open until you press Start.</small>
+  </div>
+  <div class="field">
+    <label for="cupPrize">Prize for the winner</label>
+    <input id="cupPrize" type="text" maxlength="80" placeholder="Chai on me" autocomplete="off" />
+  </div>
+  <!-- A cup of eight at eight rounds a tie is most of an evening, so how each
+       tie is played is set here, once, and every tie inherits it. -->
+  <div class="field">
+    <label>How each tie is played</label>
+    <div class="setup-fields" id="cupSetup"></div>
+  </div>
+  <p class="form-error" id="cupFormError" hidden></p>
+  <div class="dlg-actions">
+    <button class="btn btn-quiet" id="cupCancel" type="button">Cancel</button>
+    <button class="btn btn-primary" id="cupCreate" type="button">Open registration</button>
+  </div>
+</dialog>
+
+<dialog id="qrDialog" class="dlg qr-sheet">
+  <h3>Scan to join</h3>
+  <div class="qr-frame"><img id="qrImage" alt="QR code for the room link" /></div>
+  <p class="qr-caption" id="qrCaption"></p>
+  <p class="muted caption">Any phone camera works. No internet needed &mdash; just the same WiFi or router.</p>
+  <div class="dlg-actions">
+    <button class="btn btn-quiet" id="qrClose" type="button">Done</button>
+  </div>
+</dialog>
+
+<dialog id="themeDialog" class="dlg theme-sheet">
+  <h3>Studio skin</h3>
+  <p class="muted small" style="margin-top:calc(var(--sp-lg) * -1)">
+    Only colours change &mdash; every screen keeps its shape.
+  </p>
+  <div class="theme-grid" id="themeGrid"></div>
+  <div class="dlg-actions">
+    <button class="btn btn-quiet" id="themeClose" type="button">Done</button>
+  </div>
+</dialog>
+
+<script src="/socket.io/socket.io.js"></script>
+<script type="module" src="/js/site.js"></script>
+</body>
+</html>

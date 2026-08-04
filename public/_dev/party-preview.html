@@ -1,0 +1,103 @@
+<!doctype html>
+<!-- Dev-only: renders every party-game phase side by side from canned state.
+     The party client takes `Net` as a parameter, so a stub is enough to drive
+     it — no server, no sockets, no waiting 60 seconds for a phase to change.
+     Use it to check a UI phase in isolation. -->
+<meta charset="utf-8" />
+<title>Party phase preview</title>
+<link rel="stylesheet" href="/css/tokens.css" />
+<link rel="stylesheet" href="/css/site.css" />
+<link rel="stylesheet" href="/css/styles.css" />
+<style>
+  body { margin: 0; padding: 16px; background: var(--base); }
+  .previews { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  .preview { width: 400px; }
+  .preview > h3 {
+    font: 700 11px/1.4 var(--font-ui); letter-spacing: .16em; text-transform: uppercase;
+    color: var(--text-3); margin: 0 0 6px;
+  }
+  .frame { position: relative; height: 620px; border: var(--bd-w) solid var(--border);
+           border-radius: var(--r-lg); overflow: hidden; background: var(--surface); }
+  .hudbar { display: flex; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+</style>
+<div class="previews" id="out"></div>
+
+<script type="module">
+  const mod = await import('/games/_party/client.js');
+
+  const players = [
+    { id: 'a', name: 'Advay', color: '#ff5c8a', score: 40, roundScore: 10, answered: true, voted: true, solved: true },
+    { id: 'b', name: 'Meera', color: '#4ad6ff', score: 25, roundScore: 0, answered: true, voted: false, solved: false },
+    { id: 'c', name: 'Rahul', color: '#ffd166', score: 15, roundScore: 5, answered: false, voted: false, solved: false },
+  ];
+
+  const base = {
+    round: 2, totalRounds: 5, timeLeft: 23, phaseTotal: 60, players,
+    you: { id: 'a', score: 40, role: null, secret: null, answer: null, vote: null, solved: false, isTurn: false },
+    turnPlayerId: null, reveal: null, prompt: null,
+  };
+
+  const SCENES = [
+    ['Imposter · your card', { ...base, mode: 'answer-vote', phase: 'brief', phaseTotal: 8, timeLeft: 6,
+      you: { ...base.you, role: 'civilian', secret: { label: 'Secret word', word: 'Biryani', hint: 'One player has a different word.' } } }],
+    ['Imposter · the imposter', { ...base, mode: 'answer-vote', phase: 'brief', phaseTotal: 8, timeLeft: 6,
+      you: { ...base.you, role: 'imposter', secret: { label: 'You are the IMPOSTER', word: 'Fried rice', hint: 'Blend in. Nobody else has this word.' } } }],
+    ['Answer (free text)', { ...base, mode: 'answer-vote', phase: 'answer',
+      prompt: { title: 'Describe it in one word.', text: 'Answer without giving the word away.' } }],
+    ['Race · hints', { ...base, mode: 'race', phase: 'answer', phaseTotal: 30, timeLeft: 12,
+      prompt: { title: 'Which movie?', text: 'Type your guess.', hints: ['🕷️👨', '"With great power comes great responsibility"'], hintsTotal: 3 } }],
+    ['Quiz · options', { ...base, mode: 'mcq', phase: 'answer', phaseTotal: 20, timeLeft: 9,
+      prompt: { title: 'What is the capital of Japan?', text: 'General Knowledge',
+        options: [{ id: 'o0', label: 'Seoul' }, { id: 'o1', label: 'Tokyo' }, { id: 'o2', label: 'Beijing' }, { id: 'o3', label: 'Bangkok' }] } }],
+    ['Vote', { ...base, mode: 'answer-vote', phase: 'vote', phaseTotal: 35, timeLeft: 18,
+      prompt: { title: 'Who is faking it?', text: 'Pick the imposter.' },
+      answers: [{ playerId: 'b', name: 'Meera', text: 'Cheesy and warm' }, { playerId: 'c', name: 'Rahul', text: 'Honestly overrated' }] }],
+    ['Truth or dare · choose', { ...base, mode: 'turn', phase: 'choose', phaseTotal: 15, timeLeft: 11,
+      turnPlayerId: 'a', you: { ...base.you, isTurn: true },
+      prompt: { title: 'Advay, truth or dare?', text: 'Everyone else, sit tight.' } }],
+    ['Truth or dare · perform', { ...base, mode: 'turn', phase: 'perform', phaseTotal: 60, timeLeft: 41,
+      turnPlayerId: 'a', you: { ...base.you, isTurn: true },
+      prompt: { title: "Advay's dare", text: 'Speak in a cartoon voice until your next turn.', kind: 'dare' } }],
+    ['Imposter · reveal', { ...base, mode: 'answer-vote', phase: 'reveal', phaseTotal: 12, timeLeft: 8,
+      reveal: { headline: 'Imposter caught!', word: 'Biryani', decoy: 'Fried rice',
+        imposters: [{ id: 'c', name: 'Rahul' }],
+        answers: [
+          { playerId: 'a', name: 'Advay', text: 'Warm and heavy', votes: 0, wasImposter: false },
+          { playerId: 'c', name: 'Rahul', text: 'Kind of plain', votes: 3, wasImposter: true },
+        ] } }],
+    ['Poll · reveal', { ...base, mode: 'poll', phase: 'reveal', phaseTotal: 12, timeLeft: 7,
+      reveal: { headline: 'Rahul — 50%', options: [
+        { id: 'c', label: 'Rahul', votes: 2, percent: 50 },
+        { id: 'a', label: 'Advay', votes: 1, percent: 25 },
+        { id: 'b', label: 'Meera', votes: 1, percent: 25 } ] } }],
+    ['Quiz · reveal', { ...base, mode: 'mcq', phase: 'reveal', phaseTotal: 7, timeLeft: 4,
+      reveal: { headline: 'Answer: Tokyo', correctPlayers: ['Advay', 'Meera'], options: [
+        { id: 'o1', label: 'Tokyo', percent: 66, correct: true },
+        { id: 'o0', label: 'Seoul', percent: 34, correct: false } ] } }],
+  ];
+
+  const out = document.getElementById('out');
+  for (const [label, state] of SCENES) {
+    const box = document.createElement('div');
+    box.className = 'preview';
+    box.innerHTML = `<h3></h3><div class="hudbar"></div><div class="frame"><canvas hidden></canvas></div>`;
+    box.querySelector('h3').textContent = label;
+    out.appendChild(box);
+
+    const handlers = [];
+    const Net = {
+      on: (event, fn) => { if (event === 'game:state') handlers.push(fn); return () => {}; },
+      action: () => {},
+      playerId: 'a',
+    };
+
+    mod.default.mount({
+      canvas: box.querySelector('canvas'),
+      wrap: box.querySelector('.frame'),
+      hud: box.querySelector('.hudbar'),
+      Net,
+      meta: { accent: '#f97a5a' },
+    });
+    for (const fn of handlers) fn(state);
+  }
+</script>

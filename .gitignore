@@ -1,0 +1,24 @@
+node_modules/
+data/
+tmp-test/
+tmp-demo/
+tmp-load/
+*.log
+.DS_Store
+
+# Android build output
+android/build/
+android/out/
+
+# Signing key — keep it, but out of git. If you lose it, friends have to
+# uninstall before they can take an update. Back it up somewhere safe.
+android/hypnic.keystore
+
+# Scratch directories the test harnesses create and remove. Listing them one
+# by one meant a new test could quietly commit its own temporary server data.
+tmp-*/
+
+# Bulk media lives outside the repo (see server/media.js) — picture clues and
+# generated models are large, regenerable, and not source.
+public/media/fleet/
+build-media/

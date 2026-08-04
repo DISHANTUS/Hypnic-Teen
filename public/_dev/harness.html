@@ -1,0 +1,76 @@
+<!doctype html>
+<!-- Dev-only device harness. Renders the site at a chosen width inside a fixed
+     iframe (Chrome clamps real window widths to ~500px, so a phone-width
+     screenshot is otherwise just a crop of a wider layout) and reports any box
+     that escapes the viewport unclipped.
+
+       /_dev/harness.html?r=%23/gate&w=412
+       /_dev/harness.html?r=%23/profile&w=412&token=<session token>
+
+     Not linked from anywhere; it only ever frames this same site. -->
+<meta charset="utf-8" />
+<title>Hypnic device harness</title>
+<style>
+  body { margin: 0; background: #202024; color: #a8a8b0; font: 12px/1.5 ui-monospace, Consolas, monospace;
+         display: flex; gap: 16px; padding: 16px; align-items: flex-start; }
+  iframe { border: 0; background: #000; flex: none; }
+  pre { margin: 0; white-space: pre-wrap; }
+</style>
+<iframe id="f"></iframe>
+<pre id="out">measuring…</pre>
+<script>
+  const params = new URLSearchParams(location.search);
+  const route = params.get('r') || '#/gate';
+  const width = Number(params.get('w')) || 412;
+  const height = Number(params.get('h')) || 900;
+  const token = params.get('token');
+
+  // Same origin as the iframe, so seeding here applies inside the frame.
+  if (token) localStorage.setItem('htfw:token', token);
+  else if (params.has('signout')) localStorage.removeItem('htfw:token');
+
+  // Stamp the current theme version too, or theme.js's migration treats the
+  // override as stale and resets it to the studio default.
+  if (params.has('theme') || params.has('style')) localStorage.setItem('htfw:themeVersion', '3');
+  if (params.has('theme')) localStorage.setItem('htfw:theme', params.get('theme'));
+  if (params.has('style')) localStorage.setItem('htfw:style', params.get('style'));
+
+  const frame = document.getElementById('f');
+  frame.style.width = width + 'px';
+  frame.style.height = height + 'px';
+  frame.src = '/' + route;
+
+  // Surface anything the framed app throws — a silent error otherwise just
+  // looks like "the screen didn't update".
+  const errors = [];
+  frame.addEventListener('load', () => {
+    const w = frame.contentWindow;
+    w.addEventListener('error', (e) => errors.push(`${e.message} @ ${e.filename}:${e.lineno}`));
+    w.addEventListener('unhandledrejection', (e) => errors.push(`unhandled: ${e.reason}`));
+    const realError = w.console.error;
+    w.console.error = (...args) => {
+      errors.push(args.map((a) => (a && a.stack) || String(a)).join(' '));
+      realError.apply(w.console, args);
+    };
+  });
+
+  frame.onload = () => setTimeout(() => {
+    const doc = frame.contentDocument;
+    const vw = frame.contentWindow.innerWidth;
+    const lines = [`route=${route}`, `viewport=${vw}`, `scrollWidth=${doc.documentElement.scrollWidth}`, ''];
+    if (errors.length) lines.push('ERRORS:', ...errors.slice(0, 6), '');
+    const over = [];
+    for (const el of doc.querySelectorAll('*')) {
+      const r = el.getBoundingClientRect();
+      if (r.right <= vw + 1) continue;
+      // Anything deliberately clipped by an ancestor is not a layout bug.
+      if (getComputedStyle(el).overflowX !== 'visible' || el.closest('.ambience, .marquee')) continue;
+      over.push(`right=${Math.round(r.right)} w=${Math.round(r.width)}  ` +
+        el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') +
+        (typeof el.className === 'string' && el.className
+          ? '.' + el.className.trim().split(/\s+/).join('.') : ''));
+    }
+    lines.push(over.length ? 'OVERFLOWING:' : 'no unclipped overflow', ...over.slice(0, 12));
+    document.getElementById('out').textContent = lines.join('\n');
+  }, 2600);
+</script>

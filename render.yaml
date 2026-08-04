@@ -1,0 +1,27 @@
+# Deploy the studio to Render for a permanent link.
+#
+#   1. Push this folder to GitHub
+#   2. render.com → New → Blueprint → pick the repo
+#
+# The disk matters: without it the filesystem is wiped on every deploy and
+# everyone's Hypnic ID, points and titles go with it.
+
+services:
+  - type: web
+    name: hypnic-teen-fun-world
+    runtime: node
+    plan: starter # free has no persistent disk — accounts would not survive a deploy
+    buildCommand: npm ci && npm run icons
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+      # Set AI_GAME_MASTER=1 and ANTHROPIC_API_KEY in the dashboard to turn on
+      # the Game Master. Never commit the key.
+    disk:
+      name: studio-data
+      mountPath: /var/data
+      sizeGB: 1
