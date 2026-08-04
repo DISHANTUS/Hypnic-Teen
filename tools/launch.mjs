@@ -106,6 +106,11 @@ if (await portOpen(PORT)) {
 // both — a second port has no route from outside the house. Decided before
 // the server starts, because the server has to know whether to mount the
 // proxy, and Study has to be built knowing its own prefix.
+// The IELTS trainer is a separate project that signs people in with their
+// Hypnic ID, so it belongs to the same evening as the studio. Missing or
+// broken, it becomes a line of explanation rather than a failed launch.
+const STUDY_ROOT = process.env.HYPNIC_STUDY_ROOT || path.join(ROOT, '..', 'IELTS');
+const STUDY_PORT = Number(process.env.STUDY_PORT) || 3000;
 const STUDY_BASE = process.env.STUDY_BASE_PATH ?? '/study';
 // Dev mode cannot be proxied under a prefix reliably — its hot-reload client
 // assumes the root — so the two are mutually exclusive.
@@ -121,12 +126,6 @@ const server = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], 
 });
 
 /* ------------------------------ hypnic study ------------------------------ */
-
-// The IELTS trainer is a separate project that signs people in with their
-// Hypnic ID, so it belongs to the same evening as the studio. Missing or
-// broken, it becomes a line of explanation rather than a failed launch.
-const STUDY_ROOT = process.env.HYPNIC_STUDY_ROOT || path.join(ROOT, '..', 'IELTS');
-const STUDY_PORT = Number(process.env.STUDY_PORT) || 3000;
 
 let study = null;
 
