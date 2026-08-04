@@ -11,7 +11,7 @@ set NGROK_AUTHTOKEN=
 set NGROK_DOMAIN=
 
 REM  Your own Hypnic ID, so notices you post are signed by the studio.
-set OWNER_ID=Hypnic^>AzureSloth^<Teen
+set OWNER_ID=
 
 cd /d "%~dp0"
 

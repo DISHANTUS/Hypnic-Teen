@@ -405,7 +405,11 @@ function openTunnel(exe, port) {
     };
     // cloudflared prints its banner on stderr, so both streams are read.
     const scan = (chunk) => {
-      const hit = String(chunk).match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i);
+      // cloudflared talks to api.trycloudflare.com to set the tunnel up and
+      // logs that too, so a plain match on the domain hands back Cloudflare's
+      // own endpoint — which answers, looks fine, and serves nothing of ours.
+      // The address we want is several words joined by hyphens; theirs is not.
+      const hit = String(chunk).match(/https:\/\/(?!api\.)[a-z0-9]+(?:-[a-z0-9]+){2,}\.trycloudflare\.com/i);
       if (hit) done(hit[0]);
     };
     child.stdout.on('data', scan);

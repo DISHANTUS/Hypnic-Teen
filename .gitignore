@@ -26,3 +26,6 @@ build-media/
 # Stray runtime logs. `*.log` missed these.
 *.err
 *.err.log
+
+# Holds your ngrok authtoken — a secret, and this repo is public.
+START-ONLINE.cmd
