@@ -1264,9 +1264,9 @@ function renderLobby(code) {
     go('#/');
   });
 
-  $('#chatForm').addEventListener('submit', (e) => {
+  $('#dmForm').addEventListener('submit', (e) => {
     e.preventDefault();
-    const input = $('#chatInput');
+    const input = $('#dmInput');
     if (input.value.trim()) Net.chat(input.value);
     input.value = '';
   });
@@ -1342,7 +1342,7 @@ function renderLobby(code) {
   const offRoom = Net.on('room:state', paintRoom);
   const offJoin = Net.on('room:joined', (p) => paintRoom(p.room));
   const offChat = Net.on('chat:message', (msg) => {
-    const log = $('#chatLog');
+    const log = $('#dmLog');
     if (!log) return;
     if (msg.name !== Auth.profile?.name) Sound.play('chat');
     const li = document.createElement('li');
@@ -1702,6 +1702,245 @@ function route() {
 
 Net.on('status', ({ online }) => connDot.setAttribute('data-state', online ? 'on' : 'off'));
 
+/* --------------------------------- people --------------------------------- */
+
+// Who else is in the studio, and everything you can do about it: open their
+// card, ask to be friends, say something, or call them into the room you are
+// already sitting in.
+const peopleBtn = document.getElementById('peopleBtn');
+const peopleCount = document.getElementById('peopleCount');
+let people = [];      // the whole membership, online flag included
+let pendingIn = [];   // requests waiting on me
+
+async function loadPeople() {
+  if (!Auth.token) {
+    peopleBtn.hidden = true;
+    return;
+  }
+  const res = await Net.request('social:here', { token: Auth.token });
+  if (res?.error) return;
+  people = res.directory ?? [];
+  pendingIn = res.requests ?? [];
+  peopleBtn.hidden = false;
+  const nudges = pendingIn.length + (res.unread ?? 0);
+  peopleCount.hidden = nudges === 0;
+  peopleCount.textContent = nudges > 9 ? '9+' : String(nudges);
+  peopleBtn.title = `${people.filter((p) => p.online).length} online · ${people.length} members`;
+}
+
+function openPeople() {
+  const dlg = document.getElementById('peopleDialog');
+  const search = document.getElementById('peopleSearch');
+
+  const paint = () => {
+    const term = search.value.trim().toLowerCase();
+    const shown = people.filter((p) => !p.you && (!term || p.name.toLowerCase().includes(term)));
+    const online = shown.filter((p) => p.online).length;
+    document.getElementById('peopleTitle').textContent = `Members · ${online} online of ${people.length}`;
+
+    // Anyone waiting on an answer goes to the top, with the two buttons.
+    const reqBox = document.getElementById('peopleRequests');
+    reqBox.hidden = pendingIn.length === 0;
+    reqBox.replaceChildren(
+      ...pendingIn.map((r) => {
+        const row = document.createElement('div');
+        row.className = 'person request';
+        row.innerHTML = '<b></b><span class="muted small">wants to be friends</span>';
+        $('b', row).textContent = r.name;
+        for (const [label, cls, event] of [
+          ['Accept', 'btn-primary', 'social:accept'],
+          ['No', 'btn-quiet', 'social:decline'],
+        ]) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = `btn btn-sm ${cls}`;
+          b.textContent = label;
+          b.addEventListener('click', async () => {
+            await Net.request(event, { token: Auth.token, id: r.from });
+            await loadPeople();
+            paint();
+            Sound.play('join');
+          });
+          row.appendChild(b);
+        }
+        return row;
+      })
+    );
+
+    document.getElementById('peopleList').replaceChildren(
+      ...(shown.length
+        ? shown.map((p) => {
+            const row = document.createElement('button');
+            row.type = 'button';
+            row.className = `person${p.online ? ' on' : ''}${p.friend ? ' mate' : ''}`;
+            row.innerHTML =
+              '<span class="dot"></span><span class="person-who"><b></b><small></small></span><span class="person-tag"></span>';
+            $('b', row).textContent = p.name;
+            $('small', row).textContent = p.where;
+            $('.person-tag', row).textContent = p.friend ? 'friend' : `Lv ${p.level}`;
+            row.style.setProperty('--who', p.accent);
+            row.addEventListener('click', () => {
+              dlg.close();
+              openCard(p.id);
+            });
+            return row;
+          })
+        : [Object.assign(document.createElement('p'), { className: 'muted small', textContent: 'Nobody by that name.' })])
+    );
+  };
+
+  search.oninput = paint;
+  search.value = '';
+  paint();
+  dlg.showModal();
+}
+
+/** One member: their card, and what you can do with them. */
+async function openCard(id) {
+  const dlg = document.getElementById('cardDialog');
+  const res = await Net.request('social:card', { id });
+  if (res?.error) return;
+  const c = res.card;
+  const known = people.find((p) => p.id === id) ?? {};
+
+  const av = $('#cardAvatar');
+  av.textContent = initials(c.name);
+  av.style.background = c.accent;
+  $('#cardName').textContent = c.name;
+  $('#cardId').textContent = c.id;
+  $('#cardSpirit').textContent = `${c.spirit} · Level ${c.level} · member #${c.memberNumber}${c.online ? ' · online' : ''}`;
+  showError($('#cardError'), '');
+
+  $('#cardStats').replaceChildren(
+    ...[['Points', c.points], ['Matches', c.gamesPlayed], ['Wins', c.wins], ['Best streak', c.bestStreak], ['Titles', c.titles.length]].map(
+      ([label, value]) => {
+        const box = document.createElement('div');
+        box.innerHTML = '<b></b><span></span>';
+        $('b', box).textContent = value;
+        $('span', box).textContent = label;
+        return box;
+      }
+    )
+  );
+
+  const chat = $('#cardChat');
+  chat.hidden = !known.friend;
+  const actions = $('#cardActions');
+  actions.replaceChildren();
+
+  const act = (label, cls, fn) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `btn btn-sm ${cls}`;
+    b.textContent = label;
+    b.addEventListener('click', async () => {
+      showError($('#cardError'), '');
+      const out = await fn();
+      if (out?.error) return showError($('#cardError'), out.error);
+      Sound.play('join');
+      await loadPeople();
+      openCard(id);
+    });
+    actions.appendChild(b);
+  };
+
+  if (known.friend) {
+    act('Remove friend', 'btn-quiet', () => Net.request('social:remove', { token: Auth.token, id }));
+  } else if (known.asking) {
+    act('Accept request', 'btn-primary', () => Net.request('social:accept', { token: Auth.token, id }));
+  } else if (known.asked) {
+    const waiting = document.createElement('span');
+    waiting.className = 'muted small';
+    waiting.textContent = 'Request sent — waiting on them.';
+    actions.appendChild(waiting);
+  } else {
+    act('Add friend', 'btn-primary', () => Net.request('social:add', { token: Auth.token, id }));
+  }
+
+  // Only offer to call somebody in if there is somewhere to call them to.
+  if (c.online && Net.room?.code) {
+    act('Invite to my room', 'btn-ghost', () => Net.request('social:invite', { token: Auth.token, id }));
+  }
+
+  if (known.friend) await openChat(id);
+  dlg.showModal();
+}
+
+/** The conversation with one friend, and the box to add to it. */
+async function openChat(id) {
+  const res = await Net.request('social:thread', { token: Auth.token, id });
+  const log = $('#dmLog');
+  const paint = (messages) => {
+    log.replaceChildren(
+      ...messages.map((m) => {
+        const line = document.createElement('div');
+        line.className = `chat-line${m.from === Net.playerId ? ' mine' : ''}`;
+        line.innerHTML = '<p></p><time></time>';
+        $('p', line).textContent = m.text;
+        $('time', line).textContent = when(m.at);
+        return line;
+      })
+    );
+    log.scrollTop = log.scrollHeight;
+  };
+  paint(res?.messages ?? []);
+
+  const form = $('#dmForm');
+  const input = $('#dmInput');
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    const sent = await Net.request('social:say', { token: Auth.token, id, text });
+    if (sent?.error) return showError($('#cardError'), sent.error);
+    const now = await Net.request('social:thread', { token: Auth.token, id });
+    paint(now?.messages ?? []);
+  };
+}
+
+peopleBtn.addEventListener('click', openPeople);
+document.getElementById('peopleClose').addEventListener('click', () => document.getElementById('peopleDialog').close());
+document.getElementById('cardClose').addEventListener('click', () => document.getElementById('cardDialog').close());
+
+// Somebody asked, answered, or said something. Refresh the counter and, if the
+// conversation is open in front of us, the conversation.
+for (const event of ['social:request', 'social:friend', 'social:roster']) {
+  Net.on(event, () => loadPeople());
+}
+Net.on('social:message', async ({ from, name, text }) => {
+  await loadPeople();
+  const open = document.getElementById('cardDialog').open && $('#cardId').textContent === from;
+  if (open) openChat(from);
+  else toast(`${name}: ${text.slice(0, 60)}`);
+  Sound.play('chat');
+});
+
+// A friend calling you into their room, by name rather than by shouting.
+Net.on('social:invite', ({ name, code, game, emoji }) => {
+  Sound.play('unlock');
+  const el = document.createElement('div');
+  el.className = 'toast invite';
+  el.innerHTML = `<span>${emoji ?? '🎮'}</span><b></b><span class="muted small"></span>`;
+  $('b', el).textContent = `${name} wants you in ${game}`;
+  $('.muted', el).textContent = `Room ${code}`;
+  const join = document.createElement('button');
+  join.type = 'button';
+  join.className = 'btn btn-primary btn-sm';
+  join.textContent = 'Join';
+  join.addEventListener('click', async () => {
+    el.remove();
+    const res = await Net.joinRoom(code);
+    if (!res?.error) go(`#/room/${code}`);
+  });
+  el.appendChild(join);
+  document.body.appendChild(el);
+  setTimeout(() => el.classList.add('out'), 14000);
+  setTimeout(() => el.remove(), 14600);
+});
+
+Auth.onChange(() => loadPeople());
+
 /* ----------------------------- word from the studio ----------------------- */
 
 // Maintenance, rewards, and anything the owner needs the room to know. A chat
@@ -2015,20 +2254,54 @@ window.addEventListener('hashchange', route);
 
 /* ---------------------------------- boot --------------------------------- */
 
+const loadCatalogue = () =>
+  fetch('/api/games')
+    .then((r) => r.json())
+    .catch(() => []);
+
+/** Keeps asking for the games until the server has some to give. */
+let retrying = null;
+function retryCatalogue() {
+  if (retrying) return;
+  let wait = 1500;
+  const tick = async () => {
+    const list = await loadCatalogue();
+    if (Array.isArray(list) && list.length) {
+      retrying = null;
+      games = list;
+      // Redraw whatever is on screen now that there is something to draw.
+      if (location.hash === '#/' || !location.hash) renderHome();
+      else paintChrome();
+      return;
+    }
+    // Backing off to half a minute: a laptop that is properly off should not
+    // be hammered by every open tab in the room.
+    wait = Math.min(30000, Math.round(wait * 1.6));
+    retrying = setTimeout(tick, wait);
+  };
+  retrying = setTimeout(tick, wait);
+}
+
 (async function boot() {
   // The studio opening plays over the top while everything else loads under
   // it — first thing, so nobody sees a half-painted page before the film.
   maybePlayIntro();
 
   Net.connect();
-  const [catalogue] = await Promise.all([
-    fetch('/api/games')
-      .then((r) => r.json())
-      .catch(() => []),
-    Auth.restore(),
-  ]);
+  const [catalogue] = await Promise.all([loadCatalogue(), Auth.restore()]);
   games = Array.isArray(catalogue) ? catalogue : [];
   paintChrome();
+
+  // An arcade with no games in it is almost always a page that was opened
+  // while the laptop was between restarts — the list is fetched once at boot
+  // and, without this, never again. The shelf stayed empty for the rest of the
+  // session even after the server came back, with nothing on screen to
+  // explain it. So it keeps trying, and it tries again the moment the socket
+  // reconnects, which is the earliest possible sign the server is back.
+  if (!games.length) retryCatalogue();
+  Net.on('status', ({ online }) => {
+    if (online && !games.length) retryCatalogue();
+  });
 
   // Someone clicked an invite link before signing in - take them there now.
   const pending = sessionStorage.getItem('htfw:pendingRoom');

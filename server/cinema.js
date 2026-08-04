@@ -128,6 +128,34 @@ export function pickerOptions(settings = {}, { languageHint = 'Which cinema', ge
   };
 }
 
+/**
+ * A Bioscope round: the title as a numbered strip of photographs.
+ *
+ * The television version shows six pictures — a crow, a tray, a pile of
+ * numbers — and the room shouts the song title. Each picture stands for a
+ * word, a sound, or a piece of one, and the fun is entirely in the decoding.
+ *
+ * A card only becomes a Bioscope round if every word it needs has a picture on
+ * disk. A grid with two photographs and four grey squares is worse than no
+ * grid at all, so anything short falls back to the emoji clue it already had.
+ *
+ * @param {{clues?: string[]}} card   from the bank, with its decomposition
+ * @param {(word:string, pick:number)=>({url:string}|null)} lookup
+ * @param {number} salt   rotates which photograph of a word is used
+ */
+export function bioscopeFor(card, lookup, salt = 0) {
+  const words = Array.isArray(card?.clues) ? card.clues.filter(Boolean) : [];
+  if (words.length < 2) return null;
+
+  const frames = [];
+  for (const [i, word] of words.entries()) {
+    const shot = lookup(word, salt + i);
+    if (!shot) return null; // one missing picture and the whole grid is a lie
+    frames.push({ n: i + 1, url: shot.url, credit: shot.credit ?? '' });
+  }
+  return frames;
+}
+
 /** Where a language's material is kept in the bank. */
 export const bankTopic = (kind, language) => (language && language !== 'any' ? `${kind}-${language}` : kind);
 

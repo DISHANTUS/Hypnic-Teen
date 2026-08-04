@@ -146,13 +146,17 @@ if (!skinCount) note('theme.js exposes no themes - the picker would be empty');
   const roomScoped = new Set(['wrong', 'solved']);
 
   const serverDir = path.join(ROOT, 'server');
-  const serverSrc = ['index.js', 'rooms.js', 'tournaments.js']
+  const serverSrc = ['index.js', 'rooms.js', 'tournaments.js', 'social.js', 'notices.js']
     .map((f) => readFileSync(path.join(serverDir, f), 'utf8'))
     .join('\n');
 
-  const emitted = new Set(
-    [...serverSrc.matchAll(/\.emit\(\s*'([a-z]+:[a-z]+)'/gi)].map((m) => m[1])
-  );
+  // Two ways an event leaves the server: straight off a socket, or through a
+  // helper that knows how to find one player's sockets. Scanning only for
+  // `.emit(` missed every event social.js sends, and reported them as dead.
+  const emitted = new Set([
+    ...[...serverSrc.matchAll(/\.emit\(\s*'([a-z]+:[a-z]+)'/gi)].map((m) => m[1]),
+    ...[...serverSrc.matchAll(/\btell(?:Player)?\(\s*[^,]+,\s*'([a-z]+:[a-z]+)'/gi)].map((m) => m[1]),
+  ]);
 
   for (const event of emitted) {
     if (forwarded.has(event) || wiredDirectly.has(event) || roomScoped.has(event)) continue;

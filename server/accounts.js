@@ -453,3 +453,7 @@ export function leaderboard({ gameId, sort = 'points', limit = 50 } = {}) {
 }
 
 export const memberCount = () => users.data.order.length;
+
+/** Every member, in the order they joined. The directory needs the whole
+ *  studio, not just whoever happens to have a socket open right now. */
+export const memberIds = () => [...users.data.order];

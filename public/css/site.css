@@ -2884,3 +2884,82 @@ input::placeholder { color: var(--text-3); }
 
 /* A notice that asks for something carries the button that does it. */
 .notice .btn { justify-self: start; margin-top: var(--sp-sm); }
+
+/* ------------------------------------------------- the studio's people --- */
+
+.people-sheet { max-width: 520px; width: 92vw; }
+.people-head { display: grid; gap: var(--sp-sm); }
+.people-head input {
+  width: 100%;
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--base);
+  color: var(--text);
+  font: inherit;
+}
+.people-list, .people-requests { display: grid; gap: 4px; max-height: 48vh; overflow-y: auto; margin: var(--sp-md) 0; }
+.people-requests { max-height: none; padding-bottom: var(--sp-md); border-bottom: 1px dashed var(--border); }
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+  width: 100%;
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.person:hover { background: var(--glass); border-color: var(--border); }
+.person .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); flex: none; }
+.person.on .dot { background: var(--success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 25%, transparent); }
+.person-who { display: grid; gap: 1px; min-width: 0; flex: 1; }
+.person-who b { font-size: var(--t-label); }
+.person-who small { color: var(--text-3); font-size: 0.68rem; }
+.person-tag { flex: none; font-size: 0.66rem; color: var(--text-3); }
+.person.mate .person-tag { color: var(--accent); }
+.person.request { cursor: default; gap: var(--sp-sm); flex-wrap: wrap; }
+.person.request b { flex: none; }
+
+.card-top { display: flex; align-items: center; gap: var(--sp-lg); }
+.card-actions { display: flex; flex-wrap: wrap; gap: var(--sp-sm); align-items: center; margin-top: var(--sp-md); }
+
+.chat { display: grid; gap: var(--sp-sm); margin-top: var(--sp-lg); }
+.chat-log {
+  display: grid;
+  gap: var(--sp-sm);
+  max-height: 32vh;
+  overflow-y: auto;
+  padding: var(--sp-md);
+  border-radius: var(--r-sm);
+  background: var(--glass);
+}
+.chat-line { justify-self: start; max-width: 82%; }
+.chat-line.mine { justify-self: end; text-align: right; }
+.chat-line p {
+  margin: 0;
+  padding: var(--sp-sm) var(--sp-md);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: var(--t-label);
+  word-break: break-word;
+}
+.chat-line.mine p { background: var(--accent); color: var(--on-accent, #fff); }
+.chat-line time { font-size: 0.6rem; color: var(--text-3); }
+.chat-form { display: flex; gap: var(--sp-sm); }
+.chat-form input {
+  flex: 1;
+  padding: var(--sp-sm) var(--sp-md);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--base);
+  color: var(--text);
+  font: inherit;
+}
+
+/* Being called into a room by name, rather than by a shout at everybody. */
+.toast.invite { display: flex; align-items: center; gap: var(--sp-md); border-radius: var(--r-lg); padding: var(--sp-md) var(--sp-lg); }

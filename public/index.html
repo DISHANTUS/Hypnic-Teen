@@ -64,6 +64,9 @@
 
   <div class="topbar-right">
     <span class="conn" id="conn" data-state="off" title="Connection status"></span>
+    <button class="icon-btn" id="peopleBtn" type="button" title="Members" aria-label="Members" hidden>
+      👥<span class="news-badge" id="peopleCount" hidden>0</span>
+    </button>
     <button class="icon-btn" id="newsBtn" type="button" title="Word from the studio" aria-label="Notices" hidden>
       🔔<span class="news-badge" id="newsCount" hidden>0</span>
     </button>
@@ -261,6 +264,46 @@
 
 <!-- Word from the studio: maintenance, rewards, and anything the owner wants
      the room to know before they wonder why the server went quiet. -->
+<!-- Everyone in the studio. Online first, but offline members are listed too —
+     a list that is empty on a quiet evening is useless exactly when you most
+     want to find somebody to play with. -->
+<dialog id="peopleDialog" class="dlg people-sheet">
+  <div class="people-head">
+    <h3 id="peopleTitle">Members</h3>
+    <input id="peopleSearch" type="search" placeholder="Search by name…" autocomplete="off" />
+  </div>
+  <div class="people-requests" id="peopleRequests" hidden></div>
+  <div class="people-list" id="peopleList"></div>
+  <div class="dlg-actions">
+    <button class="btn btn-quiet" id="peopleClose" type="button">Close</button>
+  </div>
+</dialog>
+
+<!-- One member, opened by tapping their name. -->
+<dialog id="cardDialog" class="dlg">
+  <div class="card-top">
+    <span class="avatar big" id="cardAvatar">?</span>
+    <div>
+      <h3 id="cardName">—</h3>
+      <p class="profile-id" id="cardId"></p>
+      <p class="caption dim" id="cardSpirit"></p>
+    </div>
+  </div>
+  <div class="stat-row" id="cardStats"></div>
+  <p class="error" id="cardError" hidden></p>
+  <div class="card-actions" id="cardActions"></div>
+  <div class="chat" id="cardChat" hidden>
+    <div class="chat-log" id="dmLog"></div>
+    <form class="chat-form" id="dmForm">
+      <input id="dmInput" type="text" maxlength="500" placeholder="Say something…" autocomplete="off" />
+      <button class="btn btn-primary btn-sm" type="submit">Send</button>
+    </form>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn btn-quiet" id="cardClose" type="button">Close</button>
+  </div>
+</dialog>
+
 <dialog id="newsDialog" class="dlg">
   <h3 id="newsTitle">From the studio</h3>
   <div class="news-list" id="newsList"></div>

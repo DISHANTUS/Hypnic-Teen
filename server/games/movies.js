@@ -4,7 +4,8 @@
 import { createPartyGame, DIFFICULTY_TIME } from '../party.js';
 import { MOVIES } from '../content.js';
 import { deal } from '../bank.js';
-import { pickerOptions, bankTopic, ofGenre } from '../cinema.js';
+import { pickerOptions, bankTopic, ofGenre, bioscopeFor } from '../cinema.js';
+import { clueFor } from '../media.js';
 
 export default createPartyGame({
   id: 'movies',
@@ -38,15 +39,29 @@ export default createPartyGame({
     const pool = deal(bankTopic('movies', language), MOVIES, want * 3);
     return ofGenre(pool, genre, want)
       .slice(0, want)
-      .map((m) => ({
-        answer: m.answer,
-        // Common shorthand people actually type.
-        aliases: [m.answer.replace(/^The /i, ''), m.answer.replace(/[^A-Za-z0-9]/g, '')],
-        hints: [m.emoji, `"${m.dialogue}"`, `Character: ${m.character}`],
-        genre: m.genre ?? null,
-        seconds: DIFFICULTY_TIME.easy,
-      }));
+      .map((m, i) => {
+        // Bioscope first, where the pictures exist: a strip of photographs
+        // that decodes into the title, the way the television round does it.
+        // Everything falls back to emoji, so a bank that has not been given
+        // decompositions yet still plays exactly as before.
+        const strip = bioscopeFor(m, clueFor, i);
+        return {
+          answer: m.answer,
+          // Common shorthand people actually type.
+          aliases: [m.answer.replace(/^The /i, ''), m.answer.replace(/[^A-Za-z0-9]/g, '')],
+          hints: [strip ? '' : m.emoji, `"${m.dialogue}"`, `Character: ${m.character}`],
+          pictures: strip,
+          genre: m.genre ?? null,
+          seconds: DIFFICULTY_TIME.easy,
+        };
+      });
   },
 
-  promptFor: () => ({ title: 'Which movie?', text: 'Type your guess — spelling gets a little slack.' }),
+  promptFor: (round) => ({
+    title: round?.pictures ? 'Read the pictures' : 'Which movie?',
+    text: round?.pictures
+      ? 'Each picture is a word or a sound. Put them together and name the film.'
+      : 'Type your guess — spelling gets a little slack.',
+    pictures: round?.pictures ?? null,
+  }),
 });

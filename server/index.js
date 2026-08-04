@@ -21,6 +21,7 @@ import {
   publicProfile,
   leaderboard,
   memberCount,
+  memberIds,
   recoverId,
   recoveryHints,
   setRecovery,
@@ -33,6 +34,7 @@ import {
   depart,
   setWhereabouts,
   roster,
+  directory,
   requestFriend,
   acceptFriend,
   declineFriend,
@@ -46,6 +48,7 @@ import {
   publicCard,
 } from './social.js';
 import { warmUpLLM } from './llm.js';
+import { CLUE_DIR, clueFor, clueVocabulary, mediaStatus } from './media.js';
 import {
   attachTournaments,
   createTournament,
@@ -183,6 +186,23 @@ const loginLimit = rateLimit({
   max: Number(process.env.LOGIN_LIMIT) || 300,
   message: 'Too many sign-in attempts from this network. Give it a few minutes.',
 });
+
+// Picture clues live outside the repo — they are bulk, they are generated, and
+// a clone of this project should not have to download a gigabyte of
+// photographs to run. Served straight off disk, cached hard: a picture never
+// changes once it is downloaded.
+if (CLUE_DIR && existsSync(CLUE_DIR)) {
+  app.use(
+    '/media/clues',
+    express.static(CLUE_DIR, {
+      maxAge: '30d',
+      immutable: true,
+      fallthrough: false,
+      index: false,
+      dotfiles: 'deny',
+    })
+  );
+}
 
 app.get('/api/games', (_req, res) => res.json(listGames()));
 app.get('/api/health', (_req, res) => res.json({ ok: true, members: memberCount(), ...roomStats() }));
@@ -573,6 +593,7 @@ io.on('connection', (socket) => {
     ack?.({
       ok: true,
       roster: roster(me.id),
+      directory: directory(me.id, memberIds),
       friends: friendList(me.id),
       requests: requestsFor(me.id),
       unread: totalUnread(me.id),

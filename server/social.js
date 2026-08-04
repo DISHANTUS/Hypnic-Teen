@@ -89,6 +89,66 @@ export function roster(forId) {
     .sort((a, b) => (a.friend === b.friend ? b.points - a.points : a.friend ? -1 : 1));
 }
 
+/**
+ * Everyone who has ever signed up, not just whoever is here now.
+ *
+ * A list of only the people currently online is nearly useless on a quiet
+ * evening — it is empty exactly when you most want to find somebody. This is
+ * the whole studio, sorted so the people you can actually reach come first.
+ *
+ * @param {string} forId          who is asking
+ * @param {() => string[]} allIds every member the studio knows
+ */
+export function directory(forId, allIds) {
+  const mates = new Set(friendsOf(forId));
+  const asked = new Set(store.data.requests.filter((r) => r.from === forId).map((r) => r.to));
+  const asking = new Set(store.data.requests.filter((r) => r.to === forId).map((r) => r.from));
+
+  return (allIds() ?? [])
+    .map((id) => {
+      const card = profileOf(id);
+      if (!card) return null;
+      const here = present.get(id);
+      return {
+        id,
+        name: card.name,
+        level: card.level ?? 1,
+        points: card.points ?? 0,
+        accent: card.accent ?? '#7c5cff',
+        spirit: card.spirit ?? '',
+        online: Boolean(here),
+        you: id === forId,
+        friend: mates.has(id),
+        // So the button can say "Asked" rather than offering to ask again.
+        asked: asked.has(id),
+        asking: asking.has(id),
+        where: here
+          ? here.room?.phase === 'playing'
+            ? 'playing'
+            : here.room
+              ? 'in a lobby'
+              : 'in the arcade'
+          : lastSeenWords(card.lastSeen),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      // Online before offline, friends before strangers, then by points.
+      if (a.online !== b.online) return a.online ? -1 : 1;
+      if (a.friend !== b.friend) return a.friend ? -1 : 1;
+      return b.points - a.points;
+    });
+}
+
+/** "3 days ago" is more use than a timestamp for deciding whether to wait. */
+function lastSeenWords(at) {
+  if (!at) return 'never here';
+  const mins = Math.round((now() - at) / 60000);
+  if (mins < 60) return `last seen ${mins}m ago`;
+  if (mins < 60 * 24) return `last seen ${Math.round(mins / 60)}h ago`;
+  return `last seen ${Math.round(mins / 1440)}d ago`;
+}
+
 function broadcastRoster() {
   if (!io) return;
   // One event, and each client filters for its own friends — sending a
