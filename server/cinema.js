@@ -144,7 +144,18 @@ export function pickerOptions(settings = {}, { languageHint = 'Which cinema', ge
  * @param {number} salt   rotates which photograph of a word is used
  */
 export function bioscopeFor(card, lookup, salt = 0) {
-  const words = Array.isArray(card?.clues) ? card.clues.filter(Boolean) : [];
+  // Two sources, in order of trust.
+  //
+  // A `clues` array is a decomposition somebody wrote down deliberately. Where
+  // there is none, the emoji clue the card already carries is used instead —
+  // and that turns out to be the better source anyway. Every card in the bank
+  // already has 4–6 emoji chosen to stand for the title, which is exactly what
+  // a Bioscope strip is; translating those into photographs is a lookup, not a
+  // guess. Asking a language model to invent the decomposition instead
+  // produced "Koi Mil Gaya = crow + moon", which decodes to nothing.
+  const words = Array.isArray(card?.clues) && card.clues.length
+    ? card.clues.filter(Boolean)
+    : wordsFromEmoji(card?.emoji);
   if (words.length < 2) return null;
 
   const frames = [];
@@ -154,6 +165,68 @@ export function bioscopeFor(card, lookup, salt = 0) {
     frames.push({ n: i + 1, url: shot.url, credit: shot.credit ?? '' });
   }
   return frames;
+}
+
+/**
+ * The emoji a card already carries, as words we hold photographs of.
+ *
+ * Only emoji that map to something concrete are listed — a picture of "love"
+ * or "sparkles" tells nobody anything, so those are dropped and the strip is
+ * built from whatever is left. If too little survives, the card stays an
+ * ordinary emoji round.
+ */
+const EMOJI_WORDS = {
+  '👑': 'crown', '🦁': 'lion', '🕷': 'spider', '🕸': 'spider', '🤖': 'robot',
+  '🔫': 'gun', '🚗': 'car', '🚙': 'car', '🚕': 'taxi', '🚌': 'bus', '🚂': 'train',
+  '🚆': 'train', '🚲': 'bicycle', '🏍': 'motorcycle', '✈': 'aeroplane', '🚁': 'helicopter',
+  '🚀': 'rocket', '🚢': 'ship', '⛵': 'boat', '⚓': 'anchor', '🚜': 'tractor',
+  '🌙': 'moon', '🌕': 'moon', '☀': 'sun', '⭐': 'star', '🌟': 'star', '☁': 'cloud',
+  '🌧': 'rain', '🌈': 'rainbow', '❄': 'snow', '⚡': 'lightning', '🔥': 'fire',
+  '💧': 'water', '🌊': 'wave', '🏔': 'mountain', '⛰': 'mountain', '🌲': 'tree',
+  '🌳': 'tree', '🌸': 'flower', '🌹': 'rose', '🍃': 'leaf', '🏝': 'island',
+  '🏖': 'beach', '🏜': 'desert', '🌍': 'earth', '🌾': 'grass',
+  '🐱': 'cat', '🐶': 'dog', '🐕': 'dog', '🐅': 'tiger', '🐘': 'elephant',
+  '🐍': 'snake', '🐟': 'fish', '🦈': 'shark', '🦋': 'butterfly', '🦚': 'peacock',
+  '🐴': 'horse', '🐄': 'cow', '🐵': 'monkey', '🦉': 'owl', '🦅': 'eagle',
+  '🦜': 'parrot', '🐝': 'bee', '🐀': 'rat', '🐐': 'goat', '🦌': 'deer',
+  '🐪': 'camel', '🐸': 'frog', '🐜': 'ant', '🐑': 'sheep', '🐻': 'bear',
+  '🐰': 'rabbit', '🦢': 'swan', '🕊': 'dove', '🐦': 'crow', '🦇': 'bat',
+  '👧': 'girl', '👦': 'boy', '👨': 'man', '👩': 'woman', '👶': 'baby',
+  '🤴': 'king', '👸': 'queen', '💂': 'soldier', '👮': 'police', '👨‍⚕': 'doctor',
+  '👩‍🏫': 'teacher', '🧑‍🌾': 'farmer', '💃': 'dancer', '🕺': 'dancer',
+  '🎤': 'singer', '👰': 'bride', '🤵': 'groom', '👪': 'family',
+  '❤': 'heart', '💔': 'heart', '👁': 'eye', '👀': 'eye', '✋': 'hand',
+  '🦶': 'foot', '💇': 'hair', '👂': 'ear', '👃': 'nose', '👄': 'mouth',
+  '🦷': 'tooth', '😊': 'smile', '😢': 'tear', '✊': 'fist',
+  '🔑': 'key', '🔒': 'lock', '🕐': 'clock', '⏰': 'clock', '⌚': 'watch',
+  '📖': 'book', '📚': 'book', '✏': 'pen', '📱': 'phone', '📷': 'camera',
+  '🪞': 'mirror', '🪑': 'chair', '🛏': 'bed', '🚪': 'door', '🪟': 'window',
+  '🪜': 'ladder', '🔪': 'knife', '✂': 'scissors', '🔨': 'hammer', '☂': 'umbrella',
+  '🎒': 'bag', '👟': 'shoe', '🎩': 'hat', '💍': 'ring', '🪔': 'lamp',
+  '🕯': 'candle', '🎈': 'balloon', '🪁': 'kite', '⚽': 'ball', '🥁': 'drum',
+  '🎸': 'guitar', '🎺': 'flute', '🔔': 'bell', '🪙': 'coin', '💰': 'money',
+  '✉': 'letter', '🗺': 'map', '🏳': 'flag', '🧺': 'basket', '📦': 'box',
+  '🏠': 'house', '🏡': 'house', '🛕': 'temple', '⛪': 'church', '🏫': 'school',
+  '🏥': 'hospital', '🌉': 'bridge', '🛣': 'road', '🏙': 'city', '🏰': 'palace',
+  '🏭': 'factory', '🏟': 'stadium', '🍚': 'rice', '🍞': 'bread', '🥛': 'milk',
+  '🥚': 'egg', '🍎': 'apple', '🍌': 'banana', '🥭': 'mango', '🥥': 'coconut',
+  '🍵': 'tea', '☕': 'coffee', '🍋': 'lemon', '🍇': 'grapes', '🍰': 'cake',
+  '🍫': 'chocolate', '🧅': 'onion', '🥔': 'potato', '🌶': 'chilli',
+  '💤': 'sleep', '💒': 'wedding', '🎂': 'birthday', '🎁': 'gift', '⚔': 'war',
+  '🎭': 'story', '🎲': 'game', '🏁': 'race', '🔢': 'numbers', '🔠': 'letters',
+  '❓': 'question-mark', '➡': 'arrow', '⛓': 'chain', '⚫': 'circle', '⬛': 'square',
+};
+
+function wordsFromEmoji(emoji) {
+  if (!emoji) return [];
+  // Variation selectors and skin tones would stop any of these matching.
+  const cleaned = String(emoji).replace(/[️\u{1F3FB}-\u{1F3FF}]/gu, '');
+  const out = [];
+  for (const ch of [...cleaned]) {
+    const word = EMOJI_WORDS[ch];
+    if (word) out.push(word);
+  }
+  return out;
 }
 
 /** Where a language's material is kept in the bank. */

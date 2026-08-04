@@ -1964,9 +1964,18 @@ async function loadNotices() {
   paintNewsBadge(res.unread ?? 0);
   // Something waiting the first time you arrive deserves to open itself —
   // a badge nobody notices is the same as no message at all.
+  // …but never over a live match. A message from the studio landing on top of
+  // somebody's board mid-round is worse than one they read a minute later, so
+  // it waits for the game to end and opens then.
   if (res.unread > 0 && !sessionStorage.getItem('htfw:newsShown')) {
     sessionStorage.setItem('htfw:newsShown', '1');
-    setTimeout(openNews, 900);
+    const whenFree = () => {
+      if (Net.room?.phase === 'playing' || document.querySelector('dialog[open]')) {
+        return setTimeout(whenFree, 4000);
+      }
+      openNews();
+    };
+    setTimeout(whenFree, 900);
   }
 }
 
@@ -2076,6 +2085,13 @@ loadNotices();
 
 Net.on('game:start', () => {
   Sound.play('start');
+  // Anything the player was reading is over — a match has started and their
+  // board is underneath it. Waiting for a quiet moment before opening the
+  // notice was not enough on its own: it opens in the arcade, and then the
+  // game starts around it.
+  for (const id of ['newsDialog', 'peopleDialog', 'cardDialog', 'qrDialog']) {
+    document.getElementById(id)?.close();
+  }
   if (Net.room) mountGame(Net.room);
 });
 

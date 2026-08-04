@@ -259,6 +259,9 @@ main {
 .topnav ~ .topbar-right { margin-left: 0; }
 
 .icon-btn {
+  /* Anchors the unread badge. Without this it positions against the page
+     and lands in the corner of the window, outside the header entirely. */
+  position: relative;
   display: grid;
   place-items: center;
   width: 34px;
@@ -2963,3 +2966,59 @@ input::placeholder { color: var(--text-3); }
 
 /* Being called into a room by name, rather than by a shout at everybody. */
 .toast.invite { display: flex; align-items: center; gap: var(--sp-md); border-radius: var(--r-lg); padding: var(--sp-md) var(--sp-lg); }
+
+/* ----------------------------------------------- the Bioscope round ------ */
+
+/* A numbered strip of photographs that decodes into a title. Sized so six
+   pictures fit a phone without any of them becoming too small to read. */
+.bioscope {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: var(--sp-sm);
+  width: 100%;
+  margin-bottom: var(--sp-md);
+}
+.bio-frame {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--glass);
+  animation: view-in var(--m-base) var(--ease-standard) both;
+}
+.bio-frame:nth-child(2) { animation-delay: 70ms; }
+.bio-frame:nth-child(3) { animation-delay: 140ms; }
+.bio-frame:nth-child(4) { animation-delay: 210ms; }
+.bio-frame:nth-child(5) { animation-delay: 280ms; }
+.bio-frame:nth-child(n + 6) { animation-delay: 350ms; }
+.bio-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bio-frame.missing img { display: none; }
+
+/* The number is the whole point — people call out "three!" across a room. */
+.bio-n {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 1;
+  min-width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+}
+
+@media (max-width: 420px) {
+  .bioscope { grid-template-columns: repeat(3, 1fr); gap: 5px; }
+  .bio-frame { aspect-ratio: 1; }
+}
+
+/* Drawn icons inherit the button colour, so they are legible in every skin —
+   an emoji is coloured by the platform and vanished on the dark themes. */
+.icon-btn svg { width: 18px; height: 18px; display: block; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.icon-btn.has-news svg, .icon-btn:hover svg { stroke: var(--accent); }

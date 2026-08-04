@@ -4,7 +4,8 @@
 import { createPartyGame, DIFFICULTY_TIME } from '../party.js';
 import { SONGS } from '../content.js';
 import { deal } from '../bank.js';
-import { pickerOptions, bankTopic, ofGenre } from '../cinema.js';
+import { pickerOptions, bankTopic, ofGenre, bioscopeFor } from '../cinema.js';
+import { clueFor } from '../media.js';
 
 export default createPartyGame({
   id: 'songs',
@@ -33,14 +34,27 @@ export default createPartyGame({
     const pool = deal(bankTopic('songs', language), SONGS, want * 3);
     return ofGenre(pool, genre, want)
       .slice(0, want)
-      .map((s) => ({
-        answer: s.answer,
-        aliases: [s.answer.replace(/[^A-Za-z0-9]/g, ''), s.answer.split(' ').slice(0, 2).join(' ')],
-        hints: [s.emoji, `"${s.lyric}"`, `From: ${s.from}`],
-        genre: s.genre ?? null,
-        seconds: DIFFICULTY_TIME.easy,
-      }));
+      .map((s, i) => {
+        // The Bioscope round the television show runs: a strip of photographs
+        // that decodes into the title. Only where every word has a picture —
+        // otherwise the emoji clue it already had.
+        const strip = bioscopeFor(s, clueFor, i);
+        return {
+          answer: s.answer,
+          aliases: [s.answer.replace(/[^A-Za-z0-9]/g, ''), s.answer.split(' ').slice(0, 2).join(' ')],
+          hints: [strip ? '' : s.emoji, `"${s.lyric}"`, `From: ${s.from}`],
+          pictures: strip,
+          genre: s.genre ?? null,
+          seconds: DIFFICULTY_TIME.easy,
+        };
+      });
   },
 
-  promptFor: () => ({ title: 'Name the song', text: 'Type your guess — spelling gets a little slack.' }),
+  promptFor: (round) => ({
+    title: round?.pictures ? 'Read the pictures' : 'Name the song',
+    text: round?.pictures
+      ? 'Each picture is a word or a sound. Put them together and name the track.'
+      : 'Type your guess — spelling gets a little slack.',
+    pictures: round?.pictures ?? null,
+  }),
 });

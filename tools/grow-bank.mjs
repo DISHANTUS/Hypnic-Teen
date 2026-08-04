@@ -16,6 +16,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { warmUpLLM, llmReady, llmModel, say } from '../server/llm.js';
+import { clueVocabulary } from '../server/media.js';
 
 const ROOT = path.join(import.meta.dirname, '..');
 const DIR = path.join(process.env.DATA_DIR || path.join(ROOT, 'data'), 'bank');
@@ -23,7 +24,7 @@ const DIR = path.join(process.env.DATA_DIR || path.join(ROOT, 'data'), 'bank');
 // How to ask for each kind of material, and how to read the answer back.
 const TOPICS = {
   quiz: {
-    target: 5000,
+    target: 50000,
     batch: 8,
     ask: (seedWords) =>
       `Write ${8} multiple-choice quiz questions for a party game played by Indian college students.\n` +
@@ -38,7 +39,7 @@ const TOPICS = {
       row.options.includes(row.answer),
   },
   situations: {
-    target: 2000,
+    target: 40000,
     batch: 10,
     ask: (seedWords) =>
       `Write 10 absurd "what would you do" situations for a party game with friends.\n` +
@@ -49,7 +50,7 @@ const TOPICS = {
   // The names have to match the topic each game asks bank.deal() for, or the
   // file gets written and nothing ever reads it.
   'truth-dare-truths': {
-    target: 1000,
+    target: 40000,
     batch: 10,
     ask: (seedWords) =>
       `Write 10 "truth" questions for Truth or Dare among college friends.\n` +
@@ -58,7 +59,7 @@ const TOPICS = {
     valid: (row) => typeof row === 'string' && row.length > 12 && row.length < 180,
   },
   'truth-dare-dares': {
-    target: 1000,
+    target: 40000,
     batch: 10,
     ask: (seedWords) =>
       `Write 10 dares for a party game in a college room.\n` +
@@ -67,7 +68,7 @@ const TOPICS = {
     valid: (row) => typeof row === 'string' && row.length > 10 && row.length < 180,
   },
   movies: {
-    target: 2000,
+    target: 40000,
     batch: 6,
     ask: (seedWords) =>
       `Write 6 "guess the movie" cards for a party game played by Indian college students.\n` +
@@ -83,7 +84,7 @@ const TOPICS = {
       row.character?.length > 1,
   },
   songs: {
-    target: 2000,
+    target: 40000,
     batch: 6,
     ask: (seedWords) =>
       `Write 6 "guess the song" cards for a party game played by Indian college students.\n` +
@@ -97,7 +98,7 @@ const TOPICS = {
       row.from?.length > 1,
   },
   'find-word-hints': {
-    target: 2000,
+    target: 40000,
     batch: 8,
     ask: (seedWords) =>
       `Write 8 "guess the word" cards for a party game. Themes: ${seedWords}.\n` +
@@ -113,7 +114,7 @@ const TOPICS = {
       !row.hints.some((h) => String(h).toLowerCase().includes(String(row.answer).toLowerCase())),
   },
   'find-word-scrambles': {
-    target: 1000,
+    target: 20000,
     batch: 10,
     ask: (seedWords) =>
       `Write 10 word scrambles for a party game. Themes: ${seedWords}. Use everyday words of 5 to 9 letters.\n` +
@@ -132,7 +133,7 @@ const TOPICS = {
     },
   },
   'poll-players': {
-    target: 500,
+    target: 20000,
     batch: 10,
     ask: (seedWords) =>
       `Write 10 "who is most likely to…" prompts for a party game among college friends.\n` +
@@ -141,7 +142,7 @@ const TOPICS = {
     valid: (row) => typeof row === 'string' && row.length > 12 && row.length < 140,
   },
   'poll-opinions': {
-    target: 1000,
+    target: 40000,
     batch: 8,
     ask: (seedWords) =>
       `Write 8 opinion polls for a party game — questions with no right answer that friends will argue about.\n` +
@@ -233,6 +234,14 @@ async function grow(topic, target) {
   }
   const seen = new Set(rows.map(keyOf));
 
+  // What can be illustrated, settled once rather than per batch.
+  const vocab = new Set(clueVocabulary());
+  const vocabList = [...vocab].join(", ");
+  if (spec.vocabulary && !vocab.size) {
+    console.error("  no picture library yet — run: npm run clues");
+    return;
+  }
+
   console.log(`\n  ${topic}: ${rows.length} on disk, growing to ${target}\n`);
   const started = Date.now();
   let sinceSave = 0;
@@ -240,7 +249,9 @@ async function grow(topic, target) {
 
   while (rows.length < target) {
     const seed = SEEDS[Math.floor(Math.random() * SEEDS.length)];
-    const text = await say(spec.ask(seed), { maxTokens: 900, temperature: 1.0, raw: true });
+    // Topics that build picture clues are handed the words we actually hold
+    // photographs for. Asking for anything else produces a grid with holes.
+    const text = await say(spec.vocabulary ? spec.ask(seed, vocabList) : spec.ask(seed), { maxTokens: 1100, temperature: 1.0, raw: true });
     // Tidy first, then validate — the answer has to still match an option
     // after both have had their labels stripped.
     const batch = parseRows(text)
@@ -251,7 +262,7 @@ async function grow(topic, target) {
           return null;
         }
       })
-      .filter((row) => row && spec.valid(row));
+      .filter((row) => row && spec.valid(row, vocab));
 
     let added = 0;
     for (const row of batch) {

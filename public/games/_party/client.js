@@ -392,10 +392,36 @@ export default {
     function paintAnswer(s) {
       body.appendChild(promptCard(s));
 
+      // Bioscope: the title as a numbered strip of photographs. Each picture
+      // is a word or a sound, and the room shouts the answer — so the grid
+      // comes before the text hints rather than instead of them, and the
+      // ordinary clues still drip in behind it for anyone who is stuck.
+      if (s.prompt?.pictures?.length) {
+        const strip = el('div', 'bioscope');
+        for (const frame of s.prompt.pictures) {
+          const cell = el('figure', 'bio-frame');
+          const img = document.createElement('img');
+          img.src = frame.url;
+          img.alt = '';           // decorative: naming it would give the answer away
+          img.loading = 'lazy';
+          img.decoding = 'async';
+          // A picture that fails to load leaves a numbered blank rather than a
+          // broken-image icon, which at least reads as "clue missing".
+          img.addEventListener('error', () => cell.classList.add('missing'));
+          cell.append(el('span', 'bio-n', String(frame.n)), img);
+          strip.appendChild(cell);
+        }
+        body.appendChild(strip);
+      }
+
       // Race: show the hints revealed so far.
       if (s.mode === 'race') {
         const hints = el('div', 'hints');
         (s.prompt?.hints ?? []).forEach((h, i) => {
+          // A Bioscope round has no emoji clue — the pictures are the first
+          // hint — so the empty slot it leaves behind is skipped rather than
+          // drawn as a blank card.
+          if (!h) return;
           const hint = el('div', `hint${i === 0 ? ' big' : ''}`, h);
           hints.appendChild(hint);
         });
