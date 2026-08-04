@@ -22,3 +22,7 @@ tmp-*/
 # generated models are large, regenerable, and not source.
 public/media/fleet/
 build-media/
+
+# Stray runtime logs. `*.log` missed these.
+*.err
+*.err.log
