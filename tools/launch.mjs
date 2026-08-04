@@ -212,12 +212,80 @@ async function openPublicDoor(port) {
     const named = await openNamedCloudflare(port);
     if (named) return named;
   }
+  // ngrok hands every free account one domain that never changes. It shows a
+  // "served by ngrok" page on a visitor's first visit, and clicking through
+  // silences it for a week — which beats sending a new link after every
+  // restart, so it is preferred over the random-words tunnel below.
+  if (process.env.NGROK_DOMAIN || process.env.NGROK_AUTHTOKEN) {
+    const viaNgrok = await openNgrok(port);
+    if (viaNgrok) return viaNgrok;
+  }
   const viaServeo = await openServeo(port);
   if (viaServeo) return viaServeo;
 
   const exe = findCloudflared();
   if (!exe) return null;
   return openTunnel(exe, port);
+}
+
+/**
+ * The free static domain, if one has been claimed. NGROK_DOMAIN is the name
+ * ngrok assigned; the authtoken ties this machine to that account and is read
+ * from the environment rather than written down anywhere in the repo.
+ */
+function openNgrok(port) {
+  const exe = findNgrok();
+  if (!exe) {
+    console.log(`\n  ${yellow('NGROK_DOMAIN is set but ngrok is not installed.')}`);
+    console.log(dim('    winget install ngrok.ngrok\n'));
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    const args = ['http', String(port), '--log', 'stdout', '--log-format', 'json'];
+    if (process.env.NGROK_DOMAIN) args.push('--domain', process.env.NGROK_DOMAIN);
+    if (process.env.NGROK_AUTHTOKEN) args.push('--authtoken', process.env.NGROK_AUTHTOKEN);
+
+    let child;
+    try {
+      child = spawn(exe, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    } catch {
+      return resolve(null);
+    }
+    const settle = (v) => { clearTimeout(timer); resolve(v); };
+    const scan = (chunk) => {
+      const text = String(chunk);
+      // ngrok reports the address it settled on in its own log line; taking it
+      // from there rather than assuming NGROK_DOMAIN means a rejected domain
+      // shows up as a failure instead of a URL that answers nothing.
+      const hit = text.match(/url=(https:\/\/[\w.-]+)/) ?? text.match(/"url":"(https:\/\/[\w.-]+)"/);
+      if (hit) return settle(hit[1]);
+      if (/ERR_NGROK|authentication failed|is not authorized/i.test(text)) {
+        console.log(`\n  ${yellow('ngrok refused the connection — check NGROK_AUTHTOKEN and NGROK_DOMAIN.')}`);
+        child.kill();
+        settle(null);
+      }
+    };
+    child.stdout.on('data', scan);
+    child.stderr.on('data', scan);
+    child.on('error', () => settle(null));
+    child.on('exit', () => settle(null));
+    const timer = setTimeout(() => { child.kill(); settle(null); }, 22000);
+    killWithUs(child);
+  });
+}
+
+function findNgrok() {
+  const candidates = [
+    process.env.NGROK,
+    path.join(process.env.MEDIA_DIR || 'G:\\hpnicteenstudio_data', 'bin', 'ngrok.exe'),
+    path.join(process.env.LOCALAPPDATA ?? '', 'Microsoft', 'WinGet', 'Links', 'ngrok.exe'),
+    'ngrok',
+  ].filter(Boolean);
+  for (const c of candidates) {
+    if (c === 'ngrok') return c;
+    if (existsSync(c)) return c;
+  }
+  return null;
 }
 
 /** A tunnel on your own domain. Needs `cloudflared tunnel login` done once. */
