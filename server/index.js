@@ -298,6 +298,17 @@ app.get('/api/study', async (req, res) => {
 // Study must be built with BASE_PATH=/study for this to work — Next has to
 // know its own prefix or it will hand out asset URLs that land back here.
 if (STUDY_PROXIED) {
+  // Study's cron endpoint is a local job — an in-process scheduler calls it
+  // hourly, and Task Scheduler can call it too. Nothing about it wants a
+  // public route, and giving it one is actively harmful: its auth guard only
+  // engages when CRON_SECRET is set, which is deliberate for a local install
+  // and becomes "anyone with the URL can trigger a full content rebuild"
+  // behind a tunnel. Each rebuild burns minutes of GPU on the same machine
+  // running the games, so it is a free denial-of-service rather than a leak.
+  app.use('/study/api/cron', (_req, res) =>
+    res.status(404).type('html').send('<h1>Not found</h1>')
+  );
+
   app.use('/study', (req, res) => {
     const proxied = httpRequest(
       {
