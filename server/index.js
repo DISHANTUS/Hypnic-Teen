@@ -204,6 +204,53 @@ if (CLUE_DIR && existsSync(CLUE_DIR)) {
   );
 }
 
+/**
+ * Is Hypnic Study up, and where?
+ *
+ * The browser cannot answer this for itself. A cross-origin probe to another
+ * port comes back opaque — it resolves whether Study answered, 404ed or was
+ * something else entirely — and on a page served over the tunnel it is blocked
+ * as mixed content before it is even sent. So the studio, which is on the same
+ * machine as Study, checks properly and says.
+ */
+const STUDY_PORT = Number(process.env.STUDY_PORT) || 3000;
+let studyLastSeen = 0;
+let studyUp = false;
+
+async function pollStudy() {
+  try {
+    const res = await fetch(`http://127.0.0.1:${STUDY_PORT}/`, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(2500),
+    });
+    studyUp = res.status < 500;
+  } catch {
+    studyUp = false;
+  }
+  studyLastSeen = Date.now();
+  return studyUp;
+}
+
+app.get('/api/study', async (req, res) => {
+  // Cached briefly: every visitor's page asks this on load, and a room full of
+  // phones should not become a HEAD flood against a dev server.
+  if (Date.now() - studyLastSeen > 10_000) await pollStudy();
+
+  // Only somebody on the same network can reach a second port on this laptop.
+  // For anybody who arrived through the tunnel there is no route to it at all,
+  // so the honest answer is "not for you" rather than a link that hangs.
+  const host = String(req.hostname ?? '');
+  const local = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
+
+  res.json({
+    running: studyUp,
+    reachable: studyUp && local,
+    url: studyUp && local ? `http://${host}:${STUDY_PORT}` : null,
+    // Said plainly so the client can explain itself rather than just hiding.
+    why: !studyUp ? 'not running' : local ? null : 'only on the same WiFi',
+  });
+});
+
 app.get('/api/games', (_req, res) => res.json(listGames()));
 app.get('/api/health', (_req, res) => res.json({ ok: true, members: memberCount(), ...roomStats() }));
 app.get('/api/room/:code', (req, res) => {

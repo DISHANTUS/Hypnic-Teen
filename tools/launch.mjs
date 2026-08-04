@@ -142,8 +142,28 @@ function startStudy() {
     return 'could not start';
   }
 
+  // `error` only fires when the spawn itself fails. Next exiting a second
+  // later — port already busy, a build error, a missing env var — left `study`
+  // truthy, so the launcher happily printed an address that answered nothing.
   study.on('error', () => { study = null; });
+  study.on('exit', (code) => {
+    if (code !== 0 && code !== null) studyExit = code;
+    study = null;
+  });
   return null;
+}
+
+let studyExit = null;
+
+/** Waits for Study to actually answer, rather than assuming it will. */
+async function studyReady() {
+  if (!study) return false;
+  for (let i = 0; i < 60; i++) {
+    if (!study) return false; // died while we were waiting
+    if (await portOpen(STUDY_PORT)) return true;
+    await wait(500);
+  }
+  return false;
 }
 
 const studyNote = startStudy();
@@ -233,12 +253,23 @@ console.log(dim(`\n    on this laptop: http://localhost:${PORT}`));
 
 // Study runs beside the studio and shares the same Hypnic ID, so its address
 // belongs in the same list rather than in a second terminal nobody reads.
-if (study) {
+// Only advertised once it answers. Next takes a while to compile on first
+// request, and printing the address the moment it was spawned meant handing
+// out a link that was not up yet — or, if it had already died, never would be.
+if (study && (await studyReady())) {
   const primary = (addresses.find((a) => a.hotspot) ?? addresses[0])?.ip;
   console.log(`\n  ${bold('IELTS training')}`);
   if (primary) console.log(`    for friends     http://${primary}:${STUDY_PORT}`);
   console.log(dim(`    on this laptop: http://localhost:${STUDY_PORT}`));
   console.log(dim('    same Hypnic ID, no second signup'));
+  // The tunnel only ever carries the studio's own port, so anybody who came
+  // in from outside cannot reach this at all. Better said here than
+  // discovered by a friend clicking a link that hangs.
+  if (publicUrl) console.log(dim('    same WiFi only — the public link does not reach it'));
+} else if (studyExit !== null) {
+  console.log(dim(`\n  IELTS training: stopped on its own (exit ${studyExit}) — run it with STUDY_LOGS=1 to see why`));
+} else if (study) {
+  console.log(dim(`\n  IELTS training: started but not answering on ${STUDY_PORT} yet`));
 } else if (studyNote) {
   console.log(dim(`\n  IELTS training: ${studyNote}`));
 }
