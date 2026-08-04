@@ -9,7 +9,7 @@
 // a full night of games.
 
 import { spawn, execFile } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { networkInterfaces } from 'node:os';
 import path from 'node:path';
@@ -309,23 +309,61 @@ if (wantsTunnel) {
   }
 }
 
-console.log(`\n  ${bold('Your friends join at')}`);
+// Two audiences, two links, and sending the wrong one wastes an evening. The
+// person in the room needs the local address — faster, no warning page. The
+// person somewhere else cannot reach it at all and needs the public one. So
+// they are labelled by *who they are for*, not by what they technically are.
 const hotspot = addresses.filter((a) => a.hotspot);
 const lan = addresses.filter((a) => !a.hotspot);
-for (const a of hotspot) console.log(`    ${a.ip === hotspot[0]?.ip ? 'on your hotspot ' : '               '} http://${a.ip}:${PORT}`);
-for (const a of lan) console.log(`    ${a === lan[0] ? 'on this WiFi   ' : '               '} http://${a.ip}:${PORT}`);
-if (!addresses.length) console.log(dim('    no network yet — turn on WiFi or your hotspot'));
-if (publicUrl) {
-  console.log(`    ${bold('from anywhere ')} ${publicUrl}`);
-  console.log(dim('    (send that one to anybody not in the room)'));
-  if (/trycloudflare\.com/.test(publicUrl) && serveoHint) {
-    // The address works, it just does not say who it belongs to. Fixing that
-    // takes one login, once, and this is where somebody would notice.
-    console.log(dim(`\n    want ${WANTED_NAME}.serveo.net instead? register your key once:`));
-    console.log(dim(`    ${serveoHint}`));
-  }
+console.log(`\n  ${bold('SEND THIS TO FRIENDS IN THE ROOM')}   ${dim('(same WiFi or your hotspot)')}`);
+if (!addresses.length) {
+  console.log(dim('    no network yet — turn on WiFi or your hotspot'));
+} else {
+  for (const a of hotspot) console.log(`    ${green(`http://${a.ip}:${PORT}`)}${dim('   ← your hotspot')}`);
+  for (const a of lan) console.log(`    ${green(`http://${a.ip}:${PORT}`)}${dim('   ← this WiFi')}`);
 }
-console.log(dim(`\n    on this laptop: http://localhost:${PORT}`));
+
+console.log(`\n  ${bold('SEND THIS TO FRIENDS FAR AWAY')}   ${dim('(anywhere with internet)')}`);
+if (publicUrl) {
+  console.log(`    ${green(publicUrl)}`);
+  if (/ngrok-free/.test(publicUrl)) {
+    console.log(dim('    they see an ngrok warning once — one click, gone for a week'));
+    console.log(dim('    this address never changes, so it is safe to save'));
+  } else if (/trycloudflare\.com/.test(publicUrl)) {
+    console.log(dim('    temporary — this changes every restart, so re-send it each time'));
+    if (serveoHint) {
+      console.log(dim(`\n    want ${WANTED_NAME}.serveo.net instead? register your key once:`));
+      console.log(dim(`    ${serveoHint}`));
+    }
+  }
+} else {
+  console.log(dim('    none — nobody outside this network can reach the studio'));
+  console.log(dim('    (it opens one automatically; --offline turns that off)'));
+}
+
+console.log(dim(`\n  on this laptop: http://localhost:${PORT}`));
+
+// Written down as well as printed, because the terminal scrolls and the links
+// are wanted later — usually from a phone, to paste into a chat.
+try {
+  const lines = [
+    'Hypnic Teen — Fun World',
+    '',
+    'Friends in the room (same WiFi or hotspot):',
+    ...(addresses.length ? addresses.map((a) => `  http://${a.ip}:${PORT}`) : ['  (no network)']),
+    '',
+    'Friends far away (anywhere with internet):',
+    `  ${publicUrl ?? '(none — started with --offline, or no tunnel available)'}`,
+    '',
+    `On this laptop: http://localhost:${PORT}`,
+    `Started ${new Date().toLocaleString()}`,
+    '',
+  ].join('\n');
+  writeFileSync(path.join(ROOT, 'LINKS.txt'), lines);
+  console.log(dim('  these links are also in LINKS.txt'));
+} catch {
+  /* not being able to write a convenience file is not worth a warning */
+}
 
 // Study runs beside the studio and shares the same Hypnic ID, so its address
 // belongs in the same list rather than in a second terminal nobody reads.
