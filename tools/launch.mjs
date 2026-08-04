@@ -95,9 +95,34 @@ console.log(
 /* -------------------------------- the port -------------------------------- */
 
 if (await portOpen(PORT)) {
-  console.log(`\n  ${yellow(`Port ${PORT} is already in use.`)}`);
-  console.log(dim(`  Something else is serving there — stop it, or set PORT to another number.\n`));
-  process.exit(1);
+  // Almost always this is the studio already running — a window left open, or
+  // a copy started in the background. Saying "something else is serving there"
+  // and quitting sends somebody hunting for a conflict that is really their
+  // own studio, with the links they wanted sitting in a file the whole time.
+  let mine = false;
+  try {
+    const health = await fetch(`http://127.0.0.1:${PORT}/api/health`, { signal: AbortSignal.timeout(2500) });
+    mine = health.ok && Boolean((await health.json())?.ok);
+  } catch {
+    /* something is listening, but it is not us */
+  }
+
+  if (mine) {
+    console.log(`\n  ${green('The studio is already running on this port.')}`);
+    const saved = path.join(ROOT, 'LINKS.txt');
+    if (existsSync(saved)) {
+      console.log('');
+      for (const line of readFileSync(saved, 'utf8').split('\n')) {
+        if (line.trim()) console.log(`  ${line}`);
+      }
+    }
+    console.log(dim('\n  Nothing to do — that one is serving. To restart it, close the window'));
+    console.log(dim(`  running it (or end the node task), then run this again.\n`));
+  } else {
+    console.log(`\n  ${yellow(`Port ${PORT} is in use by something that is not the studio.`)}`);
+    console.log(dim(`  Stop it, or set PORT to another number.\n`));
+  }
+  process.exit(mine ? 0 : 1);
 }
 
 /* ---------------------------- study, decided early ------------------------ */
