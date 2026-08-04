@@ -104,6 +104,28 @@ const BUILD = buildId();
 
 const app = express();
 const httpServer = createServer(app);
+
+/**
+ * How long a request may take before this server gives up on it.
+ *
+ * Node's default is exactly 300s, which is exactly what Study's grading routes
+ * declare as their budget — so a route using its full allowance races the
+ * server hosting it, and cron/refresh at 800s loses outright. Those routes are
+ * slow because they are doing real work: fetching an article, rewriting it to
+ * exam standard, and running local inference. A minute of silence is normal.
+ *
+ * The failure this prevents is the worst kind to debug: somebody writes a
+ * 250-word essay, submits, waits, and gets a network error while the model is
+ * still working — and it looks like Study's fault.
+ *
+ * Bounded rather than disabled, because this port faces the internet through a
+ * tunnel and an unbounded request is something to hold open forever.
+ */
+const LONG_REQUEST_MS = Number(process.env.REQUEST_TIMEOUT_MS) || 900_000; // 15 min
+httpServer.requestTimeout = LONG_REQUEST_MS;
+// Time allowed to receive the *headers*, which is about a slow client rather
+// than a slow response, so it stays short.
+httpServer.headersTimeout = 65_000;
 const io = new Server(httpServer, {
   cors: { origin: '*' }, // same-origin in practice; open so a phone on the LAN never gets blocked
   pingTimeout: 20_000,
@@ -291,6 +313,14 @@ if (STUDY_PROXIED) {
         upstream.pipe(res);
       }
     );
+    // Grading takes as long as it takes — a reading build has run to 175s and
+    // an essay evaluation to 36s. Any timeout shorter than the route's own
+    // budget cuts off work that was going to succeed, so there is none here
+    // and the inbound server's limit is the only ceiling.
+    proxied.setTimeout(0);
+    proxied.on('socket', (socket) => socket.setTimeout(0));
+    res.setTimeout?.(0);
+
     proxied.on('error', () => {
       if (!res.headersSent) {
         res
