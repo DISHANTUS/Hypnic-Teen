@@ -236,7 +236,11 @@ async function startStudy() {
         // Quiet by default: two servers interleaving output in one terminal is
         // unreadable. STUDY_LOGS=1 when you need to debug it.
         stdio: process.env.STUDY_LOGS === '1' ? 'inherit' : 'ignore',
-        env: { ...process.env, PORT: String(STUDY_PORT) },
+        // BASE_PATH matters at run time as well as at build time: next.config
+        // reads it on every start, so serving without it makes Next mount at
+        // the root and 404 everything under the prefix — a page that is
+        // unmistakably Study's, saying it cannot find itself.
+        env: { ...process.env, PORT: String(STUDY_PORT), BASE_PATH: STUDY_DEV ? '' : STUDY_BASE },
       },
     );
   } catch {
