@@ -1189,7 +1189,9 @@ function renderLobby(code) {
     // The QR is for the people in the room holding up their phones, so it is
     // always the local address — a tunnel URL would route them out to the
     // internet and back for no reason, and would break the moment it changes.
-    document.getElementById('qrImage').src = `/api/qr.svg?text=${encodeURIComponent(inviteUrl)}`;
+    const qr = document.getElementById('qrImage');
+    qr.src = `/api/qr.svg?text=${encodeURIComponent(inviteUrl)}`;
+    qr.hidden = false;
     document.getElementById('qrCaption').textContent = inviteUrl;
     dlg.showModal();
   });
@@ -1662,6 +1664,11 @@ function route() {
   // game was on screen, and every later request for the lobby was dismissed as
   // "you are already there". That is the dead Lobby button after a match.
   if (code && target === lastRoute) return; // room:state ticks must not thrash
+
+  // Anything overlaying the last screen has no business over the next one.
+  // A notice opened on the arcade stayed modal across a navigation, so the
+  // page underneath could be reached by URL and then not touched.
+  for (const dlg of document.querySelectorAll('dialog[open]')) dlg.close();
 
   cleanupView?.();
   cleanupView = null;

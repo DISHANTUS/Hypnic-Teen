@@ -37,7 +37,8 @@
     "test:quiz-written": "node tools/test-quiz-written.mjs",
     "test:td:ui": "node tools/test-truth-dare-ui.mjs",
     "test:account": "node tools/test-account.mjs",
-    "test:bioscope": "node tools/test-bioscope.mjs"
+    "test:bioscope": "node tools/test-bioscope.mjs",
+    "sweep": "node tools/sweep.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -698,7 +698,10 @@
 
 <dialog id="qrDialog" class="dlg qr-sheet">
   <h3>Scan to join</h3>
-  <div class="qr-frame"><img id="qrImage" alt="QR code for the room link" /></div>
+  <!-- Hidden until it has a src. An <img> with no src is a broken image on
+       every page of the site, counted as one by anything auditing the DOM and
+       logged as one by the browser, even though this dialog is shut. -->
+  <div class="qr-frame"><img id="qrImage" alt="QR code for the room link" hidden /></div>
   <p class="qr-caption" id="qrCaption"></p>
   <p class="muted caption">Any phone camera works. No internet needed &mdash; just the same WiFi or router.</p>
   <div class="dlg-actions">
