@@ -297,6 +297,24 @@ app.get('/api/study', async (req, res) => {
 //
 // Study must be built with BASE_PATH=/study for this to work — Next has to
 // know its own prefix or it will hand out asset URLs that land back here.
+/**
+ * Headers that belong to a single connection rather than to the message, and
+ * so must never cross a proxy. RFC 9110 §7.6.1.
+ */
+const HOP_BY_HOP = new Set([
+  'connection',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+]);
+
+const strip = (headers) =>
+  Object.fromEntries(Object.entries(headers).filter(([k]) => !HOP_BY_HOP.has(k.toLowerCase())));
+
 if (STUDY_PROXIED) {
   // Study's cron endpoint is a local job — an in-process scheduler calls it
   // hourly, and Task Scheduler can call it too. Nothing about it wants a
@@ -317,10 +335,16 @@ if (STUDY_PROXIED) {
         // express strips the mount path, so it has to go back on.
         path: `/study${req.originalUrl.slice('/study'.length)}`,
         method: req.method,
-        headers: { ...req.headers, host: `127.0.0.1:${STUDY_PORT}` },
+        headers: { ...strip(req.headers), host: `127.0.0.1:${STUDY_PORT}` },
       },
       (upstream) => {
-        res.writeHead(upstream.statusCode ?? 502, upstream.headers);
+        // Hop-by-hop headers describe *this* connection and must not be
+        // relayed onto the next one. Passing `transfer-encoding: chunked`
+        // through while Node applies its own chunking frames the body twice:
+        // curl tolerates it, Chrome does not, and the page fails to load with
+        // a server error that never appears in any log because nothing on
+        // either side considered it an error.
+        res.writeHead(upstream.statusCode ?? 502, strip(upstream.headers));
         upstream.pipe(res);
       }
     );
