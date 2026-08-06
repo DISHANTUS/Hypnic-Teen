@@ -110,11 +110,23 @@ if (await portOpen(PORT)) {
   if (mine) {
     console.log(`\n  ${green('The studio is already running on this port.')}`);
     const saved = path.join(ROOT, 'LINKS.txt');
+    // Only if it describes *this* port. The file is rewritten by every run,
+    // including a run on some other port for a test, and printing that back
+    // hands somebody addresses to a studio that is not the one serving them.
+    let text = null;
     if (existsSync(saved)) {
-      console.log('');
-      for (const line of readFileSync(saved, 'utf8').split('\n')) {
-        if (line.trim()) console.log(`  ${line}`);
+      try {
+        const body = readFileSync(saved, 'utf8');
+        if (body.includes(`:${PORT}`)) text = body;
+      } catch {
+        /* unreadable is the same as absent here */
       }
+    }
+    if (text) {
+      console.log('');
+      for (const line of text.split('\n')) if (line.trim()) console.log(`  ${line}`);
+    } else {
+      console.log(dim(`\n  Open it at http://localhost:${PORT} — the saved links are for a different run.`));
     }
     console.log(dim('\n  Nothing to do — that one is serving. To restart it, close the window'));
     console.log(dim(`  running it (or end the node task), then run this again.\n`));
@@ -338,36 +350,36 @@ if (wantsTunnel) {
   }
 }
 
-// Two audiences, two links, and sending the wrong one wastes an evening. The
-// person in the room needs the local address — faster, no warning page. The
-// person somewhere else cannot reach it at all and needs the public one. So
-// they are labelled by *who they are for*, not by what they technically are.
+// One block, one column of addresses, each with a label saying who it is for.
+// Two shouted headings pushed everything else off a short terminal and made a
+// three-line answer look like a page; the labels carry the same information in
+// the space the list already occupied.
 const hotspot = addresses.filter((a) => a.hotspot);
 const lan = addresses.filter((a) => !a.hotspot);
-console.log(`\n  ${bold('SEND THIS TO FRIENDS IN THE ROOM')}   ${dim('(same WiFi or your hotspot)')}`);
+const col = (s) => dim(String(s).padEnd(15));
+
+console.log(`\n  ${bold('Your friends join at')}`);
 if (!addresses.length) {
   console.log(dim('    no network yet — turn on WiFi or your hotspot'));
-} else {
-  for (const a of hotspot) console.log(`    ${green(`http://${a.ip}:${PORT}`)}${dim('   ← your hotspot')}`);
-  for (const a of lan) console.log(`    ${green(`http://${a.ip}:${PORT}`)}${dim('   ← this WiFi')}`);
 }
-
-console.log(`\n  ${bold('SEND THIS TO FRIENDS FAR AWAY')}   ${dim('(anywhere with internet)')}`);
+for (const [i, a] of hotspot.entries()) {
+  console.log(`    ${col(i ? '' : 'on your hotspot')} ${green(`http://${a.ip}:${PORT}`)}`);
+}
+for (const [i, a] of lan.entries()) {
+  console.log(`    ${col(i ? '' : 'on this WiFi')} ${green(`http://${a.ip}:${PORT}`)}`);
+}
 if (publicUrl) {
-  console.log(`    ${green(publicUrl)}`);
+  console.log(`    ${col('from anywhere')} ${green(publicUrl)}`);
+  // One line about the address, because which kind it is decides whether the
+  // link can be saved or has to be re-sent after every restart.
   if (/ngrok-free/.test(publicUrl)) {
-    console.log(dim('    they see an ngrok warning once — one click, gone for a week'));
-    console.log(dim('    this address never changes, so it is safe to save'));
+    console.log(`    ${col('')} ${dim('never changes · they click past one warning, then a week free')}`);
   } else if (/trycloudflare\.com/.test(publicUrl)) {
-    console.log(dim('    temporary — this changes every restart, so re-send it each time'));
-    if (serveoHint) {
-      console.log(dim(`\n    want ${WANTED_NAME}.serveo.net instead? register your key once:`));
-      console.log(dim(`    ${serveoHint}`));
-    }
+    console.log(`    ${col('')} ${dim('temporary — changes every restart, so re-send it each time')}`);
+    if (serveoHint) console.log(`    ${col('')} ${dim(`a fixed name: ${serveoHint}`)}`);
   }
-} else {
-  console.log(dim('    none — nobody outside this network can reach the studio'));
-  console.log(dim('    (it opens one automatically; --offline turns that off)'));
+} else if (wantsTunnel) {
+  console.log(`    ${col('from anywhere')} ${dim('none — nobody outside this network can reach the studio')}`);
 }
 
 console.log(dim(`\n  on this laptop: http://localhost:${PORT}`));
@@ -383,6 +395,8 @@ try {
     '',
     'Friends far away (anywhere with internet):',
     `  ${publicUrl ?? '(none — started with --offline, or no tunnel available)'}`,
+    '',
+    ...(willProxy ? ['', 'IELTS training: add /study to any link above'] : []),
     '',
     `On this laptop: http://localhost:${PORT}`,
     `Started ${new Date().toLocaleString()}`,
@@ -402,16 +416,21 @@ try {
 if (study && (await studyReady())) {
   const primary = (addresses.find((a) => a.hotspot) ?? addresses[0])?.ip;
   console.log(`\n  ${bold('IELTS training')}`);
-  if (primary) console.log(`    for friends     http://${primary}:${STUDY_PORT}`);
-  console.log(dim(`    on this laptop: http://localhost:${STUDY_PORT}`));
-  console.log(dim('    same Hypnic ID, no second signup'));
-  console.log(dim(process.env.STUDY_DEV === '1'
-    ? '    dev mode — guests may see error overlays; unset STUDY_DEV for a real build'
-    : '    production build'));
-  // The tunnel only ever carries the studio's own port, so anybody who came
-  // in from outside cannot reach this at all. Better said here than
-  // discovered by a friend clicking a link that hangs.
-  if (publicUrl) console.log(dim('    same WiFi only — the public link does not reach it'));
+  if (willProxy) {
+    // Served under /study on the studio's own port, so every address above
+    // reaches it — including the public one. Printing its own port here would
+    // hand a friend somewhere else a link with no route to it.
+    console.log(`    ${col('add to any link')} ${green('/study')}`);
+    if (primary) console.log(`    ${col('')} ${dim(`e.g. http://${primary}:${PORT}/study`)}`);
+    if (publicUrl) console.log(`    ${col('')} ${dim(`${publicUrl}/study`)}`);
+  } else {
+    if (primary) console.log(`    ${col('for friends')} ${green(`http://${primary}:${STUDY_PORT}`)}`);
+    console.log(`    ${col('')} ${dim('same WiFi only — the public link does not reach a second port')}`);
+  }
+  console.log(`    ${col('')} ${dim('same Hypnic ID, no second signup')}`);
+  console.log(`    ${col('')} ${dim(process.env.STUDY_DEV === '1'
+    ? 'dev mode — guests may see error overlays; unset STUDY_DEV for a real build'
+    : 'production build')}`);
 } else if (studyExit !== null) {
   console.log(dim(`\n  IELTS training: stopped on its own (exit ${studyExit}) — run it with STUDY_LOGS=1 to see why`));
 } else if (study) {
