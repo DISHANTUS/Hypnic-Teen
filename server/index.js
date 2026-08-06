@@ -336,7 +336,23 @@ if (STUDY_PROXIED) {
         // express strips the mount path, so it has to go back on.
         path: `/study${req.originalUrl.slice('/study'.length)}`,
         method: req.method,
-        headers: { ...strip(req.headers), host: `127.0.0.1:${STUDY_PORT}` },
+        // Next checks that a Server Action's `origin` agrees with the host it
+        // believes it is serving, and aborts if they differ — a CSRF guard
+        // doing exactly its job. Rewriting `host` to the upstream port while
+        // leaving `origin` as the address the browser actually used made every
+        // action fail with "Invalid Server Actions request", which surfaces as
+        // a blank "a server error occurred" and appears in no log the person
+        // sitting in front of it can see.
+        //
+        // So Study is told the truth about where the request came from, and
+        // `origin` is left exactly as the browser sent it.
+        headers: {
+          ...strip(req.headers),
+          host: `127.0.0.1:${STUDY_PORT}`,
+          'x-forwarded-host': req.headers.host ?? '',
+          'x-forwarded-proto': req.protocol,
+          'x-forwarded-for': req.ip ?? '',
+        },
       },
       (upstream) => {
         // Hop-by-hop headers describe *this* connection and must not be
