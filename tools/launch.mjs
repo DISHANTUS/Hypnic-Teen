@@ -309,10 +309,35 @@ for (let i = 0; i < 40; i++) {
 // staying on WiFi has two, and they are not interchangeable: friends in the
 // room reach the hotspot one, and nothing outside the house reaches either.
 const HOTSPOT_RANGE = /^192\.168\.137\./; // Windows Mobile Hotspot always uses this
-const addresses = Object.values(networkInterfaces())
-  .flat()
-  .filter((n) => n && n.family === 'IPv4' && !n.internal)
-  .map((n) => ({ ip: n.address, hotspot: HOTSPOT_RANGE.test(n.address) }));
+
+/**
+ * Adapters that exist for software on this laptop and lead nowhere for anybody
+ * else — WSL, Hyper-V, Docker, VirtualBox, VPNs. Node reports them exactly
+ * like a real network card, so listing every non-internal address put
+ * 172.26.208.1 under "your friends join at" when no friend could ever reach
+ * it. An address nobody can use is worse in that list than no address at all:
+ * it is the one somebody tries first when the real one does not work.
+ */
+const VIRTUAL = /^(vEthernet|WSL|Hyper-V|Docker|VirtualBox|VMware|Loopback|Bluetooth|Tailscale|ZeroTier|Npcap)/i;
+
+const addresses = Object.entries(networkInterfaces())
+  .flatMap(([name, list]) => (list ?? []).map((n) => ({ ...n, adapter: name })))
+  .filter((n) => n.family === 'IPv4' && !n.internal && !VIRTUAL.test(n.adapter))
+  .map((n) => ({
+    ip: n.address,
+    adapter: n.adapter,
+    hotspot: HOTSPOT_RANGE.test(n.address),
+    // What to call it, in the words somebody would use out loud. The adapter
+    // name is the fallback, because a made-up label would be worse than the
+    // real one Windows chose.
+    what: HOTSPOT_RANGE.test(n.address)
+      ? 'your hotspot'
+      : /wi-?fi|wlan|wireless/i.test(n.adapter)
+        ? 'this WiFi'
+        : /ethernet|lan/i.test(n.adapter)
+          ? 'the cable'
+          : n.adapter,
+  }));
 
 /* ----------------------------- the outside world -------------------------- */
 
@@ -362,11 +387,10 @@ console.log(`\n  ${bold('Your friends join at')}`);
 if (!addresses.length) {
   console.log(dim('    no network yet — turn on WiFi or your hotspot'));
 }
-for (const [i, a] of hotspot.entries()) {
-  console.log(`    ${col(i ? '' : 'on your hotspot')} ${green(`http://${a.ip}:${PORT}`)}`);
-}
-for (const [i, a] of lan.entries()) {
-  console.log(`    ${col(i ? '' : 'on this WiFi')} ${green(`http://${a.ip}:${PORT}`)}`);
+// Every line names the network it belongs to, so there is never a second
+// address with the same label and no way to tell them apart.
+for (const a of [...hotspot, ...lan]) {
+  console.log(`    ${col(`on ${a.what}`)} ${green(`http://${a.ip}:${PORT}`)}`);
 }
 if (publicUrl) {
   console.log(`    ${col('from anywhere')} ${green(publicUrl)}`);
@@ -391,7 +415,9 @@ try {
     'Hypnic Teen — Fun World',
     '',
     'Friends in the room (same WiFi or hotspot):',
-    ...(addresses.length ? addresses.map((a) => `  http://${a.ip}:${PORT}`) : ['  (no network)']),
+    ...(addresses.length
+      ? addresses.map((a) => `  http://${a.ip}:${PORT}   (on ${a.what})`)
+      : ['  (no network)']),
     '',
     'Friends far away (anywhere with internet):',
     `  ${publicUrl ?? '(none — started with --offline, or no tunnel available)'}`,
