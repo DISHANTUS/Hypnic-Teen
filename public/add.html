@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en" data-theme="peach" data-style="modern">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Add a picture round — Hypnic Teen</title>
+<meta name="description" content="Send in a song or film for the Bioscope round: a few pictures that spell it out, two clues, and the tune." />
+<link rel="icon" href="/icons/icon-192.png" />
+<link rel="stylesheet" href="/css/tokens.css" />
+<link rel="stylesheet" href="/css/site.css" />
+<link rel="stylesheet" href="/css/styles.css" />
+<script>
+  try {
+    if (localStorage.getItem('htfw:themeVersion') === '3') {
+      var t = localStorage.getItem('htfw:theme');
+      var s = localStorage.getItem('htfw:style');
+      if (t) document.documentElement.setAttribute('data-theme', t);
+      if (s) document.documentElement.setAttribute('data-style', s);
+    }
+  } catch (e) {}
+</script>
+</head>
+<body>
+
+<div class="ambience" aria-hidden="true">
+  <div class="ambience-grid"></div>
+  <div class="ambience-grain"></div>
+</div>
+
+<header class="topbar">
+  <a class="brand" href="/" aria-label="Hypnic Teen home">
+    <span class="brand-mark">H</span>
+    <span class="brand-text"><b>Hypnic Teen</b><small>Fun World</small></span>
+  </a>
+</header>
+
+<main id="view">
+  <section class="add-page">
+    <div class="band-head">
+      <span class="eyebrow">Help build the game</span>
+      <h2>Send in a picture round.</h2>
+      <p>
+        Pick a song or a film, then choose pictures that spell it out &mdash; the way the
+        Bioscope round on TV does it. A crow, a tray, some numbers. Everyone else has to
+        read them and shout the answer.
+      </p>
+    </div>
+
+    <div class="panel add-form">
+      <!-- 1. what it is -->
+      <div class="field">
+        <label for="answer">What is the answer?</label>
+        <input id="answer" type="text" maxlength="60" placeholder="Naatu Naatu" autocomplete="off" />
+        <small class="muted">Spell it the way people say it. Close guesses are forgiven in the game.</small>
+      </div>
+
+      <div class="field">
+        <label>Is it a song or a film?</label>
+        <div class="kind-row">
+          <button class="kind on" id="kindSong" type="button" data-kind="song">🎵 Song</button>
+          <button class="kind" id="kindMovie" type="button" data-kind="movie">🎬 Film</button>
+        </div>
+      </div>
+
+      <!-- 2. how many pictures -->
+      <div class="field">
+        <label for="howMany">How many pictures?</label>
+        <div class="count-row">
+          <input id="howMany" type="range" min="2" max="8" step="1" value="4" />
+          <output id="howManyOut">4</output>
+        </div>
+        <small class="muted">Two is enough. Six is plenty. Each one stands for a word or a sound.</small>
+      </div>
+
+      <!-- 3. the pictures themselves -->
+      <div class="shots" id="shots"></div>
+
+      <!-- 4. two clues -->
+      <div class="field">
+        <label for="clue1">First clue</label>
+        <input id="clue1" type="text" maxlength="120" placeholder="From RRR" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="clue2">Second clue</label>
+        <input id="clue2" type="text" maxlength="120" placeholder="Two men dancing in front of a palace" autocomplete="off" />
+        <small class="muted">Shown one at a time if nobody gets it from the pictures.</small>
+      </div>
+
+      <!-- 5. the tune, optional -->
+      <div class="field">
+        <label for="audio">The song itself <span class="muted">(optional)</span></label>
+        <input id="audio" type="file" accept="audio/*" />
+        <small class="muted">Played for twenty seconds once the round is over. Skip it if you do not have the file.</small>
+      </div>
+
+      <p class="error" id="addError" hidden></p>
+      <p class="add-note" id="addNote" hidden></p>
+
+      <button class="btn btn-primary btn-lg" id="send" type="button">Send it in</button>
+    </div>
+
+    <div class="panel add-done" id="done" hidden>
+      <h2>Got it — thank you.</h2>
+      <p class="muted" id="doneWhat"></p>
+      <button class="btn btn-ghost" id="another" type="button">Send another</button>
+    </div>
+  </section>
+</main>
+
+<footer class="site-foot">
+  <b>Hypnic Teen</b> · Fun World · rounds sent in by the people who play them
+</footer>
+
+<script type="module" src="/js/add.js"></script>
+</body>
+</html>

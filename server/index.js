@@ -49,7 +49,8 @@ import {
 } from './social.js';
 import { warmUpLLM } from './llm.js';
 import { CLUE_DIR, clueFor, clueVocabulary, mediaStatus } from './media.js';
-import { OWN_DIR, ownClues, ownCluesStatus } from './own-clues.js';
+import { OWN_DIR, ownClues, ownCluesStatus, saveOwnClue } from './own-clues.js';
+import { mayUse, accessState, setAccess, isOwner } from './access.js';
 import {
   attachTournaments,
   createTournament,
@@ -416,6 +417,33 @@ if (STUDY_PROXIED) {
 if (OWN_DIR && existsSync(OWN_DIR)) {
   app.use('/media/mine', express.static(OWN_DIR, { maxAge: '1h', index: false, dotfiles: 'deny' }));
 }
+
+/* --------------------------- rounds sent in by friends -------------------- */
+
+// Pictures arrive as data URLs, already shrunk in the browser, so this route
+// needs a body limit the rest of the site would be reckless to allow.
+app.post('/api/clues', express.json({ limit: '40mb' }), (req, res) => {
+  const out = saveOwnClue(req.body ?? {});
+  if (out.error) return res.status(400).json(out);
+  console.log(`[clues] "${out.answer}" — ${out.pictures} pictures`);
+  res.json(out);
+});
+
+/* ------------------------------ who may enter ---------------------------- */
+
+// Study calls this after the studio has verified an ID and PIN, so the answer
+// is about a member who has already proved who they are.
+app.get('/api/access/:app', (req, res) => {
+  const id = String(req.query.id ?? '').trim();
+  res.json({ ...mayUse(req.params.app, id), ...accessState(req.params.app) });
+});
+
+// Owner-only, and the owner is whoever OWNER_ID names — a signed token, not
+// a claim in the body.
+app.post('/api/access/:app', requireAuth, (req, res) => {
+  const out = setAccess(req.params.app, req.accountId, req.body ?? {});
+  res.status(out.error ? 403 : 200).json(out);
+});
 
 app.get('/api/games', (_req, res) => res.json(listGames()));
 app.get('/api/health', (_req, res) => res.json({ ok: true, members: memberCount(), ...roomStats() }));

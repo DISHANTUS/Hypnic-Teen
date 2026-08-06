@@ -536,6 +536,25 @@
         <button class="btn btn-ghost btn-sm" id="recToggle" type="button">Set it up</button>
       </section>
 
+      <!-- Only the studio owner ever sees this. Who may use IELTS training. -->
+      <section class="access-box" id="accessBox" hidden>
+        <div class="setup-head">
+          <h3 class="section-label">Who can use IELTS training</h3>
+          <span class="recovery-state" id="accessState"></span>
+        </div>
+        <p class="muted small" id="accessBlurb"></p>
+        <div class="access-list" id="accessList"></div>
+        <div class="access-add">
+          <input id="accessId" type="text" placeholder="Hypnic&gt;SomeWord&lt;Teen" autocomplete="off" />
+          <button class="btn btn-primary btn-sm" id="accessAdd" type="button">Let them in</button>
+        </div>
+        <label class="access-open">
+          <input id="accessOpen" type="checkbox" />
+          <span>Open it to everybody</span>
+        </label>
+        <p class="error" id="accessError" hidden></p>
+      </section>
+
       <div class="stat-row" id="statRow"></div>
 
       <h3 class="section-label">Titles <span class="dim" id="titleCount"></span></h3>

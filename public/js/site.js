@@ -1484,6 +1484,72 @@ async function renderProfile() {
     showError(box.error, 'Saved. You can get your ID back now.', 'note');
   });
 
+  /* ---- who may use IELTS training (owner only) ---- */
+
+  // The server decides whether this is shown at all — it knows who the owner
+  // is, and a check here would be a suggestion rather than a rule.
+  fetch('/api/access/study')
+    .then((r) => r.json())
+    .then((state) => {
+      if (!state.owner || state.owner !== p.id) return;
+      const box = $('#accessBox');
+      box.hidden = false;
+
+      const paint = (s) => {
+        $('#accessState').textContent = s.open ? '🔓 Open to everybody' : `🔒 ${s.allowed.length} allowed`;
+        $('#accessState').classList.toggle('warn', s.open);
+        $('#accessBlurb').textContent = s.open
+          ? 'Anybody with a Hypnic ID can use it. Untick to go back to a list.'
+          : 'Only the people below can sign in to IELTS training. Everyone else is told to ask you.';
+        $('#accessOpen').checked = s.open;
+
+        $('#accessList').replaceChildren(
+          ...s.allowed.map((id) => {
+            const row = document.createElement('div');
+            row.className = 'access-row';
+            row.innerHTML = '<code></code>';
+            $('code', row).textContent = id;
+            if (id === s.owner) {
+              const you = document.createElement('span');
+              you.className = 'muted small';
+              you.textContent = 'you';
+              row.appendChild(you);
+            } else {
+              const drop = document.createElement('button');
+              drop.type = 'button';
+              drop.className = 'btn btn-quiet btn-sm';
+              drop.textContent = 'Remove';
+              drop.addEventListener('click', () => change({ revoke: id }));
+              row.appendChild(drop);
+            }
+            return row;
+          })
+        );
+      };
+
+      const change = async (patch) => {
+        showError($('#accessError'), '');
+        const res = await fetch('/api/access/study', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${Auth.token}` },
+          body: JSON.stringify(patch),
+        }).then((r) => r.json()).catch(() => ({ error: 'Could not reach the studio.' }));
+        if (res.error) return showError($('#accessError'), res.error);
+        paint(res);
+        Sound.play('pick');
+      };
+
+      paint(state);
+      $('#accessAdd').addEventListener('click', () => {
+        const id = $('#accessId').value.trim();
+        if (!id) return;
+        $('#accessId').value = '';
+        change({ allow: id });
+      });
+      $('#accessOpen').addEventListener('change', (e) => change({ open: e.target.checked }));
+    })
+    .catch(() => {});
+
   // Arriving from a notice that said "go and set this up" — open the form and
   // put it under their nose rather than leaving them to find it.
   if (sessionStorage.getItem('htfw:goRecovery')) {
