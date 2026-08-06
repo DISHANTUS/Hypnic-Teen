@@ -49,6 +49,7 @@ import {
 } from './social.js';
 import { warmUpLLM } from './llm.js';
 import { CLUE_DIR, clueFor, clueVocabulary, mediaStatus } from './media.js';
+import { OWN_DIR, ownClues, ownCluesStatus } from './own-clues.js';
 import {
   attachTournaments,
   createTournament,
@@ -391,6 +392,13 @@ if (STUDY_PROXIED) {
     if (head?.length) proxied.write(head);
     proxied.end();
   });
+}
+
+// Picture rounds written by the players, served from the same store. Not
+// cached as hard as the downloaded ones: somebody adding a folder wants to
+// see it that evening, not after a browser decides a month has passed.
+if (OWN_DIR && existsSync(OWN_DIR)) {
+  app.use('/media/mine', express.static(OWN_DIR, { maxAge: '1h', index: false, dotfiles: 'deny' }));
 }
 
 app.get('/api/games', (_req, res) => res.json(listGames()));

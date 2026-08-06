@@ -1,11 +1,12 @@
 // Guess the Movie — emoji first, then a dialogue, then a character name.
 // Guess on the emoji alone and you keep the biggest bonus.
 
-import { createPartyGame, DIFFICULTY_TIME } from '../party.js';
+import { createPartyGame, shuffle, DIFFICULTY_TIME } from '../party.js';
 import { MOVIES } from '../content.js';
 import { deal } from '../bank.js';
 import { pickerOptions, bankTopic, ofGenre, bioscopeFor } from '../cinema.js';
 import { clueFor } from '../media.js';
+import { ownClues } from '../own-clues.js';
 
 export default createPartyGame({
   id: 'movies',
@@ -36,9 +37,22 @@ export default createPartyGame({
     const want = Math.max(10, rounds + 3);
     // Deal generously, then narrow — asking the bank for exactly `want` and
     // then filtering by genre would leave a short deck and a truncated match.
-    const pool = deal(bankTopic('movies', language), MOVIES, want * 3);
-    return ofGenre(pool, genre, want)
-      .slice(0, want)
+    // Rounds your friends wrote come first — somebody chose those pictures
+    // for this room, which nothing generated can claim.
+    const mine = shuffle(ownClues()).map((card) => ({
+      answer: card.answer,
+      aliases: [card.answer.replace(/^The /i, ''), card.answer.replace(/[^A-Za-z0-9]/g, '')],
+      hints: card.clues.length ? card.clues : ['Look at the pictures again'],
+      pictures: card.pictures.map((p, n) => ({ n: n + 1, url: p.url })),
+      own: true,
+      seconds: DIFFICULTY_TIME.easy,
+    }));
+    const room = Math.max(0, want - mine.length);
+    if (!room) return mine.slice(0, want);
+
+    const pool = deal(bankTopic('movies', language), MOVIES, room * 3);
+    const rest = ofGenre(pool, genre, room)
+      .slice(0, room)
       .map((m, i) => {
         // Bioscope first, where the pictures exist: a strip of photographs
         // that decodes into the title, the way the television round does it.
@@ -55,6 +69,8 @@ export default createPartyGame({
           seconds: DIFFICULTY_TIME.easy,
         };
       });
+
+    return shuffle([...mine, ...rest]);
   },
 
   promptFor: (round) => ({

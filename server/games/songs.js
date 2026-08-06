@@ -1,11 +1,12 @@
 // Guess the Song — emoji, then a lyric snippet, then where it's from.
 // Audio clips would need licensed files, so the clues are text and emoji only.
 
-import { createPartyGame, DIFFICULTY_TIME } from '../party.js';
+import { createPartyGame, shuffle, DIFFICULTY_TIME } from '../party.js';
 import { SONGS } from '../content.js';
 import { deal } from '../bank.js';
 import { pickerOptions, bankTopic, ofGenre, bioscopeFor } from '../cinema.js';
 import { clueFor } from '../media.js';
+import { ownClues } from '../own-clues.js';
 
 export default createPartyGame({
   id: 'songs',
@@ -31,9 +32,28 @@ export default createPartyGame({
 
   buildDeck: ({ rounds = 7, language = 'any', genre = 'any' } = {}) => {
     const want = Math.max(10, rounds + 3);
-    const pool = deal(bankTopic('songs', language), SONGS, want * 3);
-    return ofGenre(pool, genre, want)
-      .slice(0, want)
+
+    // Rounds your friends wrote come first, and every one of them is used
+    // before anything generated. Somebody chose those pictures for this room;
+    // a machine that broke a title into words did not. Where there are more
+    // than a match needs, they are shuffled so the same ones do not open
+    // every night.
+    const mine = shuffle(ownClues()).map((card) => ({
+      answer: card.answer,
+      aliases: [card.answer.replace(/[^A-Za-z0-9]/g, ''), card.answer.split(' ').slice(0, 2).join(' ')],
+      // Their own clues, shown one at a time if the pictures are not enough.
+      hints: card.clues.length ? card.clues : ['Look at the pictures again'],
+      pictures: card.pictures.map((p, n) => ({ n: n + 1, url: p.url })),
+      own: true,
+      seconds: DIFFICULTY_TIME.easy,
+    }));
+
+    const room = Math.max(0, want - mine.length);
+    if (!room) return mine.slice(0, want);
+
+    const pool = deal(bankTopic('songs', language), SONGS, room * 3);
+    const rest = ofGenre(pool, genre, room)
+      .slice(0, room)
       .map((s, i) => {
         // The Bioscope round the television show runs: a strip of photographs
         // that decodes into the title. Only where every word has a picture —
@@ -48,6 +68,8 @@ export default createPartyGame({
           seconds: DIFFICULTY_TIME.easy,
         };
       });
+
+    return shuffle([...mine, ...rest]);
   },
 
   promptFor: (round) => ({
