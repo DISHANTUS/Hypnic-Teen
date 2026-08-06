@@ -38,7 +38,10 @@
     "test:td:ui": "node tools/test-truth-dare-ui.mjs",
     "test:account": "node tools/test-account.mjs",
     "test:bioscope": "node tools/test-bioscope.mjs",
-    "sweep": "node tools/sweep.mjs"
+    "sweep": "node tools/sweep.mjs",
+    "test:scroll": "node tools/test-scroll.mjs",
+    "test:add": "node tools/test-add.mjs",
+    "test:launch": "node tools/test-launch.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -46,6 +49,7 @@
   "dependencies": {
     "compression": "^1.8.1",
     "express": "^4.21.2",
+    "nodemailer": "^9.0.4",
     "qrcode": "^1.5.4",
     "socket.io": "^4.8.1"
   },

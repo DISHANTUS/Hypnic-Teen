@@ -141,6 +141,60 @@ const TOPICS = {
       `Answer with ONE JSON array of plain strings and nothing else.`,
     valid: (row) => typeof row === 'string' && row.length > 12 && row.length < 140,
   },
+  // Imposter's word pairs: everybody gets the first, one player secretly gets
+  // the second and has to bluff. The two must be close enough that a vague
+  // description fits either, or the imposter is caught on their first sentence.
+  //
+  // The free-form seeds are deliberately not used here. Given one, the model
+  // fixates on it and produces "chemistry set / meme set", "science fair /
+  // meme fair" — pairs that share a word and give the game away. Category
+  // anchors and worked examples hold it much better.
+  imposter: {
+    target: 20000,
+    batch: 8,
+    ask: () => {
+      const areas = [
+        'sports and games', 'food and drink', 'animals', 'places in a city',
+        'school and college', 'films and television', 'jobs', 'travel',
+        'weather and seasons', 'music', 'clothes', 'things in a kitchen',
+      ];
+      const pick = areas[Math.floor(Math.random() * areas.length)];
+      const other = areas[Math.floor(Math.random() * areas.length)];
+      return (
+        `Write 8 word pairs for a bluffing party game. Everyone gets the first word; one player secretly gets the second.\n` +
+        `Draw on ${pick} and ${other}.\n` +
+        `The pair must be two DIFFERENT things of the same kind, close enough that a vague description fits either:\n` +
+        `  {"word":"cricket","decoy":"baseball"}\n` +
+        `  {"word":"coffee","decoy":"tea"}\n` +
+        `  {"word":"dentist","decoy":"barber"}\n` +
+        `Never repeat a word between the two. Never pair a thing with a category.\n` +
+        `Answer with ONE JSON array and nothing else, each item exactly:\n` +
+        `{"word":"...","decoy":"..."}`
+      );
+    },
+    valid: (row) => {
+      if (!row?.word || !row?.decoy) return false;
+      const a = String(row.word).toLowerCase().trim();
+      const b = String(row.decoy).toLowerCase().trim();
+      if (a === b || a.length < 2 || b.length < 2) return false;
+      // A shared word is what "chemistry set / meme set" has, and it is the
+      // single clearest sign the pair will not work: the imposter says the
+      // word they share and nobody learns anything.
+      const words = (s) => new Set(s.split(/\s+/));
+      for (const w of words(a)) if (words(b).has(w)) return false;
+      // Two or three words is a thing; a sentence is a description.
+      return a.split(/\s+/).length <= 3 && b.split(/\s+/).length <= 3;
+    },
+  },
+  'imposter-questions': {
+    target: 4000,
+    batch: 10,
+    ask: (seedWords) =>
+      `Write 10 questions to ask someone about a secret word without naming it, for a bluffing game.\n` +
+      `Themes: ${seedWords}. Each must make sense for almost any noun, like "what colour do you associate with it".\n` +
+      `Answer with ONE JSON array of plain strings and nothing else.`,
+    valid: (row) => typeof row === 'string' && row.length > 10 && row.length < 140,
+  },
   'poll-opinions': {
     target: 40000,
     batch: 8,

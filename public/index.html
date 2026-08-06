@@ -272,6 +272,33 @@
 <!-- Everyone in the studio. Online first, but offline members are listed too —
      a list that is empty on a quiet evening is useless exactly when you most
      want to find somebody to play with. -->
+<dialog id="feedbackDialog" class="dlg">
+  <h3>Tell the studio</h3>
+  <p class="muted small" style="margin-top:calc(var(--sp-lg) * -1)">
+    Anything at all &mdash; a bug, a game that is no fun, something you wish it did.
+    It goes straight to whoever runs this.
+  </p>
+  <div class="field">
+    <label for="fbKind">What is it?</label>
+    <select id="fbKind">
+      <option value="bug">Something is broken</option>
+      <option value="idea">An idea</option>
+      <option value="game">A game needs work</option>
+      <option value="other">Something else</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="fbText">Say it however you like</label>
+    <textarea id="fbText" rows="5" maxlength="1200" placeholder="The lobby button did nothing after the match ended…"></textarea>
+  </div>
+  <p class="muted small" id="fbWho"></p>
+  <p class="error" id="fbError" hidden></p>
+  <div class="dlg-actions">
+    <button class="btn btn-quiet" id="fbCancel" type="button">Cancel</button>
+    <button class="btn btn-primary" id="fbSend" type="button">Send it</button>
+  </div>
+</dialog>
+
 <dialog id="peopleDialog" class="dlg people-sheet">
   <div class="people-head">
     <h3 id="peopleTitle">Members</h3>
@@ -360,6 +387,28 @@
       <button class="btn btn-ghost btn-sm" id="newCupBtn" type="button">Run one</button>
     </div>
     <div class="cup-list" id="cupList"></div>
+  </section>
+
+  <!-- Two ways to put something back. The rounds people send in are better
+       than anything generated, and the complaints are how anything gets
+       fixed — so both live on the front page rather than in a menu. -->
+  <section class="give-back">
+    <a class="give-card" href="/add">
+      <span class="give-emoji">🖼️</span>
+      <span class="give-body">
+        <b>Help the community</b>
+        <small>Send in a picture round — a song or film, a few photos that spell it out, two clues.</small>
+      </span>
+      <span class="give-go">→</span>
+    </a>
+    <button class="give-card" id="feedbackBtn" type="button">
+      <span class="give-emoji">💬</span>
+      <span class="give-body">
+        <b>Tell us what is wrong</b>
+        <small>Something broken, something missing, something you would rather it did. It reaches the studio.</small>
+      </span>
+      <span class="give-go">→</span>
+    </button>
   </section>
 
   <div class="section-head">
@@ -534,6 +583,15 @@
           <button class="btn btn-primary" id="recSave" type="button">Save it</button>
         </div>
         <button class="btn btn-ghost btn-sm" id="recToggle" type="button">Set it up</button>
+      </section>
+
+      <!-- Owner only: what people have said about the place. -->
+      <section class="inbox-box" id="inboxBox" hidden>
+        <div class="setup-head">
+          <h3 class="section-label">What people are saying</h3>
+          <span class="recovery-state" id="inboxState"></span>
+        </div>
+        <div class="inbox-list" id="inboxList"></div>
       </section>
 
       <!-- Only the studio owner ever sees this. Who may use IELTS training. -->

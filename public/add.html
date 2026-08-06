@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Add a picture round — Hypnic Teen</title>
-<meta name="description" content="Send in a song or film for the Bioscope round: a few pictures that spell it out, two clues, and the tune." />
+<meta name="description" content="Send in a song or film for Guess the Song and Guess the Movie: a few pictures that spell out the name, and two clues." />
 <link rel="icon" href="/icons/icon-192.png" />
 <link rel="stylesheet" href="/css/tokens.css" />
 <link rel="stylesheet" href="/css/site.css" />
@@ -36,61 +36,132 @@
 
 <main id="view">
   <section class="add-page">
+
+    <!-- Written for somebody who has never seen the game. They were sent a
+         link by a friend and have no idea what any of this is for. -->
     <div class="band-head">
       <span class="eyebrow">Help build the game</span>
-      <h2>Send in a picture round.</h2>
+      <h2>Make a picture puzzle.</h2>
       <p>
-        Pick a song or a film, then choose pictures that spell it out &mdash; the way the
-        Bioscope round on TV does it. A crow, a tray, some numbers. Everyone else has to
-        read them and shout the answer.
+        Hypnic Teen has two guessing games &mdash; <b>Guess the Song</b> and
+        <b>Guess the Movie</b>. In them, everybody is shown a few pictures and has
+        to work out the name from them. What you make here is one of those puzzles.
       </p>
     </div>
 
+    <div class="panel how-it-works">
+      <h3>How it works</h3>
+      <p>
+        Pick a song or a film. Then choose photos that <b>spell out its name</b> &mdash;
+        not photos <em>of</em> it. It is like a rebus, or the Bioscope round on TV.
+      </p>
+      <div class="worked">
+        <span class="worked-label">For example, for the song <b>Kaakka Kaakka</b></span>
+        <div class="worked-row">
+          <span class="worked-pic">🐦<small>a crow<br /><i>kaakka</i></small></span>
+          <span class="worked-plus">+</span>
+          <span class="worked-pic">🐦<small>another crow<br /><i>kaakka</i></small></span>
+          <span class="worked-eq">=</span>
+          <span class="worked-answer">Kaakka Kaakka</span>
+        </div>
+        <span class="worked-label">Or for the film <b>The Lion King</b></span>
+        <div class="worked-row">
+          <span class="worked-pic">🦁<small>a lion</small></span>
+          <span class="worked-plus">+</span>
+          <span class="worked-pic">👑<small>a crown<br /><i>king</i></small></span>
+          <span class="worked-eq">=</span>
+          <span class="worked-answer">The Lion King</span>
+        </div>
+      </div>
+      <p class="muted small">
+        The picture can stand for a word, a sound, or part of one. Anything the room
+        will shout the answer at. Two pictures is enough; five or six is plenty.
+      </p>
+    </div>
+
+    <!-- Before the work, not after it. Hunting down five pictures for a song
+         somebody already did is the one way this page can waste an evening. -->
+    <div class="panel taken-panel">
+      <h3>Is it already in?</h3>
+      <p class="muted small">
+        Type a song or film here first. If somebody has already made a puzzle for it,
+        you will see it below &mdash; pick a different one and save yourself the hunt.
+      </p>
+      <input id="lookup" type="search" maxlength="60" placeholder="Search what is already in&hellip;" autocomplete="off" />
+      <p class="muted small" id="takenCount">Loading what is already in&hellip;</p>
+      <ul class="taken-list" id="takenList"></ul>
+    </div>
+
     <div class="panel add-form">
-      <!-- 1. what it is -->
-      <div class="field">
-        <label for="answer">What is the answer?</label>
-        <input id="answer" type="text" maxlength="60" placeholder="Naatu Naatu" autocomplete="off" />
-        <small class="muted">Spell it the way people say it. Close guesses are forgiven in the game.</small>
-      </div>
 
-      <div class="field">
-        <label>Is it a song or a film?</label>
-        <div class="kind-row">
-          <button class="kind on" id="kindSong" type="button" data-kind="song">🎵 Song</button>
-          <button class="kind" id="kindMovie" type="button" data-kind="movie">🎬 Film</button>
+      <!-- 1 -->
+      <div class="step">
+        <span class="step-n">1</span>
+        <div class="step-body">
+          <label for="answer">What is the answer?</label>
+          <input id="answer" type="text" maxlength="60" placeholder="Naatu Naatu" autocomplete="off" />
+          <p class="taken-warn" id="answerTaken" hidden></p>
+          <small class="muted">Spell it the way people say it out loud. Close guesses are forgiven in the game.</small>
         </div>
       </div>
 
-      <!-- 2. how many pictures -->
-      <div class="field">
-        <label for="howMany">How many pictures?</label>
-        <div class="count-row">
-          <input id="howMany" type="range" min="2" max="8" step="1" value="4" />
-          <output id="howManyOut">4</output>
+      <!-- 2 -->
+      <div class="step">
+        <span class="step-n">2</span>
+        <div class="step-body">
+          <label>Is it a song or a film?</label>
+          <div class="kind-row">
+            <button class="kind on" id="kindSong" type="button" data-kind="song">🎵 A song</button>
+            <button class="kind" id="kindMovie" type="button" data-kind="movie">🎬 A film</button>
+          </div>
+          <small class="muted" id="kindNote">It will show up in Guess the Song.</small>
         </div>
-        <small class="muted">Two is enough. Six is plenty. Each one stands for a word or a sound.</small>
       </div>
 
-      <!-- 3. the pictures themselves -->
-      <div class="shots" id="shots"></div>
+      <!-- 3 -->
+      <div class="step">
+        <span class="step-n">3</span>
+        <div class="step-body">
+          <label>Add your pictures</label>
+          <small class="muted">
+            Tap once for each picture. They are shown in the order below &mdash; use the
+            arrows to move one, or the &times; to drop it.
+          </small>
 
-      <!-- 4. two clues -->
-      <div class="field">
-        <label for="clue1">First clue</label>
-        <input id="clue1" type="text" maxlength="120" placeholder="From RRR" autocomplete="off" />
-      </div>
-      <div class="field">
-        <label for="clue2">Second clue</label>
-        <input id="clue2" type="text" maxlength="120" placeholder="Two men dancing in front of a palace" autocomplete="off" />
-        <small class="muted">Shown one at a time if nobody gets it from the pictures.</small>
+          <div class="shots" id="shots"></div>
+
+          <label class="add-shot" id="addShot">
+            <span class="add-shot-plus">+</span>
+            <span>Add a picture</span>
+            <input type="file" accept="image/*" multiple hidden />
+          </label>
+          <small class="muted" id="shotCount"></small>
+        </div>
       </div>
 
-      <!-- 5. the tune, optional -->
-      <div class="field">
-        <label for="audio">The song itself <span class="muted">(optional)</span></label>
-        <input id="audio" type="file" accept="audio/*" />
-        <small class="muted">Played for twenty seconds once the round is over. Skip it if you do not have the file.</small>
+      <!-- 4 -->
+      <div class="step">
+        <span class="step-n">4</span>
+        <div class="step-body">
+          <label for="clue1">Two clues, in case nobody gets it</label>
+          <input id="clue1" type="text" maxlength="120" placeholder="From the film RRR" autocomplete="off" />
+          <input id="clue2" type="text" maxlength="120" placeholder="Two men dancing in front of a palace" autocomplete="off" />
+          <small class="muted">Shown one at a time, only if the pictures are not enough.</small>
+        </div>
+      </div>
+
+      <!-- 5 -->
+      <div class="step" id="audioStep">
+        <span class="step-n">5</span>
+        <div class="step-body">
+          <label for="audio">The song itself <span class="muted">— optional</span></label>
+          <input id="audio" type="file" accept="audio/*" />
+          <small class="muted">
+            Played for a few seconds once the round is over, so everyone hears what they
+            were guessing. Skip this if you do not have the file &mdash; the puzzle works
+            without it.
+          </small>
+        </div>
       </div>
 
       <p class="error" id="addError" hidden></p>
@@ -102,13 +173,16 @@
     <div class="panel add-done" id="done" hidden>
       <h2>Got it — thank you.</h2>
       <p class="muted" id="doneWhat"></p>
-      <button class="btn btn-ghost" id="another" type="button">Send another</button>
+      <div class="done-acts">
+        <button class="btn btn-primary" id="another" type="button">Make another</button>
+        <a class="btn btn-ghost" href="/">Go and play</a>
+      </div>
     </div>
   </section>
 </main>
 
 <footer class="site-foot">
-  <b>Hypnic Teen</b> · Fun World · rounds sent in by the people who play them
+  <b>Hypnic Teen</b> · Fun World · puzzles made by the people who play them
 </footer>
 
 <script type="module" src="/js/add.js"></script>

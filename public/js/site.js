@@ -613,6 +613,8 @@ function renderHome() {
   }
   grid.replaceChildren(...games.map((g) => gameCard(g, (game) => hostGame(game.id))));
 
+  $('#feedbackBtn').addEventListener('click', openFeedback);
+
   paintCupColumn();
   // The board is pushed by the server whenever anything changes, so an open
   // cup appears on someone's home screen without them refreshing.
@@ -1484,6 +1486,64 @@ async function renderProfile() {
     showError(box.error, 'Saved. You can get your ID back now.', 'note');
   });
 
+  /* ---- what people have said (owner only) ---- */
+
+  // 403 for everyone else, so the panel simply never appears — the server
+  // decides who the owner is, not this page.
+  fetch('/api/feedback', { headers: { authorization: `Bearer ${Auth.token}` } })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((box) => {
+      if (!box) return;
+      const list = $('#inboxList');
+      $('#inboxBox').hidden = false;
+
+      const paint = (items, unread) => {
+        $('#inboxState').textContent = unread ? `${unread} unread` : `${items.length} in total`;
+        $('#inboxState').classList.toggle('warn', unread > 0);
+
+        if (!items.length) {
+          list.innerHTML = '<p class="muted small">Nothing yet. The button is on the arcade page.</p>';
+          return;
+        }
+        list.replaceChildren(
+          ...items.slice(0, 30).map((item) => {
+            const row = document.createElement('article');
+            row.className = `note-in${item.read ? ' read' : ''}`;
+            row.innerHTML =
+              '<header><b></b><time></time></header><p></p><small></small><div class="note-acts"></div>';
+            $('b', row).textContent = { bug: '🐞 Broken', idea: '💡 Idea', game: '🎮 A game', other: '💬 Something else' }[item.kind] ?? '💬';
+            $('time', row).textContent = when(item.at);
+            $('p', row).textContent = item.text;
+            $('small', row).textContent = [item.from, item.where].filter(Boolean).join(' · ');
+
+            const act = (text, fn) => {
+              const b = document.createElement('button');
+              b.type = 'button';
+              b.className = 'btn btn-quiet btn-sm';
+              b.textContent = text;
+              b.addEventListener('click', async () => {
+                const res = await fetch(`/api/feedback/${item.id}`, {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json', authorization: `Bearer ${Auth.token}` },
+                  body: JSON.stringify(fn),
+                }).then((r) => r.json()).catch(() => null);
+                if (!res) return;
+                const fresh = await fetch('/api/feedback', { headers: { authorization: `Bearer ${Auth.token}` } }).then((r) => r.json());
+                paint(fresh.items, fresh.unread);
+              });
+              $('.note-acts', row).appendChild(b);
+            };
+            if (!item.read) act('Mark read', { read: true });
+            act('Delete', { remove: true });
+            return row;
+          })
+        );
+      };
+
+      paint(box.items, box.unread);
+    })
+    .catch(() => {});
+
   /* ---- who may use IELTS training (owner only) ---- */
 
   // The server decides whether this is shown at all — it knows who the owner
@@ -1774,6 +1834,58 @@ function route() {
 /* --------------------------------- events -------------------------------- */
 
 Net.on('status', ({ online }) => connDot.setAttribute('data-state', online ? 'on' : 'off'));
+
+/* -------------------------------- feedback -------------------------------- */
+
+// Deliberately reachable without signing in. Every real bug in this project so
+// far was found by somebody looking at a screen and saying "this isn't
+// working" — and the person most likely to hit one is the person who could not
+// get past it, who by definition may not be signed in.
+function openFeedback() {
+  const dlg = document.getElementById('feedbackDialog');
+  const text = $('#fbText');
+  const send = $('#fbSend');
+
+  showError($('#fbError'), '');
+  text.value = '';
+  send.disabled = false;
+  send.textContent = 'Send it';
+  $('#fbWho').textContent = Auth.profile
+    ? `Sent as ${Auth.profile.name} — so a reply can find you.`
+    : 'Sent anonymously. Sign in first if you would like a reply.';
+
+  $('#fbCancel').onclick = () => dlg.close();
+  send.onclick = async () => {
+    const body = text.value.trim();
+    if (body.length < 3) return showError($('#fbError'), 'Say a little more and it can be acted on.');
+    send.disabled = true;
+    send.textContent = 'Sending…';
+    const res = await fetch('/api/feedback', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        text: body,
+        kind: $('#fbKind').value,
+        from: Auth.profile?.id ?? null,
+        // Which screen they were on when they gave up, which is usually the
+        // first thing you would ask them.
+        where: location.hash || '#/',
+      }),
+    }).then((r) => r.json()).catch(() => ({ error: 'Could not reach the studio.' }));
+
+    if (res.error) {
+      send.disabled = false;
+      send.textContent = 'Send it';
+      return showError($('#fbError'), res.error);
+    }
+    dlg.close();
+    Sound.play('unlock');
+    toast('Sent — thank you. It goes straight to the studio.');
+  };
+
+  dlg.showModal();
+  setTimeout(() => text.focus(), 60);
+}
 
 /* --------------------------------- people --------------------------------- */
 

@@ -10,6 +10,13 @@ REM    domain  https://dashboard.ngrok.com/domains   (claim the free one)
 set NGROK_AUTHTOKEN=
 set NGROK_DOMAIN=
 
+REM  Where feedback should land. MAIL_PASS is a Google App Password, not
+REM  your account password — Gmail refuses those over SMTP. Generate one at
+REM  https://myaccount.google.com/apppasswords (needs 2-step verification on).
+set MAIL_TO=
+set MAIL_USER=
+set MAIL_PASS=
+
 REM  Your own Hypnic ID, so notices you post are signed by the studio.
 set OWNER_ID=
 

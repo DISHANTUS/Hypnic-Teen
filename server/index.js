@@ -1,7 +1,6 @@
 import { createServer, request as httpRequest } from 'node:http';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, statSync } from 'node:fs';
-import { networkInterfaces } from 'node:os';
 import path from 'node:path';
 import express from 'express';
 import compression from 'compression';
@@ -49,8 +48,10 @@ import {
 } from './social.js';
 import { warmUpLLM } from './llm.js';
 import { CLUE_DIR, clueFor, clueVocabulary, mediaStatus } from './media.js';
-import { OWN_DIR, ownClues, ownCluesStatus, saveOwnClue } from './own-clues.js';
+import { joinAddresses } from './addresses.js';
+import { OWN_DIR, ownClues, ownCluesStatus, ownTitles, saveOwnClue } from './own-clues.js';
 import { mayUse, accessState, setAccess, isOwner } from './access.js';
+import { addFeedback, feedbackList, unreadFeedback, markFeedbackRead, removeFeedback } from './feedback.js';
 import {
   attachTournaments,
   createTournament,
@@ -420,13 +421,56 @@ if (OWN_DIR && existsSync(OWN_DIR)) {
 
 /* --------------------------- rounds sent in by friends -------------------- */
 
+// Where the pictures live and how many there are. Small, but the one question
+// that has no other answer: MEDIA_DIR falls back through several candidates,
+// and "the files went somewhere else" looks exactly like "the files are gone".
+app.get('/api/media', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ ...mediaStatus(), own: ownCluesStatus() });
+});
+
+// What has already been sent in. Handed over whole rather than searched here,
+// because the page needs to answer "has anyone done this one?" on every
+// keystroke and a round trip per letter over a hotspot would be unusable.
+// Never cached: somebody who just added a round should see it on the next
+// person's screen, not after a browser decides an hour has passed.
+app.get('/api/clues', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ titles: ownTitles() });
+});
+
 // Pictures arrive as data URLs, already shrunk in the browser, so this route
 // needs a body limit the rest of the site would be reckless to allow.
 app.post('/api/clues', express.json({ limit: '40mb' }), (req, res) => {
   const out = saveOwnClue(req.body ?? {});
-  if (out.error) return res.status(400).json(out);
+  if (out.error) {
+    // A duplicate is a fact about the store, not a malformed request, and the
+    // page tells the two apart to say something more useful than "no".
+    return res.status(out.taken ? 409 : 400).json(out);
+  }
   console.log(`[clues] "${out.answer}" — ${out.pictures} pictures`);
   res.json(out);
+});
+
+/* ------------------------------- what people say -------------------------- */
+
+// No sign-in required. The person most likely to hit something broken is the
+// one who could not get past it, and asking them to log in first would lose
+// exactly the reports worth having.
+app.post('/api/feedback', (req, res) => {
+  const out = addFeedback({ ...(req.body ?? {}) });
+  res.status(out.error ? 400 : 200).json(out);
+});
+
+// Reading it is owner-only — it is a pile of other people’s words.
+app.get('/api/feedback', requireAuth, (req, res) => {
+  if (!isOwner(req.accountId)) return res.status(403).json({ error: 'Only the studio owner can read this.' });
+  res.json({ items: feedbackList(), unread: unreadFeedback() });
+});
+
+app.post('/api/feedback/:id', requireAuth, (req, res) => {
+  if (!isOwner(req.accountId)) return res.status(403).json({ error: 'Only the studio owner can do that.' });
+  res.json(req.body?.remove ? removeFeedback(req.params.id) : markFeedbackRead(req.params.id));
 });
 
 /* ------------------------------ who may enter ---------------------------- */
@@ -923,25 +967,20 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Something broke on our side.' });
 });
 
-function lanAddresses() {
-  return Object.values(networkInterfaces())
-    .flat()
-    .filter((n) => n && n.family === 'IPv4' && !n.internal)
-    .map((n) => n.address);
-}
-
 httpServer.listen(PORT, '0.0.0.0', async () => {
   const games = listGames().length;
-  const addresses = lanAddresses();
+  const addresses = joinAddresses();
   console.log('\n  \x1b[36m✦ HYPNIC TEEN\x1b[0m \x1b[2m·\x1b[0m FUN WORLD');
   console.log(`  ${games} game${games === 1 ? '' : 's'} loaded\n`);
   console.log(`  On this PC     http://localhost:${PORT}`);
-  for (const ip of addresses) {
-    console.log(`  Friends join   \x1b[36mhttp://${ip}:${PORT}\x1b[0m`);
+  for (const a of addresses) {
+    console.log(`  Friends join   \x1b[36mhttp://${a.ip}:${PORT}\x1b[0m \x1b[2mon ${a.what}\x1b[0m`);
   }
 
-  // A scannable code beats reading an IP address out to twenty people.
-  const joinUrl = addresses.length ? `http://${addresses[0]}:${PORT}` : null;
+  // A scannable code beats reading an IP address out to twenty people. It gets
+  // the first address, which joinAddresses() has already put in the order that
+  // works for the most people — the hotspot before the house WiFi.
+  const joinUrl = addresses.length ? `http://${addresses[0].ip}:${PORT}` : null;
   if (joinUrl) {
     try {
       const qr = await QRCode.toString(joinUrl, { type: 'terminal', small: true });

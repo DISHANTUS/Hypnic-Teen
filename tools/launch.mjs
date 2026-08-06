@@ -11,7 +11,7 @@
 import { spawn, execFile } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
-import { networkInterfaces } from 'node:os';
+import { joinAddresses } from '../server/addresses.js';
 import path from 'node:path';
 
 const ROOT = path.join(import.meta.dirname, '..');
@@ -308,36 +308,10 @@ for (let i = 0; i < 40; i++) {
 // Which local address belongs to what. A laptop running its own hotspot while
 // staying on WiFi has two, and they are not interchangeable: friends in the
 // room reach the hotspot one, and nothing outside the house reaches either.
-const HOTSPOT_RANGE = /^192\.168\.137\./; // Windows Mobile Hotspot always uses this
-
-/**
- * Adapters that exist for software on this laptop and lead nowhere for anybody
- * else — WSL, Hyper-V, Docker, VirtualBox, VPNs. Node reports them exactly
- * like a real network card, so listing every non-internal address put
- * 172.26.208.1 under "your friends join at" when no friend could ever reach
- * it. An address nobody can use is worse in that list than no address at all:
- * it is the one somebody tries first when the real one does not work.
- */
-const VIRTUAL = /^(vEthernet|WSL|Hyper-V|Docker|VirtualBox|VMware|Loopback|Bluetooth|Tailscale|ZeroTier|Npcap)/i;
-
-const addresses = Object.entries(networkInterfaces())
-  .flatMap(([name, list]) => (list ?? []).map((n) => ({ ...n, adapter: name })))
-  .filter((n) => n.family === 'IPv4' && !n.internal && !VIRTUAL.test(n.adapter))
-  .map((n) => ({
-    ip: n.address,
-    adapter: n.adapter,
-    hotspot: HOTSPOT_RANGE.test(n.address),
-    // What to call it, in the words somebody would use out loud. The adapter
-    // name is the fallback, because a made-up label would be worse than the
-    // real one Windows chose.
-    what: HOTSPOT_RANGE.test(n.address)
-      ? 'your hotspot'
-      : /wi-?fi|wlan|wireless/i.test(n.adapter)
-        ? 'this WiFi'
-        : /ethernet|lan/i.test(n.adapter)
-          ? 'the cable'
-          : n.adapter,
-  }));
+// Shared with the server rather than written twice. It was written twice, and
+// only this copy got the filter that keeps the WSL adapter out — so the server
+// went on printing 172.26.208.1 as a way in, and handing it to the QR code.
+const addresses = joinAddresses();
 
 /* ----------------------------- the outside world -------------------------- */
 
@@ -354,11 +328,23 @@ const wantsTunnel = !(process.argv.includes('--offline') || process.env.ONLINE =
 // the function that writes it — that put it below its first read.
 let serveoHint = null;
 let publicUrl = null;
+// Same reason: killWithUs() writes this while openPublicDoor() is still being
+// awaited below, which is long before the bottom of this file has run. Left
+// down beside watchTheDoor() it threw "cannot access before initialization"
+// and took the whole studio down with it.
+let tunnelChild = null;
+let closingDown = false;
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { closingDown = true; });
 
 if (wantsTunnel) {
   process.stdout.write(dim('\n  opening a public door… '));
   publicUrl = await openPublicDoor(PORT);
   console.log(publicUrl ? green(publicUrl) : yellow('none — local play still works'));
+
+  // From here it is watched. A tunnel is a long-lived outbound connection
+  // over somebody else's WiFi and it will drop; nobody should learn that
+  // from a friend saying the link is offline.
+  watchTheDoor(publicUrl);
 
   // The server needs to know its own public name so that the invite link a
   // host copies works for the friend who is not in the room.
@@ -643,6 +629,74 @@ function openServeo(port) {
 function killWithUs(child) {
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => child.kill());
   server.on('exit', () => child.kill());
+  // Whatever is currently holding the door open, so the watcher below can tell
+  // "it died" from "it was replaced".
+  tunnelChild = child;
+}
+
+/**
+ * Keeps the public address alive.
+ *
+ * Opening a tunnel and never looking at it again is how a friend three states
+ * away found the link dead twice while the studio sat here serving happily —
+ * the launcher had said "done", printed the URL, and stopped caring. A tunnel
+ * is a long-lived outbound connection over somebody's WiFi; it will drop.
+ *
+ * So: check that the address still answers, and reopen it if it does not. The
+ * check goes through the public URL rather than asking whether the process is
+ * alive, because a tunnel client can be running and still not be connected —
+ * which is exactly the state that produces "offline" for the visitor and looks
+ * fine from here.
+ */
+function watchTheDoor(url) {
+  if (!url) return;
+  let failures = 0;
+
+  const timer = setInterval(async () => {
+    if (closingDown) return clearInterval(timer);
+    let alive = false;
+    try {
+      const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(12_000) });
+      // ngrok's own interstitial is a 200 from ngrok, not from us, and it only
+      // appears for browsers — an API call that gets HTML means the tunnel is
+      // up and reaching something. Either way the door is open.
+      alive = res.ok || res.status === 511;
+    } catch {
+      alive = false;
+    }
+
+    if (alive) {
+      failures = 0;
+      return;
+    }
+
+    // One failure is a flaky moment on a hotspot; three in a row is dead.
+    if (++failures < 3) return;
+    failures = 0;
+    console.log(`\n  ${yellow('The public link stopped answering — opening it again…')}`);
+    try {
+      tunnelChild?.kill();
+    } catch {
+      /* it is probably already gone; that is the point */
+    }
+    const fresh = await openPublicDoor(PORT);
+    if (fresh) {
+      console.log(`  ${green(fresh)}${fresh === url ? dim('  (same address)') : dim('  — a new address, re-send it')}`);
+      try {
+        await fetch(`http://127.0.0.1:${PORT}/api/public-url`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ url: fresh }),
+        });
+      } catch {
+        /* the address above is still the one to send */
+      }
+      if (fresh !== url) return watchTheDoor(fresh); // follow the new one
+    } else {
+      console.log(dim('  could not reopen it — local play is unaffected'));
+    }
+  }, 60_000);
+  timer.unref?.();
 }
 
 function findCloudflared() {

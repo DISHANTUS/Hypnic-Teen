@@ -9,6 +9,7 @@
 
 import { createPartyGame, shuffle, pickSome, DIFFICULTY_TIME, SCORE } from '../party.js';
 import { QUIZ } from '../content.js';
+import { deal } from '../bank.js';
 
 // How far the rope can travel before a side has won outright.
 const ROPE_LIMIT = 100;
@@ -36,12 +37,17 @@ export default createPartyGame({
     'Drag the rope all the way across and it is over early.',
   ],
 
-  buildDeck: () => {
-    const pool = Object.entries(QUIZ).flatMap(([category, questions]) =>
-      pickSome(questions, 4).map((q) => ({ ...q, category }))
+  // Shares the quiz bank rather than keeping its own: they draw on the same
+  // questions, so a night of Quiz should use up Clash's supply too. Without
+  // this it was picking from the shipped list every match and asking the same
+  // things Quiz had already asked an hour earlier.
+  buildDeck: ({ rounds = 16 } = {}) => {
+    const want = Math.max(16, rounds + 4);
+    const all = Object.entries(QUIZ).flatMap(([category, questions]) =>
+      questions.map((q) => ({ ...q, category }))
     );
-    return shuffle(pool)
-      .slice(0, 16)
+    return deal('quiz', all, want)
+      .slice(0, want)
       .map((q) => {
         const options = shuffle(q.options).map((label, i) => ({ id: `o${i}`, label }));
         return {

@@ -85,7 +85,11 @@ for (const m of html.matchAll(/(?:href|src)="(\/[^"]+)"/g)) {
   const url = m[1];
   if (url.startsWith('/socket.io/')) continue; // served by the socket.io middleware
   const file = path.join(ROOT, 'public', url);
-  if (!existsSync(file)) note(`index.html references ${url}, which is missing from public/`);
+  // express serves with `extensions: ['html']`, so /add is public/add.html on
+  // disk. Checking only the literal path reported a working link as missing.
+  if (!existsSync(file) && !existsSync(`${file}.html`)) {
+    note(`index.html references ${url}, which is missing from public/`);
+  }
 }
 
 /* ---- css custom properties used by components must be declared ---- */

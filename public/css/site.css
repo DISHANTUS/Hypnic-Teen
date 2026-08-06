@@ -1115,7 +1115,6 @@ input::placeholder { color: var(--text-3); }
 .play { display: flex; flex-direction: column; gap: var(--sp-md); height: calc(100dvh - 150px); min-height: 420px; }
 @media (max-width: 760px), (max-height: 620px) {
   .play { height: auto; min-height: 0; }
-  .stage-wrap { max-height: none; }
 }
 .play-bar { display: flex; align-items: center; gap: var(--sp-md); flex-wrap: wrap; }
 .hud { display: flex; gap: var(--sp-sm); align-items: center; flex-wrap: wrap; margin-left: auto; }
@@ -1154,6 +1153,30 @@ input::placeholder { color: var(--text-3); }
   overscroll-behavior: contain;
   background: var(--surface);
 }
+
+/* …but on a phone the page does the scrolling and nothing else may.
+ *
+ * The play area is auto-height here, so this box always fits its own content
+ * and has nothing to scroll — while `overscroll-behavior: contain` above
+ * stops the gesture reaching the page behind it. Between them they made a
+ * dead zone the size of the game: a thumb in the middle moved nothing, and
+ * only a swipe at the very edge, outside this box, did anything at all.
+ *
+ * It has to come after the rules above rather than inside the earlier
+ * breakpoint, because a media query adds no specificity — the first attempt
+ * at this fix sat higher in the file and lost to those very selectors.
+ */
+@media (max-width: 760px), (max-height: 620px) {
+  .stage-wrap.party-stage,
+  .stage-wrap.bs-stage,
+  .stage-wrap.td-stage {
+    max-height: none;
+    overflow: visible;
+    touch-action: auto;
+    overscroll-behavior: auto;
+  }
+}
+
 #stage { display: block; width: 100%; height: 100%; }
 
 .touch-controls { position: absolute; inset: 0; pointer-events: none; }
@@ -3056,3 +3079,240 @@ input::placeholder { color: var(--text-3); }
   font: inherit;
 }
 .access-open { display: flex; align-items: center; gap: var(--sp-sm); font-size: var(--t-label); color: var(--text-2); }
+
+/* ------------------------------------------- putting something back ------ */
+
+.give-back { display: grid; gap: var(--sp-md); margin-top: var(--sp-3x); }
+@media (min-width: 720px) { .give-back { grid-template-columns: 1fr 1fr; } }
+
+.give-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-lg);
+  width: 100%;
+  padding: var(--sp-lg) var(--sp-xl);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform var(--m-fast) var(--ease-standard), border-color var(--m-fast) var(--ease-standard);
+}
+.give-card:hover { transform: translateY(-2px); border-color: var(--accent); border-style: solid; }
+.give-emoji { font-size: 1.5rem; line-height: 1; flex: none; }
+.give-body { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.give-body b { font-family: var(--font-display); }
+.give-body small { color: var(--text-3); font-size: var(--t-label); line-height: 1.4; }
+.give-go { flex: none; color: var(--text-3); font-size: 1.1rem; }
+.give-card:hover .give-go { color: var(--accent); }
+
+/* The owner's inbox. */
+.inbox-box {
+  display: grid;
+  gap: var(--sp-sm);
+  margin: var(--sp-lg) 0;
+  padding: var(--sp-lg);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-md);
+}
+.inbox-box .setup-head { width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-md); }
+.inbox-list { display: grid; gap: var(--sp-sm); max-height: 46vh; overflow-y: auto; }
+.note-in {
+  display: grid;
+  gap: 4px;
+  padding: var(--sp-md);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--glass);
+}
+.note-in.read { border-left-color: var(--border); opacity: 0.6; }
+.note-in header { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-md); }
+.note-in header b { font-size: var(--t-label); }
+.note-in time { font-size: 0.66rem; color: var(--text-3); }
+.note-in p { margin: 0; font-size: var(--t-label); line-height: 1.45; }
+.note-in small { color: var(--text-3); font-size: 0.66rem; word-break: break-all; }
+.note-acts { display: flex; gap: var(--sp-sm); margin-top: 2px; }
+
+/* The feedback form's own text box. */
+#fbText {
+  width: 100%;
+  padding: var(--sp-md);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--base);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+/* --------------------------------------------- making a picture round ---- */
+
+.add-page { max-width: 720px; margin: 0 auto; padding-bottom: var(--sp-6x); }
+.how-it-works { margin: var(--sp-lg) 0; display: grid; gap: var(--sp-md); }
+.how-it-works h3 { margin: 0; font-size: var(--t-title); }
+.how-it-works p { margin: 0; }
+
+/* A worked example, because "pictures that spell out the name" means nothing
+   until you have seen one done. */
+.worked { display: grid; gap: var(--sp-sm); padding: var(--sp-lg); border-radius: var(--r-md); background: var(--glass); }
+.worked-label { font-size: var(--t-label); color: var(--text-3); }
+.worked-row { display: flex; align-items: center; gap: var(--sp-md); flex-wrap: wrap; }
+.worked-pic {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 74px;
+  padding: var(--sp-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font-size: 1.5rem;
+  line-height: 1.1;
+}
+.worked-pic small { font-size: 0.6rem; color: var(--text-3); text-align: center; line-height: 1.3; }
+.worked-pic i { color: var(--accent); font-style: italic; }
+.worked-plus, .worked-eq { color: var(--text-3); font-size: 1.1rem; }
+.worked-answer { font-family: var(--font-display); font-size: var(--t-title); color: var(--accent); }
+
+/* What is already in. Sits above the form on purpose: the cost of a duplicate
+   is not a rejected upload, it is an evening spent finding pictures for a song
+   somebody else already did. */
+.taken-panel { margin: var(--sp-lg) 0; display: grid; gap: var(--sp-sm); }
+.taken-panel h3 { margin: 0; font-size: var(--t-title); }
+.taken-panel p { margin: 0; }
+.taken-panel input { width: 100%; }
+.taken-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  /* Tall enough to browse, short enough that the form stays in reach. */
+  max-height: 260px;
+  overflow-y: auto;
+}
+.taken-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: var(--sp-sm);
+  align-items: center;
+  padding: var(--sp-xs) var(--sp-sm);
+  border-radius: var(--r-sm);
+  background: var(--glass);
+}
+.taken-item b { font-weight: 600; overflow-wrap: anywhere; }
+.taken-item small { color: var(--text-3); font-size: var(--t-label); white-space: nowrap; }
+
+/* Said next to the answer field, where the choice is still cheap to change. */
+.taken-warn {
+  margin: 0;
+  padding: var(--sp-xs) var(--sp-sm);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--r-sm);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  color: var(--text-2);
+  font-size: var(--t-label);
+}
+
+/* Numbered steps, so a first-timer always knows where they are. */
+.add-form { display: grid; gap: var(--sp-2x); }
+.step { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-md); align-items: start; }
+.step-n {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+}
+.step-body { display: grid; gap: var(--sp-sm); min-width: 0; }
+.step-body > label { font-size: var(--t-label); font-weight: 600; }
+.step-body input[type='text'],
+.step-body input[type='file'] {
+  width: 100%;
+  padding: var(--sp-md);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--base);
+  color: var(--text);
+  font: inherit;
+}
+.step-body small { line-height: 1.45; }
+
+.kind-row { display: flex; gap: var(--sp-sm); flex-wrap: wrap; }
+.kind {
+  padding: var(--sp-md) var(--sp-lg);
+  border: var(--bd-w) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.kind.on { background: var(--accent); color: var(--on-accent, #fff); }
+
+/* The pictures, in the order they will be shown. */
+.shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: var(--sp-sm); }
+.shot {
+  position: relative;
+  margin: 0;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--glass);
+}
+.shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.shot-n {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 2;
+  min-width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.66);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+}
+.shot-acts { position: absolute; inset: auto 0 0 0; display: flex; z-index: 2; }
+.shot-acts button {
+  flex: 1;
+  padding: 5px 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.shot-acts button:disabled { opacity: 0.3; cursor: default; }
+.shot-acts button:hover:not(:disabled) { background: rgba(0, 0, 0, 0.85); }
+.shot-drop:hover:not(:disabled) { background: var(--danger) !important; }
+
+.add-shot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-sm);
+  padding: var(--sp-lg);
+  border: 2px dashed var(--border);
+  border-radius: var(--r-md);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: border-color var(--m-fast) var(--ease-standard), color var(--m-fast) var(--ease-standard);
+}
+.add-shot:hover { border-color: var(--accent); color: var(--accent); }
+.add-shot.working { opacity: 0.5; pointer-events: none; }
+.add-shot-plus { font-size: 1.3rem; line-height: 1; }
+
+.add-note { color: var(--text-3); font-size: var(--t-label); margin: 0; }
+.add-done { display: grid; gap: var(--sp-lg); justify-items: start; }
+.done-acts { display: flex; gap: var(--sp-sm); flex-wrap: wrap; }

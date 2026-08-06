@@ -3,6 +3,7 @@
 
 import { createPartyGame, pickSome, shuffle, SCORE } from '../party.js';
 import { IMPOSTER_WORDS, IMPOSTER_QUESTIONS } from '../content.js';
+import { deal } from '../bank.js';
 
 export default createPartyGame({
   id: 'imposter',
@@ -22,11 +23,21 @@ export default createPartyGame({
     'Then everyone votes. Catch the imposter and the rest of you score; survive the vote and the imposter does.',
   ],
 
-  buildDeck: () =>
-    pickSome(IMPOSTER_WORDS, 8).map((pair, i) => ({
+  // Dealt through the bank, like every other game. This was still drawing
+  // straight from the shipped list, which reshuffles the same few dozen pairs
+  // every match — so the third night in a row was the same words in a
+  // different order, and the bank's memory never saw them at all.
+  buildDeck: ({ rounds = 6 } = {}) => {
+    const count = Math.max(8, rounds + 2);
+    const pairs = deal('imposter', IMPOSTER_WORDS, count);
+    // The questions rotate on their own history, so a repeated word does not
+    // drag the same question back with it.
+    const asks = deal('imposter-questions', IMPOSTER_QUESTIONS, count);
+    return pairs.map((pair, i) => ({
       ...pair,
-      question: IMPOSTER_QUESTIONS[i % IMPOSTER_QUESTIONS.length],
-    })),
+      question: asks.length ? asks[i % asks.length] : IMPOSTER_QUESTIONS[i % IMPOSTER_QUESTIONS.length],
+    }));
+  },
 
   // One imposter, or two once the room is big enough to hide in.
   assignRoles(state) {

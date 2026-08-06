@@ -299,8 +299,17 @@ const fits = await evaluate(`
   };
 `);
 check('the page never scrolls sideways', !fits.sideways);
-check('the game area scrolls vertically', fits.stage?.overflowY === 'auto', fits.stage?.overflowY);
-check('and a finger can do it', fits.stage?.touch !== 'none', `touch-action: ${fits.stage?.touch}`);
+// This used to insist the play area was its own scroller, which is precisely
+// what made a thumb in the middle of the game do nothing: a nested scroller
+// with no overflow, holding the gesture and refusing to pass it on. What
+// matters is that the content is reachable and a finger is allowed to move
+// it — whichever box ends up doing the scrolling.
+check('the game area does not trap the gesture', fits.stage?.touch !== 'none', `touch-action: ${fits.stage?.touch}`);
+check('and there is something to scroll to', await evaluate(`
+  const doc = document.documentElement;
+  const wrap = document.getElementById('stageWrap');
+  return (doc.scrollHeight - innerHeight > 20) || (wrap ? wrap.scrollHeight - wrap.clientHeight > 20 : false);
+`));
 
 // The controls have to be reachable, not merely present — scroll to the
 // bottom and confirm something interactive is on screen.

@@ -14,14 +14,33 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import path from 'node:path';
 
 const FALLBACK_ROOTS = [
-  process.env.MEDIA_DIR,
   'G:\\hpnicteenstudio_data',
   path.join(process.env.USERPROFILE ?? '', 'hpnicteenstudio_data'),
   path.join(import.meta.dirname, '..', 'data', 'media'),
 ].filter(Boolean);
 
-/** The first root that exists, or the first one we can create. */
+/**
+ * Where the pictures live.
+ *
+ * MEDIA_DIR is an instruction, not a suggestion, so it wins even when it does
+ * not exist yet — it was in the fallback list, and because the list picks the
+ * first path that *already* exists, setting MEDIA_DIR to a fresh folder
+ * silently landed everything in G:\ instead. Nothing failed; the files just
+ * went somewhere else. A test found it by writing two rounds into the real
+ * studio's store.
+ */
 function resolveRoot() {
+  const asked = process.env.MEDIA_DIR;
+  if (asked) {
+    try {
+      mkdirSync(asked, { recursive: true });
+      return asked;
+    } catch (err) {
+      // Worth saying out loud rather than quietly using somewhere else, since
+      // whoever set it will look for their files there.
+      console.warn(`[media] cannot use MEDIA_DIR=${asked}: ${err.message}`);
+    }
+  }
   for (const dir of FALLBACK_ROOTS) {
     if (existsSync(dir)) return dir;
   }
