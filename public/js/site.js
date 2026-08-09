@@ -7,6 +7,7 @@ import { Theme } from './theme.js';
 import { Sound } from './sound.js';
 import { confetti } from './fx.js';
 import { playIntro, maybePlayIntro } from './intro.js';
+import { runTutorial, hasSeen as hasSeenTutorial } from './tutorial.mjs';
 
 const view = document.getElementById('view');
 const connDot = document.getElementById('conn');
@@ -1142,6 +1143,24 @@ function renderLobby(code) {
     }
   });
 
+  // Reading the rules is anybody's business, any time, without starting
+  // anything. Forced, because somebody who presses it wants to read them even
+  // if they have already been shown once.
+  $('#howToPlay').addEventListener('click', () => {
+    const room = Net.room;
+    const meta = gameById(room?.gameId);
+    runTutorial({
+      game: { ...meta, id: room?.gameId, howToPlay: room?.howToPlay ?? meta?.howToPlay ?? [] },
+      forced: true,
+    });
+  });
+
+  // The host's call, for the whole room.
+  $('#tutorialOn').addEventListener('change', (e) => {
+    Net.request('room:tutorial', { on: e.target.checked });
+    Sound.play('click');
+  });
+
   els.code.textContent = code;
 
   // Landing on a room you are not in — after leaving, after a refresh, or from
@@ -1344,6 +1363,13 @@ function renderLobby(code) {
     els.editSetup.hidden = !isHost || !room.options;
     if (isHost) renderSetup(room);
     else els.setupFields.hidden = true;
+
+    // The rules, and who gets shown them. Reading them is anybody's business;
+    // deciding whether the whole room is walked through them is the host's.
+    const rules = room.howToPlay ?? gameById(room.gameId)?.howToPlay ?? [];
+    $('#howToPlay').hidden = !rules.length;
+    $('#tutorialToggle').hidden = !isHost || !rules.length;
+    $('#tutorialOn').checked = room.tutorial !== false;
     if (!isHost) {
       els.start.disabled = true;
       els.start.textContent = 'Waiting for host…';
@@ -1949,6 +1975,14 @@ async function mountGame(room) {
   // Party games all share one renderer; real-time games ship their own.
   const meta = gameById(room.gameId);
   const clientDir = meta?.client ?? room.gameId;
+
+  // The rules first, for anybody who has not seen this one before — or for
+  // everybody, if the host asked for it. Thirty games and a link handed to
+  // somebody at a party means most people arrive at most games cold.
+  const forced = room.tutorial === true;
+  if (meta?.howToPlay?.length && (forced || !hasSeenTutorial(room.gameId))) {
+    await runTutorial({ game: { ...meta, id: room.gameId }, forced });
+  }
 
   try {
     const mod = await import(`/games/${clientDir}/client.js`);

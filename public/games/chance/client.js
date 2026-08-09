@@ -16,6 +16,7 @@ const FACES = {
   plinko: { title: 'Plinko', verb: 'Drop', shape: 'board' },
   wheel: { title: 'Wheel of Fortune', verb: 'Spin', shape: 'wedge' },
   scratch: { title: 'Scratch Cards', verb: 'Buy a card', shape: 'symbols' },
+  progressive: { title: 'Progressive Slots', verb: 'Pull', shape: 'symbols' },
   baccarat: { title: 'Baccarat', verb: 'Deal me in', shape: 'cards' },
   'three-card': { title: 'Three Card Poker', verb: 'Deal me in', shape: 'cards' },
   'casino-war': { title: 'Casino War', verb: 'Turn one over', shape: 'cards' },
@@ -144,11 +145,11 @@ export default {
         return;
       }
 
-      if (face === 'slots' || face === 'scratch') {
+      if (look.shape === 'symbols') {
         const cells = roll?.detail?.reels ?? roll?.detail?.panels
-          ?? Array.from({ length: face === 'slots' ? 3 : 6 }, () => null);
+          ?? Array.from({ length: face === 'scratch' ? 6 : 3 }, () => null);
         const row = document.createElement('div');
-        row.className = face === 'slots' ? 'ch-reels' : 'ch-panels';
+        row.className = face === 'scratch' ? 'ch-panels' : 'ch-reels';
         for (const sym of cells) {
           const cell = document.createElement('span');
           cell.className = 'ch-cell';

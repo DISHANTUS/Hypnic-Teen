@@ -38,8 +38,10 @@ import blackjack from './blackjack.js';
 import lottery from './lottery.js';
 import { slots, plinko, wheel, scratch } from './chance.js';
 import { SHOWDOWN_GAMES } from './showdowns.js';
+import { POOL_GAMES } from './craps.js';
+import { DRAW_GAMES } from './draws.js';
 
-const modules = [clash, imposter, truthDare, situations, quiz, findWord, movies, songs, poll, standoff, crossword, arena, battleship, roulette, holdem, blackjack, lottery, slots, plinko, wheel, scratch, ...SHOWDOWN_GAMES];
+const modules = [clash, imposter, truthDare, situations, quiz, findWord, movies, songs, poll, standoff, crossword, arena, battleship, roulette, holdem, blackjack, lottery, slots, plinko, wheel, scratch, ...SHOWDOWN_GAMES, ...POOL_GAMES, ...DRAW_GAMES];
 
 const registry = new Map(modules.map((g) => [g.id, g]));
 
@@ -78,7 +80,22 @@ export function listGames() {
      * instead of a board, the wheel with no wedge at all.
      */
     machine: g.machine ?? null,
+    /**
+     * The same for the shared pool renderer: craps and the horses use one
+     * screen and it has to know which. Without it every pool table drew the
+     * craps dice, so the horses ran an invisible race behind two dice.
+     */
+    pool: g.pool ?? null,
     /** Whether this table is played for chips, so the lobby can say so. */
     stakes: g.stakes ?? null,
+    /**
+     * How to play it, in the catalogue rather than only inside a running match.
+     *
+     * Somebody deciding whether to open a game they have never heard of wants
+     * to know what it is first, and somebody who has just been dropped into
+     * one wants to know before the clock starts. Both need it before the game
+     * module is anywhere near being loaded.
+     */
+    howToPlay: g.howToPlay ?? [],
   }));
 }

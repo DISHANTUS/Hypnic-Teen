@@ -912,6 +912,18 @@ io.on('connection', (socket) => {
     room.broadcastRoom();
   });
 
+  // Whether the room gets walked through the rules first. Host's call, and
+  // it is the same question at every table so it lives on the room rather
+  // than in thirty separate option blocks.
+  socket.on('room:tutorial', ({ on } = {}, ack) => {
+    const room = ctx && getRoom(ctx.code);
+    if (!room) return ack?.({ error: 'Not in a room.' });
+    if (room.hostId !== ctx.playerId) return ack?.({ error: 'Only the host can change that.' });
+    room.tutorial = Boolean(on);
+    room.broadcastRoom();
+    ack?.({ ok: true, tutorial: room.tutorial });
+  });
+
   socket.on('room:start', (_payload, ack) => {
     const room = ctx && getRoom(ctx.code);
     if (!room) return ack?.({ error: 'Not in a room.' });

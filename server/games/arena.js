@@ -45,6 +45,16 @@ export default {
   minPlayers: 1,
   maxPlayers: 8,
   tickRate: 20,
+
+  // The only game on the site that had none. Everything else explains itself
+  // before it starts, and the one that does not is the one somebody joins and
+  // spends the first twenty of its sixty seconds working out.
+  howToPlay: [
+    'Steer with the arrow keys, or drag your thumb anywhere on the screen.',
+    'Touch a glowing orb to collect it. The bigger ones are worth more.',
+    'Sixty seconds, everybody in the same arena, and no way to stop anybody else.',
+    'Most collected when the clock runs out wins it.',
+  ],
   // A racer steers constantly; the default CPU pause would be a crash course.
   botPause: 120,
 

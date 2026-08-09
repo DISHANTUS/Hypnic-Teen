@@ -47,12 +47,17 @@ const BRAINS = {
     return { type: s.you.can.check ? 'check' : 'call' };
   },
 
-  // The four machines all take the same one.
+  craps: (s) => (s.phase === 'bets' && !s.you?.staked ? { type: 'bet', kind: 'pass', amount: 10 } : null),
+  horses: (s) => (s.phase === 'bets' && !s.you?.staked ? { type: 'bet', kind: 'h1', amount: 10 } : null),
+  keno: (s) => (s.phase === 'buy' && !s.you?.card ? { type: 'buy', spots: [] } : null),
+  jackpot: (s) => (s.phase === 'bets' && !s.you?.staked ? { type: 'throw', amount: 50 } : null),
+
+  // The four machines and the progressive all take the same one.
   machine: (s) => (s.phase === 'bets' && !s.you?.in ? { type: 'stake' } : null),
 };
 
 const brainFor = (gameId) =>
-  BRAINS[gameId] ?? (['slots', 'plinko', 'wheel', 'scratch'].includes(gameId) ? BRAINS.machine : null);
+  BRAINS[gameId] ?? (['slots', 'plinko', 'wheel', 'scratch', 'progressive', 'baccarat', 'three-card', 'casino-war', 'sic-bo'].includes(gameId) ? BRAINS.machine : null);
 
 /**
  * Sits a dummy down at a room.

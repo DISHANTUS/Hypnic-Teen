@@ -1152,6 +1152,9 @@ input::placeholder { color: var(--text-3); }
 .stage-wrap.bj-stage,
 .stage-wrap.lo-stage,
 .stage-wrap.ch-stage,
+.stage-wrap.pl-stage,
+.stage-wrap.kn-stage,
+.stage-wrap.jp-stage,
 .stage-wrap.td-stage {
   overflow-y: auto;
   overflow-x: hidden;
@@ -1183,6 +1186,9 @@ input::placeholder { color: var(--text-3); }
 .stage-wrap.bj-stage,
 .stage-wrap.lo-stage,
 .stage-wrap.ch-stage,
+.stage-wrap.pl-stage,
+.stage-wrap.kn-stage,
+.stage-wrap.jp-stage,
   .stage-wrap.td-stage {
     max-height: none;
     overflow: visible;
@@ -4345,3 +4351,187 @@ body.dropping::after {
 }
 
 @media (prefers-reduced-motion: reduce) { .ch-die.is-rolling { animation: none; } }
+
+/* ------------------------------------------------------------- tutorial */
+
+/* How to play, one point at a time. A list dumped on screen while a match is
+   starting is the wall of text people tap past; a button and one sentence
+   takes eight seconds and actually gets read. */
+
+.tut {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-lg);
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(6px);
+  animation: fade-in var(--m-base) var(--ease-standard);
+}
+.tut-card {
+  width: min(94vw, 420px);
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-sm);
+  padding: var(--sp-2x);
+  border: var(--bd-w) solid var(--ink);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  text-align: center;
+  animation: dlg-in var(--m-base) var(--ease-entrance);
+}
+.tut-emoji { font-size: 2.6rem; line-height: 1; }
+.tut-name { margin: 0; font-size: var(--t-h3); }
+.tut-tag { margin: 0; font-size: var(--t-label); }
+
+.tut-step {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-xs);
+  width: 100%;
+  /* Held at a fixed height so the card does not jump as the sentences change
+     length — a dialog that resizes under a thumb is a dialog that gets
+     mis-tapped. */
+  min-height: 5.5em;
+  margin-top: var(--sp-sm);
+  padding: var(--sp-md);
+  border-radius: var(--r-md);
+  background: var(--glass);
+}
+.tut-count { font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
+.tut-text { margin: 0; font-size: var(--t-body); line-height: 1.45; }
+.tut-text.is-in { animation: tut-step-kf 320ms var(--ease-entrance); }
+@keyframes tut-step-kf {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.tut-dots { display: flex; gap: 5px; }
+.tut-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
+.tut-dot.is-on { background: var(--accent); }
+
+.tut-acts { display: flex; gap: var(--sp-sm); margin-top: var(--sp-sm); }
+
+/* The lobby row: read the rules, or make everybody read them. */
+.tut-row { display: flex; gap: var(--sp-md); align-items: center; flex-wrap: wrap; margin-top: var(--sp-sm); }
+.tut-toggle { display: flex; gap: var(--sp-sm); align-items: center; font-size: var(--t-label); cursor: pointer; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tut, .tut-card, .tut-text.is-in { animation: none; }
+}
+
+/* --------------------------------------------- craps, the horses, keno, jackpot */
+
+.pl, .kn, .jp { display: grid; gap: var(--sp-md); padding: var(--sp-lg); }
+.pl-table, .kn-table, .jp-table { display: grid; gap: var(--sp-md); }
+
+.pl-pot, .kn-pot, .jp-pot { display: flex; align-items: baseline; gap: var(--sp-sm); justify-content: center; flex-wrap: wrap; }
+.pl-pot span, .kn-pot span, .jp-pot span { font-size: var(--t-label); color: var(--text-3); }
+.pl-pot b, .kn-pot b, .jp-pot b { font-family: var(--font-display); font-size: var(--t-h2); color: var(--accent); }
+.pl-pot small, .kn-pot small { width: 100%; text-align: center; font-size: 0.62rem; color: var(--warning); }
+.pl-said, .kn-said, .jp-said { text-align: center; font-size: var(--t-label); min-height: 1.2em; }
+
+/* The middle: dice for craps, a track for the horses. */
+.pl-event { display: grid; justify-items: center; gap: var(--sp-sm); min-height: 76px; width: 100%; }
+.pl-dice { display: flex; gap: var(--sp-sm); }
+.pl-die { font-size: 3rem; line-height: 1; }
+.pl-die.is-rolling { animation: pl-die-kf 240ms steps(2) infinite; }
+@keyframes pl-die-kf { 0% { transform: rotate(-14deg); } 50% { transform: rotate(14deg); } 100% { transform: rotate(-14deg); } }
+.pl-total { font-size: var(--t-label); color: var(--text-3); text-align: center; }
+
+.pl-track { display: grid; gap: 3px; width: 100%; }
+.pl-lane {
+  position: relative;
+  height: 26px;
+  border-radius: var(--r-pill);
+  background: var(--glass);
+  overflow: hidden;
+}
+.pl-lane.is-won { background: color-mix(in srgb, var(--success) 24%, var(--glass)); }
+.pl-horse { position: absolute; top: 2px; left: 0; font-size: 1.1rem; transition: left 90ms linear; }
+.pl-lane-name {
+  position: absolute;
+  right: var(--sp-sm);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.6rem;
+  color: var(--text-3);
+}
+
+.pl-mine, .kn-buy {
+  display: flex; align-items: center; gap: var(--sp-md); flex-wrap: wrap;
+  padding: var(--sp-sm) var(--sp-md); border-radius: var(--r-sm); background: var(--glass);
+  font-size: var(--t-label);
+}
+.pl-mine b { color: var(--accent); font-family: var(--font-display); }
+
+.pl-stack { display: flex; gap: var(--sp-sm); justify-content: center; flex-wrap: wrap; }
+.pl-chip {
+  width: 46px; height: 46px; border-radius: 50%;
+  border: 3px dashed var(--ink); background: var(--surface); color: inherit;
+  font-family: var(--font-display); font-size: var(--t-label); cursor: pointer;
+}
+.pl-chip.is-on { background: var(--accent); color: var(--on-accent, #fff); border-style: solid; }
+.pl-chip:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.pl-board { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--sp-sm); }
+.pl-spot {
+  position: relative;
+  display: grid; justify-items: start; gap: 1px;
+  padding: var(--sp-sm) var(--sp-md);
+  border: var(--bd-w) solid var(--ink); border-radius: var(--r-md);
+  background: var(--surface); color: inherit; text-align: left; cursor: pointer;
+}
+.pl-spot:disabled { cursor: default; opacity: 0.85; }
+.pl-spot.is-won { background: color-mix(in srgb, var(--success) 18%, var(--surface)); border-color: var(--success); }
+.pl-spot-label { font-size: var(--t-label); }
+.pl-spot-note { font-size: 0.58rem; color: var(--text-3); }
+.pl-spot-pays { font-size: 0.58rem; color: var(--accent); }
+.pl-onit {
+  position: absolute; top: -6px; right: -4px;
+  min-width: 18px; padding: 0 4px; border-radius: var(--r-pill);
+  background: var(--ink); color: var(--base); font-size: 0.56rem; line-height: 1.6;
+}
+.pl-onit.is-mine { background: var(--accent); color: var(--on-accent, #fff); }
+
+/* Keno: eighty small buttons, and the ones that matter shout. */
+.kn-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; }
+.kn-num {
+  aspect-ratio: 1; min-height: 0; padding: 0;
+  border: 1px solid var(--border); border-radius: 3px;
+  background: var(--surface); color: inherit;
+  font-family: var(--font-display); font-size: 0.56rem; cursor: pointer;
+}
+.kn-num.is-on { background: var(--accent); color: var(--on-accent, #fff); border-color: var(--accent); }
+.kn-num.is-drawn { outline: 2px solid var(--warning); outline-offset: -2px; }
+.kn-num.is-hit { background: var(--success); color: #fff; border-color: var(--success); }
+.kn-picked { flex: 1; min-width: 120px; font-size: 0.66rem; color: var(--text-3); }
+
+/* Jackpot: one bar, everybody's slice of it. */
+.jp-mine { display: grid; justify-items: center; gap: 1px; }
+.jp-mine b { font-family: var(--font-display); font-size: clamp(2rem, 12vw, 3.2rem); color: var(--accent); line-height: 1; }
+.jp-mine small { font-size: 0.66rem; color: var(--text-3); }
+.jp-bar { display: flex; height: 22px; border-radius: var(--r-pill); overflow: hidden; background: var(--glass); }
+.jp-seg { background: var(--text-3); transition: width var(--m-base) var(--ease-standard); }
+.jp-seg.is-you { background: var(--accent); }
+.jp-seg + .jp-seg { border-left: 1px solid var(--surface); }
+.jp-shares { display: flex; gap: var(--sp-sm); flex-wrap: wrap; justify-content: center; }
+.jp-share {
+  display: grid; justify-items: center; gap: 1px;
+  padding: var(--sp-xs) var(--sp-sm); border-radius: var(--r-sm);
+  background: var(--glass); font-size: 0.62rem;
+}
+.jp-share.is-you { background: color-mix(in srgb, var(--accent) 14%, var(--glass)); }
+.jp-share.is-won { background: color-mix(in srgb, var(--success) 24%, var(--glass)); }
+.jp-share b { font-size: 0.66rem; max-width: 10ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jp-share i { font-style: normal; color: var(--text-3); }
+.jp-throw { display: flex; gap: var(--sp-sm); flex-wrap: wrap; justify-content: center; }
+
+.pl-log, .kn-log, .jp-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.pl-log li, .kn-log li, .jp-log li { font-size: 0.68rem; color: var(--text-3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-die.is-rolling { animation: none; }
+  .pl-horse, .jp-seg { transition: none; }
+}

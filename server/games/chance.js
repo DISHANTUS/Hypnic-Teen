@@ -99,7 +99,35 @@ export function createMachine(face) {
 
   function settle(state) {
     const table = playing(state);
-    const pot = table.reduce((sum, p) => sum + p.ante, 0) + state.carried;
+    let pot = table.reduce((sum, p) => sum + p.ante, 0) + state.carried;
+
+    // A progressive machine holds a slice of every stake back, and it stays
+    // held between rounds until somebody hits the thing that takes it. The
+    // slice is the room's own chips being kept in the middle rather than a
+    // house taking a cut — nothing leaves, it just waits.
+    let jackpotWon = null;
+    if (face.jackpotShare > 0) {
+      const held = Math.floor(pot * face.jackpotShare);
+      state.jackpot = (state.jackpot ?? 0) + held;
+      pot -= held;
+
+      const hit = table.filter((p) => p.roll && face.jackpotWhen?.(p.roll));
+      if (hit.length && state.jackpot > 0) {
+        // Split if more than one lands it in the same round, which is rare
+        // and would otherwise quietly hand it all to whoever sorted first.
+        for (const { id, chips } of splitPot(state.jackpot, hit.map((p) => ({ id: p.id, weight: 1 })))) {
+          award(id, chips, `${face.id} — jackpot`);
+          const player = state.players.find((x) => x.id === id);
+          if (player) {
+            player.net += chips;
+            player.bestWin = Math.max(player.bestWin, chips);
+          }
+        }
+        jackpotWon = { chips: state.jackpot, names: hit.map((p) => p.name) };
+        state.log.push(`${hit.map((p) => p.name).join(' and ')} took the jackpot — ${state.jackpot}.`);
+        state.jackpot = 0;
+      }
+    }
 
     const best = table.length ? Math.max(...table.map((p) => p.roll?.score ?? 0)) : 0;
     const winners = table.filter((p) => (p.roll?.score ?? 0) === best && best > 0);
@@ -127,6 +155,8 @@ export function createMachine(face) {
       pot,
       paid: paid.sort((a, b) => b.chips - a.chips),
       carried: state.carried,
+      jackpot: state.jackpot ?? 0,
+      jackpotWon,
       said: paid.length
         ? paid.length === 1
           ? `${paid[0].name} takes ${paid[0].chips} — ${top?.roll?.say ?? ''}`.trim()
@@ -143,6 +173,12 @@ export function createMachine(face) {
 
   /** Whatever nobody won goes back to whoever last staked it. */
   function closeUp(state) {
+    // A jackpot nobody hit is still the room's chips. It goes home with
+    // whatever else was riding rather than evaporating with the table.
+    if (state.jackpot > 0) {
+      state.carried += state.jackpot;
+      state.jackpot = 0;
+    }
     if (state.carried > 0) {
       const owed = state.players.filter((p) => p.ante > 0);
       const back = owed.length ? owed : activePlayers(state);
@@ -238,6 +274,7 @@ export function createMachine(face) {
           bestWin: 0,
         })),
         carried: 0,
+        jackpot: 0,
         result: null,
         log: [],
         over: false,
@@ -330,6 +367,9 @@ export function createMachine(face) {
         phaseTotal: state.phaseTotal,
         pot: state.players.reduce((sum, p) => sum + p.ante, 0) + state.carried,
         carried: state.carried,
+        // Only on a progressive machine; null everywhere else so the client
+        // has nothing to draw unless there is something to draw.
+        jackpot: face.jackpotShare > 0 ? (state.jackpot ?? 0) : null,
         players: state.players.map((p) => ({
           id: p.id,
           name: p.name,

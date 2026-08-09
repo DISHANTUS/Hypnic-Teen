@@ -479,6 +479,16 @@
         </div>
         <p class="setup-summary" id="setupSummary"></p>
         <div class="setup-fields" id="setupFields" hidden></div>
+
+        <!-- Anybody can read the rules; only the host decides whether the
+             whole room is walked through them before the clock starts. -->
+        <div class="tut-row">
+          <button class="btn btn-ghost btn-sm" id="howToPlay" type="button">How to play</button>
+          <label class="tut-toggle" id="tutorialToggle" hidden>
+            <input type="checkbox" id="tutorialOn" checked />
+            <span>Walk everyone through the rules first</span>
+          </label>
+        </div>
       </div>
 
       <div class="players">

@@ -55,6 +55,18 @@ class Room {
     this.hostId = null;
     this.phase = 'lobby'; // lobby | playing | over
     this.settings = normaliseSettings(getGame(gameId)?.options, {});
+    /**
+     * Whether the host wants everybody walked through the rules first.
+     *
+     * A room-level thing rather than a game setting, because it is the same
+     * question at every table and adding it to thirty separate options blocks
+     * would mean thirty places to forget it.
+     *
+     * On by default. The cost of showing the rules to somebody who knows them
+     * is one tap; the cost of not showing them to somebody who does not is the
+     * first half of the match.
+     */
+    this.tutorial = true;
     this.botSeq = 1;
     this.state = null;
     this.tickTimer = null;
@@ -101,6 +113,9 @@ class Room {
       // both so a guest can see the rules they are about to play under.
       options: this.optionsNow(),
       settings: this.settings,
+      // Whether newcomers get walked through the rules before the clock starts.
+      tutorial: this.tutorial,
+      howToPlay: this.game?.howToPlay ?? [],
     };
   }
 

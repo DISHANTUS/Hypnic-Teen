@@ -245,6 +245,36 @@ const TABLES = [
       check('three dice', (await count('.ch-dice .ch-die')) === 3, String(await count('.ch-dice .ch-die')));
       check('and a total', Number(await textOf('.ch-count')) >= 3, await textOf('.ch-count'));
     } },
+
+  // The last five: two pool tables, keno, the progressive and the jackpot.
+  { id: 'craps', name: 'Craps', stage: '.pl-table', furniture: '.pl-spot', action: '.pl-board .pl-spot', resultOf: () => '.pl-said',
+    async afterIn() {
+      await waitFor('.pl-die', 20000);
+      check('craps rolls two dice', (await count('.pl-dice .pl-die')) === 2, String(await count('.pl-dice .pl-die')));
+      check('and the board offers a pass line', (await count('.pl-spot[data-kind=\"pass\"]')) === 1);
+    } },
+  { id: 'horses', name: 'Horse Racing', stage: '.pl-table', furniture: '.pl-spot', action: '.pl-board .pl-spot', resultOf: () => '.pl-said',
+    async afterIn() {
+      await waitFor('.pl-lane', 20000);
+      check('six runners get a lane', (await count('.pl-lane')) === 6, String(await count('.pl-lane')));
+      check('and each is named', Boolean(await textOf('.pl-lane-name')), await textOf('.pl-lane-name'));
+    } },
+  { id: 'keno', name: 'Keno', stage: '.kn-table', furniture: '.kn-num', action: '#knGo', resultOf: () => '.kn-said',
+    async peculiar() {
+      check('eighty numbers to pick from', (await count('.kn-num')) === 80, String(await count('.kn-num')));
+      await evaluate(`document.getElementById('knDip')?.click(); return true;`);
+      await wait(300);
+      check('a quick pick fills five', (await count('.kn-num.is-on')) === 5, String(await count('.kn-num.is-on')));
+    } },
+  { id: 'progressive', name: 'Progressive Slots', stage: '.ch-table', furniture: '.ch-cell', action: '.ch-acts .btn', resultOf: () => '.ch-said',
+    async peculiar() {
+      check('the progressive shows three reels', (await count('.ch-reels .ch-cell')) === 3, String(await count('.ch-reels .ch-cell')));
+    } },
+  { id: 'jackpot', name: 'Jackpot', stage: '.jp-table', furniture: '.jp-throw .btn', action: '.jp-throw .btn', resultOf: () => '.jp-said',
+    async afterIn() {
+      check('your chance is shown as a percentage', /%/.test((await textOf('#jpChance')) ?? ''), await textOf('#jpChance'));
+      check('and everybody has a slice of the bar', (await count('.jp-seg')) >= 1, String(await count('.jp-seg')));
+    } },
   { id: 'scratch', name: 'Scratch Cards', stage: '.ch-table', furniture: '.ch-cell', action: '.ch-acts .btn', resultOf: () => '.ch-said',
     async peculiar() {
       check('six panels', (await count('.ch-panels .ch-cell')) === 6, String(await count('.ch-panels .ch-cell')));
@@ -285,6 +315,19 @@ for (const table of TABLES) {
   if (!check(`${table.name}: three at the table`, (seated.players?.length ?? 0) === 3, `${seated.players?.length}`)) continue;
 
   await evaluate(`document.getElementById('startBtn')?.click(); return true;`);
+
+  // The tutorial comes first now, for anybody who has not seen this game —
+  // and the host toggle defaults to on, so it comes up for everybody. It is
+  // a real screen in front of the game and the driver has to get past it.
+  const taught = await waitFor('.tut-card', 20000);
+  check(`${table.name}: newcomers get walked through the rules`, taught);
+  if (taught) {
+    const steps = await count('.tut-dot');
+    check(`${table.name}: it has a step for every rule`, steps >= 3, `${steps} steps`);
+    check(`${table.name}: and says which game`, Boolean(await textOf('.tut-name')), await textOf('.tut-name'));
+    await evaluate(`document.getElementById('tutSkip')?.click(); return true;`);
+    await wait(500);
+  }
 
   // Past the rules.
   const briefed = await waitFor('.intro-ready', 20000);
