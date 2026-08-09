@@ -4535,3 +4535,92 @@ body.dropping::after {
   .pl-die.is-rolling { animation: none; }
   .pl-horse, .jp-seg { transition: none; }
 }
+
+/* ------------------------------------------------------------------ bingo */
+
+.bi { display: grid; gap: var(--sp-md); padding: var(--sp-lg); }
+.bi-table { display: grid; gap: var(--sp-md); justify-items: center; }
+
+.bi-pot { display: flex; align-items: baseline; gap: var(--sp-sm); justify-content: center; flex-wrap: wrap; }
+.bi-pot span { font-size: var(--t-label); color: var(--text-3); }
+.bi-pot b { font-family: var(--font-display); font-size: var(--t-h2); color: var(--accent); }
+.bi-pot small { width: 100%; text-align: center; font-size: 0.62rem; color: var(--warning); }
+
+/* The caller. One ball, large, because it is the only thing being said. */
+.bi-caller { display: grid; justify-items: center; gap: var(--sp-xs); min-height: 92px; }
+.bi-ball {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+}
+.bi-ball.is-new { animation: bi-ball-kf 420ms cubic-bezier(0.2, 1.4, 0.4, 1); }
+@keyframes bi-ball-kf {
+  0% { transform: scale(0.3) translateY(-24px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+.bi-said { text-align: center; font-size: var(--t-label); min-height: 1.2em; }
+
+.bi-buy { display: flex; gap: var(--sp-sm); align-items: center; flex-wrap: wrap; justify-content: center; }
+
+/* The card. Square cells so it reads as a card and not a table. */
+.bi-card { display: grid; gap: 3px; width: min(100%, 300px); }
+.bi-head, .bi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
+.bi-head span {
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  color: var(--text-3);
+}
+.bi-sq {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border-radius: var(--r-sm);
+  background: var(--glass);
+  font-size: 0.86rem;
+  /* No transition on the background: a called square should be different the
+     instant it is called, not fade in behind the next call. */
+  color: var(--text-2);
+}
+.bi-sq.is-on { background: color-mix(in srgb, var(--accent) 40%, var(--glass)); color: var(--text); }
+.bi-sq.is-free { font-size: 1rem; }
+
+.bi-claim {
+  width: min(100%, 300px);
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  padding: var(--sp-md);
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+  border: 0;
+  border-radius: var(--r-md);
+}
+.bi-claim:disabled { opacity: 0.4; }
+.bi-locked { min-height: 1em; text-align: center; color: var(--warning); }
+
+.bi-prizes { display: flex; gap: var(--sp-sm); flex-wrap: wrap; justify-content: center; }
+.bi-prize {
+  display: grid; justify-items: center; gap: 1px;
+  padding: var(--sp-xs) var(--sp-sm); border-radius: var(--r-sm);
+  background: var(--glass); font-size: 0.62rem; color: var(--text-3);
+}
+.bi-prize.is-gone { background: color-mix(in srgb, var(--success) 22%, var(--glass)); }
+.bi-prize b { font-size: 0.68rem; color: var(--text); max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Everything already called, newest last, so a late arrival can catch up. */
+.bi-called { display: flex; gap: 3px; flex-wrap: wrap; justify-content: center; }
+.bi-chip {
+  padding: 1px 6px; border-radius: var(--r-sm);
+  background: var(--glass); font-size: 0.6rem; color: var(--text-3);
+}
+
+.bi-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; justify-self: stretch; }
+.bi-log li { font-size: 0.68rem; color: var(--text-3); }
+
+@media (prefers-reduced-motion: reduce) { .bi-ball.is-new { animation: none; } }

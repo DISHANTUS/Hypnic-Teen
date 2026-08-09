@@ -266,6 +266,33 @@ const TABLES = [
       await wait(300);
       check('a quick pick fills five', (await count('.kn-num.is-on')) === 5, String(await count('.kn-num.is-on')));
     } },
+  // Bingo waits on a line rather than on its caption. `.bi-said` says
+  // "Waiting on the caller" from the moment the table opens, so asking whether
+  // it has text would pass before a single number had come out — a claimed
+  // prize is the first thing on the screen that can only mean the game ran.
+  { id: 'bingo', name: 'Bingo', stage: '.bi-table', furniture: '.bi-prize', action: '#biBuyCard',
+    resultOf: () => '.bi-prize.is-gone b',
+    async peculiar() {
+      check('both prizes are up before anybody plays', (await count('.bi-prize')) === 2, String(await count('.bi-prize')));
+      check('and neither has gone', (await count('.bi-prize.is-gone')) === 0);
+    },
+    async afterIn() {
+      await waitFor('.bi-sq', 20000);
+      check('a card is twenty five squares', (await count('.bi-sq')) === 25, String(await count('.bi-sq')));
+      check('with the middle given to you', (await count('.bi-sq.is-free.is-on')) === 1);
+      check('and nothing marked yet but that', (await count('.bi-sq.is-on')) === 1, String(await count('.bi-sq.is-on')));
+      // The caller has to actually call — but not until the counter shuts,
+      // which is twenty seconds after the table opened and the driver gets
+      // here about four seconds in. The first version waited twenty and landed
+      // exactly on the boundary.
+      await waitFor('.bi-chip', 40000);
+      check('the caller gets going', (await count('.bi-chip')) > 0, String(await count('.bi-chip')));
+      // Against the pattern, not against "is there any text" — the caption
+      // reads "Waiting on the caller" from the moment the table opens, so a
+      // non-empty check passes before a number has been called.
+      const said = (await textOf('#biSaid')) ?? '';
+      check('and says what it just called', /[BINGO]\s?\d+/.test(said), said);
+    } },
   { id: 'progressive', name: 'Progressive Slots', stage: '.ch-table', furniture: '.ch-cell', action: '.ch-acts .btn', resultOf: () => '.ch-said',
     async peculiar() {
       check('the progressive shows three reels', (await count('.ch-reels .ch-cell')) === 3, String(await count('.ch-reels .ch-cell')));

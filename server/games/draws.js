@@ -68,6 +68,8 @@ export const keno = {
       /** { id, name, spots[] } */
       cards: [],
       carried: 0,
+      /** Who owns the carry. Not state.cards — the last draw can sell nothing. */
+      riders: [],
       drawn: null,
       result: null,
       players: players.map((p) => ({
@@ -240,6 +242,7 @@ function settleKeno(state) {
   } else {
     state.carried = pot;
   }
+  if (state.cards.length) state.riders = state.cards.map((c) => ({ id: c.id, weight: 1 }));
 
   for (const c of state.cards) {
     const player = state.players.find((p) => p.id === c.id);
@@ -266,10 +269,8 @@ function settleKeno(state) {
 }
 
 function closeKeno(state) {
-  if (state.carried > 0 && state.cards.length) {
-    const owed = new Map();
-    for (const c of state.cards) owed.set(c.id, (owed.get(c.id) ?? 0) + 1);
-    for (const { id, chips } of splitPot(state.carried, [...owed].map(([id, weight]) => ({ id, weight })))) {
+  if (state.carried > 0 && state.riders.length) {
+    for (const { id, chips } of splitPot(state.carried, state.riders)) {
       award(id, chips, 'keno — closed');
       const player = state.players.find((p) => p.id === id);
       if (player) player.net += chips;
@@ -552,4 +553,383 @@ function drawJackpot(state) {
   state.dirty = true;
 }
 
-export const DRAW_GAMES = [keno, progressive, jackpot];
+/* --------------------------------- bingo ---------------------------------- */
+
+/**
+ * Bingo — a card each, numbers called one at a time, and you have to spot it.
+ *
+ * The card marks itself. That is deliberate: a call every second and a half
+ * against a five by five grid is a test of thumbs, not of attention, and one
+ * missed daub would put you out of the round with no way back. What you have to
+ * do yourself is *claim* — nothing on this screen ever tells you that you have
+ * a line, because seeing it is the entire game.
+ *
+ * Two prizes out of one pot, so there are two moments rather than one: the
+ * first line, and then the full house at the end. Calling with nothing locks
+ * your button for a few calls, which is enough to stop people mashing it.
+ */
+const BINGO_COLUMNS = ['B', 'I', 'N', 'G', 'O'];
+const BINGO_PER_COLUMN = 10; // 1–10 under B, 11–20 under I, and so on
+const BINGO_POOL = BINGO_COLUMNS.length * BINGO_PER_COLUMN;
+const FREE_SQUARE = 12; // the middle of a five by five
+/** Calls to sit out after calling with nothing. */
+const FALSE_CALL_LOCKOUT = 3;
+/** What the first line takes. The rest waits for the full house. */
+const LINE_SHARE = 0.3;
+
+/** Five across, five down, two corner to corner. */
+const BINGO_LINES = (() => {
+  const lines = [];
+  for (let r = 0; r < 5; r++) lines.push([0, 1, 2, 3, 4].map((c) => r * 5 + c));
+  for (let c = 0; c < 5; c++) lines.push([0, 1, 2, 3, 4].map((r) => r * 5 + c));
+  lines.push([0, 6, 12, 18, 24]);
+  lines.push([4, 8, 12, 16, 20]);
+  return lines;
+})();
+
+/** A card: five from each column's ten, and the middle given to you. */
+export function dealBingoCard() {
+  const cells = new Array(25).fill(null);
+  for (let col = 0; col < BINGO_COLUMNS.length; col++) {
+    const bag = Array.from({ length: BINGO_PER_COLUMN }, (_, i) => col * BINGO_PER_COLUMN + i + 1);
+    for (let row = 0; row < 5; row++) {
+      const at = row * 5 + col;
+      if (at === FREE_SQUARE) continue;
+      cells[at] = bag.splice(Math.floor(Math.random() * bag.length), 1)[0];
+    }
+  }
+  return cells;
+}
+
+const marked = (n, called) => n === null || called.has(n);
+export const hasLine = (cells, called) =>
+  BINGO_LINES.some((line) => line.every((i) => marked(cells[i], called)));
+export const hasFullHouse = (cells, called) => cells.every((n) => marked(n, called));
+
+/**
+ * What the caller says. The old names only ever covered a ninety ball book, so
+ * the ones that fit are here and everything else gets its letter and number —
+ * which is what a caller does anyway when there is no rhyme for it.
+ */
+const CALL_NAMES = {
+  1: "Kelly's eye", 2: 'one little duck', 7: 'lucky seven', 8: 'garden gate',
+  10: 'Downing Street', 11: 'legs eleven', 21: 'key of the door', 22: 'two little ducks',
+  26: 'half a crown', 30: 'dirty Gertie', 33: 'all the threes', 39: 'steps',
+  44: 'droopy drawers', 45: 'halfway there', 50: 'half a century',
+};
+export function callName(n) {
+  const letter = BINGO_COLUMNS[Math.floor((n - 1) / BINGO_PER_COLUMN)];
+  return CALL_NAMES[n] ? `${CALL_NAMES[n]} — ${letter} ${n}` : `${letter} ${n}`;
+}
+
+export const bingo = {
+  id: 'bingo',
+  name: 'Bingo',
+  tagline: 'A card each, fifty numbers, and nobody tells you when you have it.',
+  emoji: '🎱',
+  accent: '#16a085',
+  client: 'bingo',
+  minPlayers: 1,
+  maxPlayers: 60,
+  tickRate: 4,
+  stakes: 'chips',
+
+  howToPlay: [
+    'Buy a card. Numbers are called one at a time and your card marks itself.',
+    'Spot a line — across, down or corner to corner — and hit Bingo before anyone else.',
+    'The first line takes part of the pot. The rest waits for a full house.',
+    'Calling with nothing locks your button for three calls, so look before you shout.',
+  ],
+
+  options: {
+    rounds: { label: 'Games', kind: 'number', min: 1, max: 20, hardMax: 100, step: 1, default: 4 },
+    ante: { label: 'A card costs', kind: 'number', min: MIN_BET, max: 500, hardMax: 5000, step: 5, default: 25 },
+    callSeconds: { label: 'Seconds between calls', kind: 'number', min: 1, max: 8, hardMax: 20, step: 0.5, default: 1.8 },
+    buySeconds: { label: 'Seconds to buy in', kind: 'number', min: 10, max: 120, hardMax: 300, step: 5, default: 20 },
+  },
+
+  createState(players, ctx = {}) {
+    const settings = ctx.settings ?? {};
+    return {
+      settings: {
+        rounds: Math.max(1, Math.min(100, Number(settings.rounds) || 4)),
+        ante: Math.max(MIN_BET, Math.min(5000, Number(settings.ante) || 25)),
+        callSeconds: Math.max(1, Math.min(20, Number(settings.callSeconds) || 1.8)),
+        buySeconds: Math.max(10, Math.min(300, Number(settings.buySeconds) || 20)),
+      },
+      phase: 'brief',
+      round: 0,
+      timeLeft: PHASES.brief,
+      phaseTotal: PHASES.brief,
+      briefed: [],
+      /** { id, name, cells[25], lockedUntil, falseCalls } */
+      cards: [],
+      bag: [],
+      calls: [],
+      sinceCall: 0,
+      line: null,
+      house: null,
+      carried: 0,
+      /** Who owns the carry, if there is one. See settleBingo. */
+      riders: [],
+      result: null,
+      players: players.map((p) => ({
+        id: p.id, name: p.name, connected: p.connected !== false, net: 0, bestWin: 0,
+      })),
+      log: [],
+      over: false,
+      dirty: true,
+    };
+  },
+
+  onPlayerJoin(state, player) {
+    const known = state.players.find((p) => p.id === player.id);
+    if (known) { known.connected = true; known.name = player.name; }
+    else state.players.push({ id: player.id, name: player.name, connected: true, net: 0, bestWin: 0 });
+    state.dirty = true;
+  },
+  onPlayerLeave(state, player) {
+    const me = state.players.find((p) => p.id === player.id);
+    if (me) me.connected = false;
+    state.dirty = true;
+  },
+
+  onAction(state, player, action = {}) {
+    const me = state.players.find((p) => p.id === player.id);
+    if (!me) return;
+
+    if (action.type === 'briefed' && state.phase === 'brief') {
+      if (!state.briefed.includes(me.id)) state.briefed.push(me.id);
+      state.dirty = true;
+      if (everyoneReady(state)) openBingo(state);
+      return;
+    }
+
+    if (action.type === 'buy' && state.phase === 'buy') {
+      if (state.cards.some((c) => c.id === me.id)) return;
+      const taken = stake(me.id, state.settings.ante, 'bingo');
+      if (taken.error) return;
+      state.cards.push({ id: me.id, name: me.name, cells: dealBingoCard(), lockedUntil: 0, falseCalls: 0 });
+      state.dirty = true;
+      return;
+    }
+
+    if (action.type === 'claim' && state.phase === 'call') {
+      const card = state.cards.find((c) => c.id === me.id);
+      if (!card || state.calls.length < card.lockedUntil) return;
+
+      const called = new Set(state.calls);
+      const house = hasFullHouse(card.cells, called);
+      const line = hasLine(card.cells, called);
+
+      if (!state.house && house) {
+        state.house = { id: me.id, name: me.name, at: state.calls.length };
+        // A full house without a line claimed means nobody spotted theirs in
+        // time — it is still a line, so it goes with the house rather than
+        // being carried off the table.
+        if (!state.line) state.line = { id: me.id, name: me.name, at: state.calls.length };
+        state.log.push(`${me.name} has the full house on call ${state.calls.length}.`);
+        settleBingo(state);
+        return;
+      }
+      if (!state.line && line) {
+        state.line = { id: me.id, name: me.name, at: state.calls.length };
+        state.log.push(`${me.name} has a line on call ${state.calls.length}.`);
+        state.dirty = true;
+        return;
+      }
+      // Somebody beat you to it is not a mistake. Calling with nothing is.
+      if (!line && !house) {
+        card.lockedUntil = state.calls.length + FALSE_CALL_LOCKOUT;
+        card.falseCalls += 1;
+        state.log.push(`${me.name} called it early.`);
+        state.dirty = true;
+      }
+    }
+  },
+
+  botAction: () => null,
+
+  onTick(state, dt) {
+    if (state.over) return;
+    if (state.phase === 'call') return nextCall(state, dt);
+
+    state.timeLeft -= dt;
+    if (state.timeLeft > 0) return;
+    if (state.phase === 'brief') return openBingo(state);
+    if (state.phase === 'buy') return startCalling(state);
+    if (state.phase === 'payout') {
+      if (state.round >= state.settings.rounds) return closeBingo(state);
+      return openBingo(state);
+    }
+  },
+
+  isDirty(state) { const was = state.dirty; state.dirty = false; return was; },
+  isOver: (state) => Boolean(state.over),
+
+  results(state) {
+    return [...state.players]
+      .sort((a, b) => b.net - a.net || b.bestWin - a.bestWin)
+      .map((p, i) => ({ playerId: p.id, name: p.name, score: p.net, place: i + 1 }));
+  },
+
+  serialize(state) {
+    return {
+      phase: state.phase,
+      rules: this.howToPlay,
+      round: state.round,
+      maxRounds: state.settings.rounds,
+      timeLeft: Math.max(0, Math.ceil(state.timeLeft)),
+      phaseTotal: state.phaseTotal,
+      ante: state.settings.ante,
+      columns: BINGO_COLUMNS,
+      perColumn: BINGO_PER_COLUMN,
+      pot: state.cards.length * state.settings.ante + state.carried,
+      carried: state.carried,
+      calls: state.calls,
+      lastCall: state.calls.length ? state.calls[state.calls.length - 1] : null,
+      lastCallSaid: state.calls.length ? callName(state.calls[state.calls.length - 1]) : '',
+      callsLeft: state.bag.length,
+      line: state.line,
+      house: state.house,
+      // Who is at the table, but never their cards — a card on the wire is a
+      // card somebody can read the lines off, and spotting your own is the game.
+      cards: state.cards.map((c) => ({ id: c.id, name: c.name, falseCalls: c.falseCalls })),
+      result: state.result,
+      players: state.players.map((p) => ({ id: p.id, name: p.name, connected: p.connected, net: p.net })),
+      briefed: state.briefed,
+      log: state.log.slice(-5),
+    };
+  },
+
+  serializeFor(state, playerId) {
+    const card = state.cards.find((c) => c.id === playerId) ?? null;
+    return {
+      ...this.serialize(state),
+      you: {
+        id: playerId,
+        chips: balanceOf(playerId),
+        card: card ? card.cells : null,
+        // Calls to sit out, so the button can say why it is dead rather than
+        // just ignoring the tap.
+        lockedFor: card ? Math.max(0, card.lockedUntil - state.calls.length) : 0,
+      },
+    };
+  },
+};
+
+function openBingo(state) {
+  state.round += 1;
+  state.phase = 'buy';
+  state.cards = [];
+  state.calls = [];
+  state.bag = [];
+  state.line = null;
+  state.house = null;
+  state.result = null;
+  state.phaseTotal = state.settings.buySeconds;
+  state.timeLeft = state.settings.buySeconds;
+  state.dirty = true;
+}
+
+function startCalling(state) {
+  state.phase = 'call';
+  const bag = Array.from({ length: BINGO_POOL }, (_, i) => i + 1);
+  for (let i = bag.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
+  state.bag = bag;
+  state.calls = [];
+  // Half a beat before the first number, so the room can look up from buying
+  // without the table appearing to have stalled.
+  state.sinceCall = -state.settings.callSeconds / 2;
+  state.phaseTotal = BINGO_POOL * state.settings.callSeconds;
+  state.timeLeft = state.phaseTotal;
+  state.dirty = true;
+}
+
+function nextCall(state, dt) {
+  state.sinceCall += dt;
+  state.timeLeft = state.bag.length * state.settings.callSeconds;
+  if (state.sinceCall < state.settings.callSeconds) return;
+  state.sinceCall = 0;
+
+  // Out of numbers with the house unclaimed: the round ends where it stands.
+  if (!state.bag.length) return settleBingo(state);
+  state.calls.push(state.bag.pop());
+  state.dirty = true;
+}
+
+function settleBingo(state) {
+  const pot = state.cards.length * state.settings.ante + state.carried;
+  // Split into two prizes by subtraction rather than two roundings, so the
+  // halves are always exactly the pot however it divides.
+  const linePrize = Math.floor(pot * LINE_SHARE);
+  const housePrize = pot - linePrize;
+
+  const paid = [];
+  let rides = 0;
+  const pay = (who, chips, what) => {
+    if (chips <= 0) return;
+    if (!who) { rides += chips; return; }
+    award(who.id, chips, `bingo — ${what}`);
+    const player = state.players.find((p) => p.id === who.id);
+    if (player) player.bestWin = Math.max(player.bestWin, chips);
+    paid.push({ id: who.id, name: who.name, chips, what });
+  };
+  pay(state.line, linePrize, 'a line');
+  pay(state.house, housePrize, 'full house');
+  state.carried = rides;
+
+  // Whoever paid into the pot that is now riding owns it. Recorded here rather
+  // than read off state.cards when the book closes, because the last game of
+  // the night can sell nothing at all — and then the closing refund would find
+  // an empty table and the carry would simply cease to exist.
+  if (state.cards.length) state.riders = state.cards.map((c) => ({ id: c.id, weight: 1 }));
+
+  for (const c of state.cards) {
+    const player = state.players.find((p) => p.id === c.id);
+    if (!player) continue;
+    const won = paid.filter((x) => x.id === c.id).reduce((sum, x) => sum + x.chips, 0);
+    player.net += won - state.settings.ante;
+  }
+
+  state.result = {
+    pot,
+    calls: state.calls.length,
+    line: state.line,
+    house: state.house,
+    paid: paid.sort((a, b) => b.chips - a.chips),
+    carried: state.carried,
+    said: state.house
+      ? `${state.house.name} takes the full house on ${state.calls.length} calls.`
+      : state.line
+        ? `${state.line.name} got a line. Nobody filled a card — ${state.carried} rides on.`
+        : state.cards.length ? `Nobody called. ${state.carried} rides on.` : 'Nobody played.',
+  };
+  state.log.push(state.result.said);
+
+  state.phase = 'payout';
+  state.phaseTotal = PHASES.payout;
+  state.timeLeft = PHASES.payout;
+  state.dirty = true;
+}
+
+function closeBingo(state) {
+  // Whatever nobody won goes back to the people who paid it in.
+  if (state.carried > 0 && state.riders.length) {
+    for (const { id, chips } of splitPot(state.carried, state.riders)) {
+      award(id, chips, 'bingo — closed');
+      const player = state.players.find((p) => p.id === id);
+      if (player) player.net += chips;
+    }
+    state.carried = 0;
+    state.log.push('Book closed. What nobody won went back.');
+  }
+  state.over = true;
+  state.phase = 'over';
+  state.dirty = true;
+}
+
+export const DRAW_GAMES = [keno, bingo, progressive, jackpot];

@@ -26,7 +26,8 @@ mkdirSync(TMP, { recursive: true });
 process.env.DATA_DIR = TMP;
 
 const { craps, horses, RUNNERS } = await import('../server/games/craps.js');
-const { keno, progressive, jackpot, kenoWeight } = await import('../server/games/draws.js');
+const { keno, bingo, progressive, jackpot, kenoWeight, hasLine, hasFullHouse } =
+  await import('../server/games/draws.js');
 const { balanceOf, walletFor, award } = await import('../server/chips.js');
 
 const results = [];
@@ -335,6 +336,184 @@ console.log('\n  Craps, the horses, keno, the progressive and the jackpot\n');
 
   check('a hundred and twenty rounds on each of the five balance to the chip',
     bad.length === 0, bad.join(' | '));
+}
+
+/* --------------------------------- bingo ---------------------------------- */
+
+{
+  // A card has to be a legal card before anything about the game means
+  // anything: a duplicate number would make one square unreachable and a
+  // number out of its column would make the B I N G O headings a lie.
+  let badCard = null;
+  for (let i = 0; i < 300 && !badCard; i++) {
+    const { state, cast } = open(bingo, 1);
+    bingo.onAction(state, cast[0], { type: 'buy' }, api);
+    const cells = bingo.serializeFor(state, cast[0].id).you.card;
+    if (cells.length !== 25) badCard = `${cells.length} squares`;
+    else if (cells[12] !== null) badCard = 'the middle was not free';
+    else if (new Set(cells.filter((n) => n !== null)).size !== 24) badCard = 'a number twice';
+    else {
+      for (let at = 0; at < 25; at++) {
+        if (cells[at] === null) continue;
+        const col = at % 5;
+        if (cells[at] < col * 10 + 1 || cells[at] > col * 10 + 10) {
+          badCard = `${cells[at]} in column ${col}`;
+          break;
+        }
+      }
+    }
+  }
+  check('bingo: three hundred cards and all of them legal', badCard === null, badCard ?? '');
+
+  // The two things the whole game turns on.
+  const blank = new Array(25).fill(0).map((_, i) => (i === 12 ? null : i + 100));
+  const row = new Set([100, 101, 102, 103, 104]);
+  const short = new Set([100, 101, 102, 103]);
+  const diag = new Set([100, 106, 118, 124]); // the middle is free
+  check('bingo: five across is a line', hasLine(blank, row));
+  check('bingo: four across is not', !hasLine(blank, short));
+  check('bingo: the free square counts towards a diagonal', hasLine(blank, diag));
+  check('bingo: a full house needs all twenty four',
+    hasFullHouse(blank, new Set(blank.filter(Boolean))) &&
+    !hasFullHouse(blank, new Set(blank.filter(Boolean).slice(1))));
+
+  // Nobody's card goes on the wire. Spotting your own line is the game, and a
+  // card in the public state is a card another tab can read the lines off.
+  {
+    const { state, cast } = open(bingo, 3);
+    for (const p of cast) bingo.onAction(state, p, { type: 'buy' }, api);
+    const pub = bingo.serialize(state);
+    const wire = JSON.stringify(pub);
+    const mine = bingo.serializeFor(state, cast[0].id).you.card;
+    // Checked against the structure, not by searching the text for a number —
+    // a card's numbers run from 1 to 50 and so do the round and the ante, so a
+    // string search finds one of those and passes for the wrong reason.
+    check('bingo: cards are not in the public state',
+      !wire.includes('"cells"') && pub.cards.every((c) => !('cells' in c)),
+      wire.slice(0, 80));
+    check('bingo: but you can see your own', Array.isArray(mine) && mine.length === 25);
+  }
+
+  /** Everybody who genuinely has something claims it, the moment they do. */
+  const claimIfReal = (state, cast) => {
+    const called = new Set(state.calls);
+    for (const p of cast) {
+      if (state.phase !== 'call') return;
+      const card = state.cards.find((c) => c.id === p.id);
+      if (!card) continue;
+      if (hasLine(card.cells, called) || hasFullHouse(card.cells, called)) {
+        bingo.onAction(state, p, { type: 'claim' }, api);
+      }
+    }
+  };
+
+  /** One game from the counter opening to the payout. */
+  const playGame = (state, buyers, claimer) => {
+    for (const p of buyers) bingo.onAction(state, p, { type: 'buy' }, api);
+    bingo.onTick(state, 999, api); // buy -> call
+    let guard = 0;
+    while (state.phase === 'call' && guard++ < 300) {
+      bingo.onTick(state, 999, api);
+      claimer?.(state, buyers);
+    }
+    return guard;
+  };
+
+  // Sixty books, and every chip accounted for at the end of each.
+  let leak = null;
+  let lines = 0;
+  let houses = 0;
+  let overshoot = null;
+  for (let book = 0; book < 60 && !leak; book++) {
+    const { state, cast } = open(bingo, 3, { rounds: 3, ante: 20 });
+    const before = totalChips(cast);
+    let guard = 0;
+    while (!state.over && guard++ < 40) {
+      if (state.phase === 'buy') playGame(state, cast, claimIfReal);
+      else bingo.onTick(state, 999, api);
+      if (state.result?.line) lines += 1;
+      if (state.result?.house) houses += 1;
+      // The two prizes are one pot cut in two. If they ever add up to more
+      // than went in, the table is printing chips.
+      if (state.result) {
+        const paid = state.result.paid.reduce((sum, p) => sum + p.chips, 0);
+        if (paid + state.result.carried !== state.result.pot) {
+          overshoot = `paid ${paid} + carried ${state.result.carried} ≠ pot ${state.result.pot}`;
+        }
+      }
+    }
+    if (!state.over) leak = 'the book never closed';
+    else if (totalChips(cast) !== before) leak = `${before} then ${totalChips(cast)}`;
+  }
+  check('bingo: sixty books and not one chip made or lost', leak === null, leak ?? '');
+  check('bingo: a prize plus what rides is exactly the pot', overshoot === null, overshoot ?? '');
+  check('bingo: lines get claimed', lines > 0, `${lines} lines`);
+  check('bingo: and so do full houses', houses > 0, `${houses} houses`);
+
+  // Calling with nothing. It has to sting and it has to be free — a penalty in
+  // chips would be a second way for money to leave a table.
+  {
+    const { state, cast } = open(bingo, 2, { rounds: 1 });
+    for (const p of cast) bingo.onAction(state, p, { type: 'buy' }, api);
+    bingo.onTick(state, 999, api);
+    bingo.onTick(state, 999, api); // one number is out; nobody can have a line
+    const before = totalChips(cast);
+    bingo.onAction(state, cast[0], { type: 'claim' }, api);
+    const you = bingo.serializeFor(state, cast[0].id).you;
+    check('bingo: calling early locks you out', you.lockedFor === 3, String(you.lockedFor));
+    check('bingo: and costs nothing', totalChips(cast) === before);
+
+    // And the lock is real: the button does nothing while it is running, even
+    // if the line lands in the middle of it. The lock counts calls, so this has
+    // to be set up by calling three quarters of a diagonal, calling early on
+    // it, and only then letting the fourth number out.
+    const card = state.cards.find((c) => c.id === cast[0].id);
+    const diagonal = [0, 6, 18, 24].map((i) => card.cells[i]); // the middle is free
+    state.calls = diagonal.slice(0, 3);
+    card.lockedUntil = 0;
+    bingo.onAction(state, cast[0], { type: 'claim' }, api); // nothing there yet
+    check('bingo: three quarters of a line is still calling early',
+      state.line === null && card.lockedUntil === 6, String(card.lockedUntil));
+
+    state.calls.push(diagonal[3]); // and now they have it, mid-lock
+    bingo.onAction(state, cast[0], { type: 'claim' }, api);
+    check('bingo: the lock holds even when you do have it', state.line === null);
+
+    for (let i = 0; i < 2; i++) bingo.onTick(state, 999, api);
+    bingo.onAction(state, cast[0], { type: 'claim' }, api);
+    check('bingo: and lets go when it is served', state.line?.id === cast[0].id);
+  }
+
+  // Being beaten to a line is not a mistake, so it must not lock you.
+  {
+    const { state, cast } = open(bingo, 2, { rounds: 1 });
+    for (const p of cast) bingo.onAction(state, p, { type: 'buy' }, api);
+    bingo.onTick(state, 999, api);
+    bingo.onTick(state, 999, api);
+    // Give them both a line and nothing more, then let the first one have it.
+    for (const c of state.cards) state.calls.push(...[0, 1, 2, 3, 4].map((i) => c.cells[i]));
+    bingo.onAction(state, cast[0], { type: 'claim' }, api);
+    bingo.onAction(state, cast[1], { type: 'claim' }, api);
+    check('bingo: the first line wins it', state.line?.id === cast[0].id);
+    check('bingo: being second is not calling early',
+      bingo.serializeFor(state, cast[1].id).you.lockedFor === 0);
+  }
+
+  // The hole the carry-over used to have: a last game that sells nothing.
+  {
+    const { state, cast } = open(bingo, 2, { rounds: 2, ante: 25 });
+    const before = totalChips(cast);
+    playGame(state, cast, null); // nobody claims, so the whole pot rides
+    check('bingo: an unclaimed pot rides on', state.carried === 50, String(state.carried));
+    bingo.onTick(state, 999, api); // payout -> next game
+    playGame(state, [], null);     // and nobody buys a card for it
+    let guard = 0;
+    while (!state.over && guard++ < 20) bingo.onTick(state, 999, api);
+    check('bingo: a game nobody bought into does not swallow the carry',
+      totalChips(cast) === before, `${before} then ${totalChips(cast)}`);
+  }
+
+  check('bingo: the caller says the numbers', bingo.serialize(open(bingo, 1).state).columns.join('') === 'BINGO');
 }
 
 /* ------------------------ results stay put until due ---------------------- */

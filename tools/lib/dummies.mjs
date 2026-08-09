@@ -50,6 +50,23 @@ const BRAINS = {
   craps: (s) => (s.phase === 'bets' && !s.you?.staked ? { type: 'bet', kind: 'pass', amount: 10 } : null),
   horses: (s) => (s.phase === 'bets' && !s.you?.staked ? { type: 'bet', kind: 'h1', amount: 10 } : null),
   keno: (s) => (s.phase === 'buy' && !s.you?.card ? { type: 'buy', spots: [] } : null),
+
+  // The only dummy that has to look at its card. The lines are worked out here
+  // rather than imported from the game so that a dummy stays a dummy — and so
+  // that a bug in the server's idea of a line cannot agree with itself.
+  bingo: (s) => {
+    if (s.phase === 'buy' && !s.you?.card) return { type: 'buy' };
+    if (s.phase !== 'call' || !s.you?.card || s.you.lockedFor > 0) return null;
+    const called = new Set(s.calls);
+    const on = (i) => s.you.card[i] === null || called.has(s.you.card[i]);
+    const lines = [[0, 6, 12, 18, 24], [4, 8, 12, 16, 20]];
+    for (let r = 0; r < 5; r++) lines.push([0, 1, 2, 3, 4].map((c) => r * 5 + c));
+    for (let c = 0; c < 5; c++) lines.push([0, 1, 2, 3, 4].map((r) => r * 5 + c));
+    // It only calls what it has. One that mashed the button would spend the
+    // whole game locked out and never reach a payout to check.
+    return lines.some((line) => line.every(on)) ? { type: 'claim' } : null;
+  },
+
   jackpot: (s) => (s.phase === 'bets' && !s.you?.staked ? { type: 'throw', amount: 50 } : null),
 
   // The four machines and the progressive all take the same one.
