@@ -189,12 +189,20 @@ export function compareHands(a, b) {
   return 0;
 }
 
+/**
+ * Rank values as the words people say. 13 is "kings", not thirteen.
+ *
+ * Shared, because every table that names a hand needs it and the one that did
+ * not have it read out "a pair of 13s" at a poker table.
+ */
+export const PLURAL = {
+  2: 'twos', 3: 'threes', 4: 'fours', 5: 'fives', 6: 'sixes', 7: 'sevens',
+  8: 'eights', 9: 'nines', 10: 'tens', 11: 'jacks', 12: 'queens', 13: 'kings', 14: 'aces',
+};
+
 /** A hand's name, with what it is made of — "Two pair, kings and fours". */
 export function describe(hand) {
-  const word = {
-    2: 'twos', 3: 'threes', 4: 'fours', 5: 'fives', 6: 'sixes', 7: 'sevens',
-    8: 'eights', 9: 'nines', 10: 'tens', 11: 'jacks', 12: 'queens', 13: 'kings', 14: 'aces',
-  };
+  const word = PLURAL;
   const [a, b] = hand.tiebreak;
   switch (hand.category) {
     case CATEGORY.straightFlush: return `Straight flush, ${word[a] ?? a} high`;

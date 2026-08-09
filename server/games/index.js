@@ -37,8 +37,9 @@ import holdem from './holdem.js';
 import blackjack from './blackjack.js';
 import lottery from './lottery.js';
 import { slots, plinko, wheel, scratch } from './chance.js';
+import { SHOWDOWN_GAMES } from './showdowns.js';
 
-const modules = [clash, imposter, truthDare, situations, quiz, findWord, movies, songs, poll, standoff, crossword, arena, battleship, roulette, holdem, blackjack, lottery, slots, plinko, wheel, scratch];
+const modules = [clash, imposter, truthDare, situations, quiz, findWord, movies, songs, poll, standoff, crossword, arena, battleship, roulette, holdem, blackjack, lottery, slots, plinko, wheel, scratch, ...SHOWDOWN_GAMES];
 
 const registry = new Map(modules.map((g) => [g.id, g]));
 

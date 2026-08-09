@@ -217,6 +217,34 @@ const TABLES = [
     async peculiar() {
       check('there is a wedge to land on', (await count('.ch-wedge')) === 1);
     } },
+
+  // The four that deal cards or roll dice on the same screen.
+  { id: 'baccarat', name: 'Baccarat', stage: '.ch-table', furniture: '.ch-card', action: '.ch-acts .btn', resultOf: () => '.ch-said',
+    async afterIn() {
+      await waitFor('.ch-count', 25000);
+      check('baccarat deals two or three cards',
+        (await count('.ch-cards .ch-card')) >= 2 && (await count('.ch-cards .ch-card')) <= 3,
+        String(await count('.ch-cards .ch-card')));
+      check('and shows the count', /^[0-9]$/.test((await textOf('.ch-count')) ?? ''), await textOf('.ch-count'));
+    } },
+  { id: 'three-card', name: 'Three Card Poker', stage: '.ch-table', furniture: '.ch-card', action: '.ch-acts .btn', resultOf: () => '.ch-said',
+    async afterIn() {
+      await waitFor('.ch-count', 25000);
+      check('three cards, exactly', (await count('.ch-cards .ch-card')) === 3, String(await count('.ch-cards .ch-card')));
+      check('and the hand is named', Boolean(await textOf('.ch-count')), await textOf('.ch-count'));
+    } },
+  { id: 'casino-war', name: 'Casino War', stage: '.ch-table', furniture: '.ch-card', action: '.ch-acts .btn', resultOf: () => '.ch-said',
+    async afterIn() {
+      await waitFor('.ch-count', 25000);
+      check('one card each, face up', (await count('.ch-cards .ch-card')) === 1 && (await count('.ch-card.is-back')) === 0,
+        String(await count('.ch-cards .ch-card')));
+    } },
+  { id: 'sic-bo', name: 'Sic Bo', stage: '.ch-table', furniture: '.ch-die', action: '.ch-acts .btn', resultOf: () => '.ch-said',
+    async afterIn() {
+      await waitFor('.ch-count', 25000);
+      check('three dice', (await count('.ch-dice .ch-die')) === 3, String(await count('.ch-dice .ch-die')));
+      check('and a total', Number(await textOf('.ch-count')) >= 3, await textOf('.ch-count'));
+    } },
   { id: 'scratch', name: 'Scratch Cards', stage: '.ch-table', furniture: '.ch-cell', action: '.ch-acts .btn', resultOf: () => '.ch-said',
     async peculiar() {
       check('six panels', (await count('.ch-panels .ch-cell')) === 6, String(await count('.ch-panels .ch-cell')));
@@ -340,6 +368,13 @@ for (const table of TABLES) {
 cleanup();
 const bad = results.filter((r) => !r.ok);
 console.log(`\n  screenshots  android/casino-shots/`);
+if (bad.length) {
+  // Named, not just counted. This run walks ten tables and a check that fails
+  // once in four runs is useless to chase if all the summary says is "1 of 145"
+  // — by then the per-table output has scrolled past.
+  console.log('\x1b[31m  what failed:\x1b[0m');
+  for (const r of bad) console.log(`\x1b[31m    · ${r.label}\x1b[0m`);
+}
 console.log(bad.length
   ? `\x1b[31m  ${bad.length} of ${results.length} failed\x1b[0m\n`
   : `\x1b[32m  all ${results.length} passed — every table plays, pays and fits a phone\x1b[0m\n`);

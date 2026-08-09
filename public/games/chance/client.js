@@ -12,11 +12,34 @@ import { Sound } from '/js/sound.js';
 import { confetti, floatText, pulse, motionReduced } from '/js/fx.js';
 
 const FACES = {
-  slots: { title: 'Slots', verb: 'Pull' },
-  plinko: { title: 'Plinko', verb: 'Drop' },
-  wheel: { title: 'Wheel of Fortune', verb: 'Spin' },
-  scratch: { title: 'Scratch Cards', verb: 'Buy a card' },
+  slots: { title: 'Slots', verb: 'Pull', shape: 'symbols' },
+  plinko: { title: 'Plinko', verb: 'Drop', shape: 'board' },
+  wheel: { title: 'Wheel of Fortune', verb: 'Spin', shape: 'wedge' },
+  scratch: { title: 'Scratch Cards', verb: 'Buy a card', shape: 'symbols' },
+  baccarat: { title: 'Baccarat', verb: 'Deal me in', shape: 'cards' },
+  'three-card': { title: 'Three Card Poker', verb: 'Deal me in', shape: 'cards' },
+  'casino-war': { title: 'Casino War', verb: 'Turn one over', shape: 'cards' },
+  'sic-bo': { title: 'Sic Bo', verb: 'Roll', shape: 'dice' },
 };
+
+const SUIT = { s: '♠', h: '♥', d: '♦', c: '♣' };
+const REDS = new Set(['h', 'd']);
+
+/** A playing card, or a back while the deal is still happening. */
+function cardEl(code) {
+  const el = document.createElement('span');
+  if (!code) {
+    el.className = 'ch-card is-back';
+    return el;
+  }
+  const rank = code[0] === 'T' ? '10' : code[0];
+  el.className = `ch-card ${REDS.has(code[1]) ? 'is-red' : 'is-blk'}`;
+  el.innerHTML = `<b>${rank}</b><i>${SUIT[code[1]] ?? ''}</i>`;
+  return el;
+}
+
+/** The pips on a die, as a face rather than a number. */
+const PIPS = { 1: '⚀', 2: '⚁', 3: '⚂', 4: '⚃', 5: '⚄', 6: '⚅' };
 
 export default {
   mount({ canvas, wrap, hud, Net, meta }) {
@@ -73,6 +96,53 @@ export default {
     function paintRoll(roll, rolling) {
       const box = $('#chMine');
       box.replaceChildren();
+
+      // Cards: baccarat, three card poker and war. Backs while it deals, and
+      // the count or the hand's name underneath once they are over.
+      if (look.shape === 'cards') {
+        const cards = roll?.detail?.cards ?? [];
+        const row = document.createElement('div');
+        row.className = 'ch-cards';
+        // Backs while it deals, and backs while nothing is happening either —
+        // an empty middle before the first hand reads as a broken table
+        // rather than as a table waiting for you.
+        const dealt = face === 'casino-war' ? 1 : face === 'baccarat' ? 2 : 3;
+        const howMany = cards.length || dealt;
+        for (let i = 0; i < howMany; i++) row.appendChild(cardEl(cards[i] ?? null));
+        box.appendChild(row);
+
+        if (!rolling && roll) {
+          const said = document.createElement('span');
+          said.className = 'ch-count';
+          // Baccarat has a number, the poker hands have a name, war has neither.
+          said.textContent = roll.detail.total !== undefined
+            ? String(roll.detail.total)
+            : (roll.detail.name ?? roll.say ?? '');
+          box.appendChild(said);
+        }
+        return;
+      }
+
+      if (look.shape === 'dice') {
+        const dice = roll?.detail?.dice ?? [null, null, null];
+        const row = document.createElement('div');
+        row.className = 'ch-dice';
+        for (const d of dice) {
+          const die = document.createElement('span');
+          die.className = 'ch-die';
+          die.classList.toggle('is-rolling', rolling);
+          die.textContent = rolling || !d ? PIPS[1 + Math.floor(Math.random() * 6)] : PIPS[d];
+          row.appendChild(die);
+        }
+        box.appendChild(row);
+        if (!rolling && roll) {
+          const said = document.createElement('span');
+          said.className = 'ch-count';
+          said.textContent = String(roll.detail.total ?? '');
+          box.appendChild(said);
+        }
+        return;
+      }
 
       if (face === 'slots' || face === 'scratch') {
         const cells = roll?.detail?.reels ?? roll?.detail?.panels

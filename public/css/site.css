@@ -4302,3 +4302,46 @@ body.dropping::after {
 @media (prefers-reduced-motion: reduce) {
   .ch-cell.is-spinning, .ch-disc, .ch-wedge.is-spinning { animation: none; }
 }
+
+/* Cards and dice for the tables that share the machine screen: baccarat,
+   three card poker, casino war and sic bo. */
+.ch-cards { display: flex; gap: var(--sp-sm); justify-content: center; flex-wrap: wrap; }
+.ch-card {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 62px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: #fdfdfb;
+  color: #1b1c22;
+  font-family: var(--font-display);
+  line-height: 1;
+}
+.ch-card b { font-size: 1.1rem; }
+.ch-card i { font-style: normal; font-size: 0.9rem; }
+.ch-card.is-red { color: #c8392b; }
+.ch-card.is-back {
+  background: repeating-linear-gradient(45deg, #2b3350, #2b3350 4px, #3a4468 4px, #3a4468 8px);
+  border-color: #1b2036;
+}
+
+.ch-dice { display: flex; gap: var(--sp-sm); justify-content: center; }
+.ch-die { font-size: 3rem; line-height: 1; }
+.ch-die.is-rolling { animation: ch-die-kf 260ms steps(2) infinite; }
+@keyframes ch-die-kf {
+  0% { transform: rotate(-12deg); }
+  50% { transform: rotate(12deg); }
+  100% { transform: rotate(-12deg); }
+}
+
+.ch-count {
+  display: block;
+  margin-top: var(--sp-sm);
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: var(--t-title);
+  color: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) { .ch-die.is-rolling { animation: none; } }
