@@ -59,7 +59,8 @@
     "test:holdem:ui": "node tools/test-holdem-ui.mjs",
     "test:blackjack": "node tools/test-blackjack.mjs",
     "test:lottery": "node tools/test-lottery.mjs",
-    "test:chance": "node tools/test-chance.mjs"
+    "test:chance": "node tools/test-chance.mjs",
+    "test:casino:ui": "node tools/test-casino-ui.mjs"
   },
   "engines": {
     "node": ">=20"

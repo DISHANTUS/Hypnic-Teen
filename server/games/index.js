@@ -68,5 +68,16 @@ export function listGames() {
      * renderer at public/games/_party/client.js.
      */
     client: g.client ?? (g.tickRate === 4 ? '_party' : g.id),
+    /**
+     * Which face a shared renderer should wear.
+     *
+     * Slots, plinko, the wheel and scratch cards are one game in four
+     * costumes and share a client. Without this the client had nothing to
+     * tell them apart and drew all four as slots — plinko with three reels
+     * instead of a board, the wheel with no wedge at all.
+     */
+    machine: g.machine ?? null,
+    /** Whether this table is played for chips, so the lobby can say so. */
+    stakes: g.stakes ?? null,
   }));
 }

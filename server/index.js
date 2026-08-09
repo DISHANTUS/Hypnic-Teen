@@ -54,6 +54,7 @@ import { OWN_DIR, ownClues, ownCluesStatus, ownTitles, saveOwnClue } from './own
 import { mayUse, accessState, setAccess, isOwner } from './access.js';
 import {
   walletFor,
+  award as awardChips,
   buyChips,
   spendablePoints,
   historyFor,
@@ -629,6 +630,22 @@ app.post('/api/notices', requireAuth, (req, res) => {
   const out = postNotice({ ...(req.body ?? {}), from: req.body?.from ?? 'Hypnic Teen Studio' });
   res.status(out.error ? 400 : 200).json(out);
 });
+
+// Chips for a test's stand-in players, and nothing else.
+//
+// Gated on NODE_ENV === 'test' rather than on ALLOW_DEV, which is on whenever
+// the studio is not running as production — including the copy on this laptop
+// that friends connect to. A route that hands out chips has to be unreachable
+// there, not merely inconvenient to find.
+if (process.env.NODE_ENV === 'test') {
+  app.post('/api/_test/chips', (req, res) => {
+    const id = String(req.body?.id ?? '');
+    const chips = Math.floor(Number(req.body?.chips ?? 0));
+    if (!id || !Number.isFinite(chips) || chips <= 0) return res.status(400).json({ error: 'no' });
+    awardChips(id, chips, 'test');
+    res.json({ ok: true, balance: walletFor(id).balance });
+  });
+}
 
 /* ---------------------------------- the cage ------------------------------ */
 
