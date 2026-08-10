@@ -278,6 +278,30 @@ for (const game of GAMES) {
       owned.titles === owned.n, `${owned.titles} of ${owned.n}`);
   }
 
+  // A board has to have a size.
+  //
+  // Counting cells proves the DOM was built and proves nothing about whether
+  // anybody can see a board — Thayam shipped for a while as forty-nine cells
+  // two pixels tall, a set of flat dashes that passed every check here because
+  // every check here counted nodes. A square-ish box and cells you could
+  // actually hit with a thumb is the property that was missing.
+  const size = JSON.parse(await evaluate(`
+    const b = document.querySelector('.bd-board');
+    if (!b) return JSON.stringify({ none: true });
+    const r = b.getBoundingClientRect();
+    const cells = [...b.children].map((c) => c.getBoundingClientRect());
+    const h = Math.min(...cells.map((c) => c.height));
+    const w = Math.min(...cells.map((c) => c.width));
+    return JSON.stringify({
+      board: [Math.round(r.width), Math.round(r.height)],
+      cell: [Math.round(w), Math.round(h)],
+    });
+  `));
+  check(`${game.name}: the board is a board, not a stack of lines`,
+    size.board?.[1] >= 120, JSON.stringify(size));
+  check(`${game.name}: and its cells are big enough to tap`,
+    size.cell?.[0] >= 18 && size.cell?.[1] >= 18, JSON.stringify(size.cell));
+
   const fit = JSON.parse(await evaluate(`
     const w = document.documentElement;
     return JSON.stringify({ pageWidth: w.clientWidth, scrollWidth: w.scrollWidth });

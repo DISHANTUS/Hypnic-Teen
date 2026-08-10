@@ -576,7 +576,13 @@ export default {
     function paintMahjong(s) {
       const box = $('#bdBoard');
       box.dataset.size = 'mahjong';
-      box.classList.remove('is-ring', 'is-chequer', 'is-ladder');
+      box.classList.remove('is-ring', 'is-chequer', 'is-ladder', 'is-chain');
+      // Named rather than left as the default. Mahjong's layout used to be
+      // written in CSS as "any board that is not one of the other three", which
+      // silently included Thayam — and flattened its seven-by-seven grid into
+      // forty-nine two-pixel dashes. A face that wants its own layout has to
+      // say so.
+      box.classList.add('is-mahjong');
       box.replaceChildren();
 
       const pond = document.createElement('div');

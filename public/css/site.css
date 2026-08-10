@@ -5191,8 +5191,13 @@ body.dropping::after {
 .bd-inhand.is-armed { background: var(--accent); color: var(--on-accent, #fff); }
 .bd-inhand:disabled { opacity: 0.4; }
 
-/* Mahjong: the pond, and your own tiles along the bottom. */
-.bd-board:not(.is-ring):not(.is-chequer):not(.is-ladder) { display: grid; gap: var(--sp-sm); aspect-ratio: auto; }
+/* Mahjong: the pond, and your own tiles along the bottom.
+   Written as "any board that is not one of the other three" for a while, which
+   is a description of Mahjong only until somebody adds a game — and Thayam,
+   which claims no layout class, was quietly swept into it and drawn as
+   forty-nine two-pixel dashes. Rules that say "everything else" go stale the
+   moment the else changes. */
+.bd-board.is-mahjong { display: grid; gap: var(--sp-sm); aspect-ratio: auto; }
 .bd-pond { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; min-height: 40px; }
 .bd-tile {
   display: grid;
