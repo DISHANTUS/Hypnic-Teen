@@ -26,9 +26,6 @@ import {
   createBoardGame, inPlay, nextSeat, passTurn, ringPath, startAt, cellKey,
 } from './kit.js';
 
-const SIZE = 7;
-const MID = 3;
-
 /** A throw that earns another throw. */
 const GRACE = new Set([1, 5, 6, 12]);
 /** The throw that puts your first coin on the board, and brings cut ones back. */
@@ -54,26 +51,60 @@ export function throwSticks() {
 
 /* --------------------------------- the board ------------------------------ */
 
-/** The three rings and the centre, outermost first. */
-const RINGS = [ringPath(0, SIZE - 1), ringPath(1, SIZE - 2), ringPath(2, SIZE - 3)];
+/**
+ * THE BOARD. Everything about its shape is here and nowhere else.
+ *
+ * This is the one thing in the game that is not a rule — it is a drawing, and
+ * drawings differ from family to family and village to village. So it is a
+ * table rather than a computation: change these four values and the game
+ * follows, with no geometry to re-derive and nothing else to touch.
+ *
+ *   cols, rows   how big the grid is
+ *   crosses      the safe squares, as "row,col"
+ *   entries      where each player comes on, in seat order
+ *   route        the exact squares one player walks, entry first, centre last
+ *
+ * The route is given once, for the player who comes on at the bottom, and the
+ * others are the same walk turned a quarter, a half and three quarters of the
+ * way round. That holds for a square board with four-fold symmetry, which this
+ * one has; if a board ever turns up that does not, every route can simply be
+ * listed out and `routeFor` stops rotating.
+ */
+export const BOARD = {
+  cols: 7,
+  rows: 7,
+
+  /**
+   * Nine crosses.
+   *
+   * Four where the players come on, four one ring in, and the middle. A coin on
+   * a cross cannot be cut and any number may stand there, which is the only
+   * reason a crowded board does not seize up.
+   */
+  crosses: [
+    '6,3', '3,0', '0,3', '3,6',
+    '5,3', '3,1', '1,3', '3,5',
+    '3,3',
+  ],
+
+  /** Bottom, left, top, right — one player to a side. */
+  entries: ['6,3', '3,0', '0,3', '3,6'],
+};
+
+const SIZE = BOARD.cols;
+const MID = Math.floor(SIZE / 2);
 const CENTRE = [MID, MID];
 
 /**
- * Where each player comes on, one to a side.
+ * The route, for the player who comes on at the bottom.
  *
- * Their whole spiral is anchored to this: they lap the outer ring from their
- * own cross, step in to the cross on their own side of the next ring, lap that,
- * and so on. Four players therefore run four different paths over the same
- * squares, which is what makes the middle of the board dangerous.
+ * A lap of the outer ring from their own cross, then in to the cross on their
+ * own side of the next ring, a lap of that, then the innermost, then the
+ * middle. Forty-nine squares.
  */
-const ENTRIES = [
-  [SIZE - 1, MID],  // bottom
-  [MID, 0],         // left
-  [0, MID],         // top
-  [MID, SIZE - 1],  // right
-];
+const RINGS = [ringPath(0, SIZE - 1), ringPath(1, SIZE - 2), ringPath(2, SIZE - 3)];
 
-/** The same side, one ring in. */
+/** The same side of the board, one ring further in. */
 const inward = (entry, ring) => {
   const [r, c] = entry;
   if (r === 0) return [ring, MID];
@@ -82,8 +113,9 @@ const inward = (entry, ring) => {
   return [MID, SIZE - 1 - ring];
 };
 
-/** The full spiral for one player: 24 + 16 + 8 + the centre = 49 squares. */
-function pathFor(seatNo) {
+const ENTRIES = BOARD.entries.map((k) => k.split(',').map(Number));
+
+function routeFor(seatNo) {
   const entry = ENTRIES[seatNo % ENTRIES.length];
   return [
     ...startAt(RINGS[0], entry),
@@ -93,24 +125,12 @@ function pathFor(seatNo) {
   ];
 }
 
-const PATHS = [0, 1, 2, 3].map(pathFor);
-const HOME = PATHS[0].length - 1;   // the centre, as a path index
+const PATHS = [0, 1, 2, 3].map(routeFor);
+const HOME = PATHS[0].length - 1;   // the centre, as a step along the route
 /** Where the outer ring ends. Nothing crosses this without a kill. */
 const FIRST_LAYER = RINGS[0].length;
 
-/**
- * The nine crosses.
- *
- * Four on the outer ring where the players come on, four on the next ring in,
- * and the centre. A coin standing on one cannot be cut, and more than one coin
- * may stand there — which is the only reason a crowded board does not lock up.
- */
-export const SAFE = new Set([
-  ...ENTRIES.map(cellKey),
-  ...ENTRIES.map((e) => cellKey(inward(e, 1))),
-  cellKey(CENTRE),
-]);
-
+export const SAFE = new Set(BOARD.crosses);
 export const isSafe = (cell) => SAFE.has(cellKey(cell));
 
 export const thayam = createBoardGame({
