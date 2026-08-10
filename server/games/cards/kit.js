@@ -18,9 +18,9 @@
 // card game where the table state carries everybody's hand is a card game where
 // one open developer console ends the evening.
 
-import { freshDeck, shuffle, rankOf, suitOf, SUIT_SIGN, RANKS } from '../../cards.js';
+import { freshDeck, shuffle, rankOf, suitOf, SUIT_SIGN, RANKS, SUITS } from '../../cards.js';
 
-export { freshDeck, shuffle, rankOf, suitOf, SUIT_SIGN, RANKS };
+export { freshDeck, shuffle, rankOf, suitOf, SUIT_SIGN, RANKS, SUITS };
 
 export const PHASES = { brief: 18, between: 9, over: 6 };
 
@@ -79,6 +79,56 @@ export function dealAll(state) {
     state.seats[at % state.seats.length].hand.push(state.deck.pop());
     at += 1;
   }
+}
+
+/**
+ * Draw, turning the pile back over when the deck runs out.
+ *
+ * Every shedding game needs this and every one of them gets it subtly wrong
+ * the same way: reshuffling the *whole* discard pile, top card included, so the
+ * card everybody is playing against silently becomes a card in somebody's hand.
+ * The top stays where it is and only what is under it comes back.
+ *
+ * Returns what was actually drawn, which can be fewer than asked for — with
+ * four players and a long game the cards genuinely can run out, and a caller
+ * that assumed otherwise would deal from an empty deck forever.
+ */
+export function drawCards(state, seat, n = 1) {
+  const got = [];
+  for (let i = 0; i < n; i++) {
+    if (!state.deck.length) {
+      if (state.pile.length <= 1) break;
+      const top = state.pile.pop();
+      state.deck = shuffle(state.pile);
+      state.pile = [top];
+    }
+    if (!state.deck.length) break;
+    const card = state.deck.pop();
+    seat.hand.push(card);
+    got.push(card);
+  }
+  return got;
+}
+
+/**
+ * Somebody has emptied their hand.
+ *
+ * Recorded in the order it happened rather than as a flag, because in every
+ * game of this family the *order* is the result — first out is the president
+ * and last out is not, and a set of booleans cannot tell you which was which.
+ */
+export function goOut(state, seat) {
+  if (seat.out) return;
+  seat.out = true;
+  (state.finished ??= []).push(seat.seat);
+  state.log.push(`${seat.name} is out.`);
+}
+
+/** Finishing order, with anybody still holding cards on the end. */
+export function finishOrder(state) {
+  const done = state.finished ?? [];
+  const rest = state.seats.filter((s) => !done.includes(s.seat)).map((s) => s.seat);
+  return [...done, ...rest];
 }
 
 /** Take a named card out of a hand. Returns false if it was never there. */

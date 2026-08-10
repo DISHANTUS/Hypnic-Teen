@@ -33,8 +33,12 @@ const { cheat } = await import('../server/games/cards/cheat.js');
 const { snap } = await import('../server/games/cards/snap.js');
 const { gofish } = await import('../server/games/cards/gofish.js');
 const { hearts } = await import('../server/games/cards/hearts.js');
+const { crazy8s, switchGame } = await import('../server/games/cards/crazy8s.js');
+const { president } = await import('../server/games/cards/president.js');
+const { sevens } = await import('../server/games/cards/sevens.js');
+const { speed } = await import('../server/games/cards/speed.js');
 const { CARD_GAMES } = await import('../server/games/cards/index.js');
-const { rankOf, suitOf } = await import('../server/cards.js');
+const { rankOf, suitOf, RANKS } = await import('../server/cards.js');
 
 const results = [];
 const check = (label, ok, extra = '') => {
@@ -69,6 +73,9 @@ function census(state) {
     ...(state.trick ?? []).map((t) => t.card),
     ...Object.values(state.taken ?? {}).flat(),
     ...(state.spare ?? []),
+    // Swept out of play but not out of existence — President clears the pile
+    // between rounds and those cards are gone for the hand, not gone.
+    ...(state.discard ?? []),
   ];
   // Books are recorded as ranks rather than cards once they go down, so their
   // four cards are counted back in from the record instead.
@@ -326,6 +333,319 @@ console.log('\n  The card room — fifty-two cards, and nobody sees a hand\n');
   check('snap: the first hand down takes it', firstGot === 2, String(firstGot));
   check('snap: and the second wins nothing', race.seats[1].hand.length === 0,
     String(race.seats[1].hand.length));
+}
+
+/* --------------------------- Crazy Eights and Switch ---------------------- */
+
+{
+  for (const game of [crazy8s, switchGame]) {
+    const { state } = open(game, 4);
+    check(`${game.name}: it never opens on a wild`,
+      rankOf(state.pile[state.pile.length - 1]) !== '8',
+      state.pile[state.pile.length - 1]);
+    check(`${game.name}: fifty-two cards are out`, census(state).total === 52, String(census(state).total));
+
+    // The reshuffle, which is the one thing in this family that goes wrong
+    // invisibly: the card everybody is matching against must not come back as
+    // somebody's card.
+    const { state: st } = open(game, 4);
+    const top = st.pile[st.pile.length - 1];
+    st.pile = ['Kd', 'Qd', 'Jd', top];  // the top of a pile is its last element
+    st.deck = [];
+    const seat = st.seats[st.turn];
+    game.__spec.act(st, seat, { type: 'draw' });
+    check(`${game.name}: the reshuffle leaves the top card alone`,
+      st.pile[st.pile.length - 1] === top && !seat.hand.includes(top),
+      `${st.pile.join(',')} / drew ${seat.hand.length}`);
+
+    // You may not pass for free while there is anything to draw.
+    const { state: p } = open(game, 4);
+    const before = p.turn;
+    game.__spec.act(p, p.seats[p.turn], { type: 'pass' });
+    check(`${game.name}: passing without drawing is refused`, p.turn === before, `${before} then ${p.turn}`);
+  }
+
+  // The Switch specials, one at a time, against a Crazy Eights table that has
+  // none — the same code path, so both directions have to be checked.
+  {
+    const { state } = open(switchGame, 4);
+    const seat = state.seats[state.turn];
+    // Force a two on top of a matching suit so it is legal to play.
+    state.pile = ['5h']; state.suit = 'h';
+    seat.hand = ['2h', '9c', 'Ks'];
+    switchGame.__spec.act(state, seat, { type: 'play', card: '2h' });
+    check('switch: a two puts two on the next player', state.pending === 2, String(state.pending));
+
+    const victim = state.seats[state.turn];
+    const had = victim.hand.length;
+    switchGame.__spec.act(state, victim, { type: 'pass' });
+    check('switch: and they pick them up', victim.hand.length === had + 2 && state.pending === 0,
+      `${had} then ${victim.hand.length}`);
+  }
+
+  {
+    const { state } = open(switchGame, 4);
+    state.pile = ['5h']; state.suit = 'h'; state.direction = 1;
+    const seat = state.seats[state.turn];
+    seat.hand = ['Qh', '9c'];
+    const wasNext = (state.turn + 1) % 4;
+    switchGame.__spec.act(state, seat, { type: 'play', card: 'Qh' });
+    check('switch: a queen turns the play around',
+      state.direction === -1 && state.turn !== wasNext, `dir ${state.direction}, turn ${state.turn}`);
+  }
+
+  {
+    const { state } = open(switchGame, 4);
+    state.pile = ['5h']; state.suit = 'h';
+    const seat = state.seats[state.turn];
+    seat.hand = ['Jh', '9c'];
+    const skipped = (state.turn + 1) % 4;
+    switchGame.__spec.act(state, seat, { type: 'play', card: 'Jh' });
+    check('switch: a jack skips somebody', state.turn !== skipped, `skipped ${skipped}, now ${state.turn}`);
+  }
+
+  {
+    // A wild names the suit, and a nonsense suit falls back to the card's own
+    // rather than leaving the table on nothing.
+    const { state } = open(crazy8s, 4);
+    const seat = state.seats[state.turn];
+    state.pile = ['5h']; state.suit = 'h';
+    seat.hand = ['8s', '9c'];
+    crazy8s.__spec.act(state, seat, { type: 'play', card: '8s', suit: 'd' });
+    check('crazy eights: a wild names the suit', state.suit === 'd', state.suit);
+
+    const { state: bad } = open(crazy8s, 4);
+    const s2 = bad.seats[bad.turn];
+    bad.pile = ['5h']; bad.suit = 'h';
+    s2.hand = ['8s', '9c'];
+    crazy8s.__spec.act(bad, s2, { type: 'play', card: '8s', suit: 'nonsense' });
+    check('crazy eights: and nonsense falls back to its own suit', bad.suit === 's', bad.suit);
+  }
+
+  // Whole hands, counted at every move.
+  let broke = null;
+  for (const game of [crazy8s, switchGame]) {
+    for (let round = 0; round < 20 && !broke; round++) {
+      const { state: st } = open(game, 4);
+      let guard = 0;
+      while (!game.__spec.handOver(st) && guard++ < 900) {
+        const me = st.seats[st.turn];
+        if (!me || me.out) break;
+        const view = game.serializeFor(st, me.id);
+        const can = view.you.playable;
+        if (can.length) game.__spec.act(st, me, { type: 'play', card: can[0], suit: can[0][1] });
+        else if (!st.drewThisTurn && st.deck.length + st.pile.length > 1) game.__spec.act(st, me, { type: 'draw' });
+        else game.__spec.act(st, me, { type: 'pass' });
+        const c = census(st);
+        if (c.total !== 52) { broke = `${game.id}: ${c.total} cards after ${guard} moves`; break; }
+        if (c.unique !== c.all.length) { broke = `${game.id}: a card exists twice`; break; }
+      }
+      if (!broke && !game.__spec.handOver(st)) broke = `${game.id}: a hand never finished`;
+    }
+  }
+  check('crazy eights and switch: forty hands, always fifty-two', broke === null, broke ?? '');
+}
+
+/* ------------------------------- President -------------------------------- */
+
+{
+  const { state } = open(president, 4);
+  check('president: the whole pack goes out',
+    state.seats.reduce((n, s) => n + s.hand.length, 0) === 52,
+    String(state.seats.reduce((n, s) => n + s.hand.length, 0)));
+
+  // A "set" of mixed ranks is the easiest thing to let through and it breaks
+  // the game outright.
+  const seat = state.seats[state.turn];
+  seat.hand = ['5c', '5d', '9h', 'Ks'];
+  state.set = null;
+  president.__spec.act(state, seat, { type: 'play', cards: ['5c', '9h'] });
+  check('president: a set must be all one rank', state.set === null, JSON.stringify(state.set));
+  president.__spec.act(state, seat, { type: 'play', cards: ['5c', '5d'] });
+  check('president: a real pair goes down', state.set?.count === 2 && state.set?.rank === '5',
+    JSON.stringify(state.set));
+
+  // Count and rank both have to be beaten.
+  const next = state.seats[state.turn];
+  next.hand = ['6c', '6d', '7h', 'Ks'];
+  president.__spec.act(state, next, { type: 'play', cards: ['7h'] });
+  check('president: one card cannot beat a pair', state.set?.rank === '5', JSON.stringify(state.set));
+  president.__spec.act(state, next, { type: 'play', cards: ['6c', '6d'] });
+  check('president: a higher pair can', state.set?.rank === '6', JSON.stringify(state.set));
+
+  // Twos are the top of the deck, not the bottom.
+  const { state: t } = open(president, 4);
+  const holder = t.seats[t.turn];
+  t.set = { rank: 'A', count: 1, by: (t.turn + 3) % 4 };
+  holder.hand = ['2c', '3d'];
+  president.__spec.act(t, holder, { type: 'play', cards: ['2c'] });
+  check('president: a two beats an ace', t.set?.rank === '2', JSON.stringify(t.set));
+
+  // And the exchange, which is the social engine of the whole game.
+  const { state: ex } = open(president, 4, { hands: 2 });
+  ex.ranks = { 0: 'president', 3: 'scum' };
+  const pres = ex.seats[0];
+  const scum = ex.seats[3];
+  president.__spec.deal(ex);
+  const presTop = [...pres.hand].sort((a, b) =>
+    (rankOf(b) === '2' ? 99 : RANKS.indexOf(rankOf(b))) - (rankOf(a) === '2' ? 99 : RANKS.indexOf(rankOf(a))))[0];
+  check('president: the scum hands two up and gets two back',
+    pres.hand.length === scum.hand.length &&
+    census(ex).total === 52, `${pres.hand.length} vs ${scum.hand.length}, ${census(ex).total} cards`);
+  void presTop;
+
+  // A whole hand, counted at every move.
+  let broke = null;
+  for (let round = 0; round < 20 && !broke; round++) {
+    const { state: st } = open(president, 4);
+    let guard = 0;
+    while (!president.__spec.handOver(st) && guard++ < 900) {
+      const me = st.seats[st.turn];
+      if (!me || me.out) break;
+      const view = president.serializeFor(st, me.id);
+      const need = view.you.needCount || 1;
+      const byRank = new Map();
+      for (const c of me.hand) {
+        if (!byRank.has(rankOf(c))) byRank.set(rankOf(c), []);
+        byRank.get(rankOf(c)).push(c);
+      }
+      const set = [...byRank.values()].find((cards) =>
+        cards.length >= need && view.you.playable.includes(cards[0]));
+      if (set) president.__spec.act(st, me, { type: 'play', cards: set.slice(0, need) });
+      else president.__spec.act(st, me, { type: 'pass' });
+      const c = census(st);
+      if (c.total !== 52) { broke = `${c.total} cards after ${guard} moves`; break; }
+      if (c.unique !== c.all.length) { broke = 'a card exists twice'; break; }
+    }
+    if (!broke && !president.__spec.handOver(st)) broke = 'a hand never finished';
+  }
+  check('president: twenty hands, always fifty-two', broke === null, broke ?? '');
+}
+
+/* --------------------------------- Sevens --------------------------------- */
+
+{
+  const { state } = open(sevens, 4);
+  check('sevens: the whole pack goes out',
+    state.seats.reduce((n, s) => n + s.hand.length, 0) === 52);
+  check('sevens: whoever holds the seven of diamonds opens',
+    state.seats[state.turn].hand.includes('7d'));
+
+  const seat = state.seats[state.turn];
+  const notSeven = seat.hand.find((c) => c !== '7d' && rankOf(c) !== '7');
+  if (notSeven) {
+    sevens.__spec.act(state, seat, { type: 'play', card: notSeven });
+    check('sevens: nothing but a seven opens a suit',
+      Object.values(state.rows).every((r) => r === null), notSeven);
+  } else {
+    check('sevens: nothing but a seven opens a suit', true, 'all sevens, nothing to test');
+  }
+  sevens.__spec.act(state, seat, { type: 'play', card: '7d' });
+  check('sevens: and a seven does', state.rows.d !== null, JSON.stringify(state.rows.d));
+
+  // The rule the whole game turns on.
+  const { state: must } = open(sevens, 4);
+  const opener = must.seats[must.turn];
+  sevens.__spec.act(must, opener, { type: 'play', card: '7d' });
+  const holder = must.seats.find((s) => s.hand.includes('8d') || s.hand.includes('6d'));
+  if (holder) {
+    must.turn = holder.seat;
+    const was = must.turn;
+    sevens.__spec.act(must, holder, { type: 'pass' });
+    check('sevens: you cannot pass when you have a card that goes', must.turn === was,
+      `${was} then ${must.turn}`);
+    check('sevens: and the table says so',
+      sevens.serializeFor(must, holder.id).you.mustPlay === true);
+  } else {
+    check('sevens: you cannot pass when you have a card that goes', true, 'nobody held one');
+    check('sevens: and the table says so', true, '');
+  }
+
+  let broke = null;
+  for (let round = 0; round < 20 && !broke; round++) {
+    const { state: st } = open(sevens, 4);
+    let guard = 0;
+    while (!sevens.__spec.handOver(st) && guard++ < 900) {
+      const me = st.seats[st.turn];
+      if (!me || me.out) break;
+      const can = sevens.serializeFor(st, me.id).you.playable;
+      if (can.length) sevens.__spec.act(st, me, { type: 'play', card: can[0] });
+      else sevens.__spec.act(st, me, { type: 'pass' });
+      const c = census(st);
+      // Sevens lays cards on the table rather than into a pile, so the layout
+      // has to be counted as well or every laid card reads as lost.
+      const laid = Object.values(st.rows).reduce((n, r) => n + (r ? r[1] - r[0] + 1 : 0), 0);
+      if (c.total + laid !== 52) { broke = `${c.total + laid} cards after ${guard} moves`; break; }
+    }
+    if (!broke && !sevens.__spec.handOver(st)) broke = 'a hand never finished';
+  }
+  check('sevens: twenty hands, always fifty-two', broke === null, broke ?? '');
+}
+
+/* ---------------------------------- Speed --------------------------------- */
+
+{
+  const { state } = open(speed, 2);
+  check('speed: five in hand each', state.seats.every((s) => s.hand.length === 5),
+    state.seats.map((s) => s.hand.length).join(','));
+  check('speed: two piles in the middle', state.middle.filter(Boolean).length === 2);
+  check('speed: and nobody has a turn', state.settings.turnSeconds === 0 || speed.__spec.turnSeconds === 0,
+    String(state.settings.turnSeconds));
+
+  // The wrap, without which the run has two dead ends.
+  const { state: w } = open(speed, 2);
+  const seat = w.seats[0];
+  w.middle = [['Ks'], ['5d']];
+  seat.hand = ['Ah', '9c', '9d', '9h', '9s'];
+  speed.__spec.act(w, seat, { type: 'play', card: 'Ah', pile: 0 });
+  check('speed: an ace goes on a king', w.middle[0].at(-1) === 'Ah', w.middle[0].join(','));
+
+  // Two people racing for the same pile: the second is simply not legal any
+  // more, because the card they were playing against has been covered.
+  const { state: race } = open(speed, 2);
+  race.middle = [['5s'], ['Jd']];
+  race.seats[0].hand = ['6h', '2c', '2d', '2h', '2s'];
+  race.seats[1].hand = ['4c', '3c', '3d', '3h', '3s'];
+  speed.__spec.act(race, race.seats[0], { type: 'play', card: '6h', pile: 0 });
+  speed.__spec.act(race, race.seats[1], { type: 'play', card: '4c', pile: 0 });
+  check('speed: the first play covers the pile', race.middle[0].at(-1) === '6h', race.middle[0].join(','));
+  check('speed: and the second is refused, not queued',
+    race.seats[1].hand.includes('4c'), race.seats[1].hand.join(','));
+
+  // A stuck table turns fresh cards over rather than sitting there.
+  const { state: stuck } = open(speed, 2);
+  stuck.middle = [['5s'], ['5d']];
+  for (const s of stuck.seats) s.hand = ['9c', '9d', '9h', '9s', 'Tc'];
+  for (let i = 0; i < 30; i++) speed.__spec.tick(stuck, 0.5);
+  check('speed: a stuck table turns two fresh cards over',
+    stuck.middle[0].at(-1) !== '5s' || stuck.middle[1].at(-1) !== '5d',
+    `${stuck.middle[0].at(-1)},${stuck.middle[1].at(-1)}`);
+
+  // Cards conserved across a real race. Two packs above two players, so the
+  // target is not always fifty-two.
+  let broke = null;
+  for (let round = 0; round < 12 && !broke; round++) {
+    const { state: st } = open(speed, round % 2 ? 3 : 2);
+    const target = st.seats.reduce((n, s) => n + s.hand.length + (st.stacks[s.seat]?.length ?? 0), 0)
+      + st.middle[0].length + st.middle[1].length + st.reserve[0].length + st.reserve[1].length;
+    let guard = 0;
+    while (!speed.__spec.handOver(st) && guard++ < 2000) {
+      let moved = false;
+      for (const me of st.seats.filter((s) => !s.out)) {
+        const onto = speed.serializeFor(st, me.id).you.onto;
+        const card = Object.keys(onto)[0];
+        if (!card) continue;
+        speed.__spec.act(st, me, { type: 'play', card, pile: onto[card][0] });
+        moved = true;
+        break;
+      }
+      if (!moved) speed.__spec.tick(st, 1);
+      const now = st.seats.reduce((n, s) => n + s.hand.length + (st.stacks[s.seat]?.length ?? 0), 0)
+        + st.middle[0].length + st.middle[1].length + st.reserve[0].length + st.reserve[1].length;
+      if (now !== target) { broke = `${now} of ${target} after ${guard} moves`; break; }
+    }
+  }
+  check('speed: twelve races and never a card made or lost', broke === null, broke ?? '');
 }
 
 /* -------------------------------- nonsense -------------------------------- */

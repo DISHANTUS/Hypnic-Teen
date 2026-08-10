@@ -77,6 +77,8 @@ export default {
 
     /** Cards picked up but not yet committed — Cheat plays several at once. */
     let picked = new Set();
+    /** An eight tapped but not yet committed, waiting on a named suit. */
+    let wildCard = null;
     let shownHand = 0;
     let shownSaid = '';
     let shownReveal = null;
@@ -94,7 +96,7 @@ export default {
       const box = $('#cdHand');
       const hand = s.you?.hand ?? [];
       const playable = s.you?.playable ? new Set(s.you.playable) : null;
-      const key = `${hand.join(',')}|${[...picked].join(',')}|${playable ? [...playable].join(',') : ''}`;
+      const key = `${hand.join(',')}|${[...picked].join(',')}|${wildCard ?? ''}|${playable ? [...playable].join(',') : ''}`;
       if (box.dataset.key === key) return;
       box.dataset.key = key;
 
@@ -119,19 +121,57 @@ export default {
       }
     }
 
+    /** Multi-select, for the games where a move is several cards at once. */
+    function togglePick(code, max) {
+      if (picked.has(code)) picked.delete(code);
+      else if (picked.size < max) picked.add(code);
+      Sound.play('click');
+      $('#cdHand').dataset.key = '';
+      paint(last);
+    }
+
     function onCard(s, code, allowed) {
-      if (face === 'cheat') {
-        // Any card can be claimed as any rank — that is the entire game — so
-        // nothing is refused here.
-        if (picked.has(code)) picked.delete(code);
-        else if (picked.size < 4) picked.add(code);
-        Sound.play('click');
+      // Cheat is the one game where an illegal card is the whole point, so
+      // nothing is refused; President builds a set of one rank at a time.
+      if (face === 'cheat') return togglePick(code, 4);
+      if (face === 'president') {
+        if (!s.you?.yourTurn) { Sound.play('back'); return; }
+        // Picking a different rank starts a new set rather than mixing them,
+        // which the server would refuse anyway.
+        if (picked.size && [...picked][0][0] !== code[0]) picked = new Set();
+        return togglePick(code, 4);
+      }
+
+      if (face === 'speed') {
+        const onto = s.you?.onto?.[code];
+        if (!onto?.length) { Sound.play('back'); return; }
+        // One pile it fits: send it. Two: pick it up and let them aim.
+        if (onto.length === 1) {
+          Net.action({ type: 'play', card: code, pile: onto[0] });
+          Sound.play('pick');
+          return;
+        }
+        picked = new Set([code]);
         $('#cdHand').dataset.key = '';
         paint(last);
         return;
       }
+
       if (!allowed || !s.you?.yourTurn) { Sound.play('back'); return; }
-      if (face === 'hearts') {
+
+      if (face === 'crazy8s') {
+        // A wild has to be followed by naming a suit, so it waits in the
+        // action row rather than going down and asking afterwards.
+        if (code[0] === (s.wild ?? '8')) {
+          wildCard = code;
+          paint(last);
+          return;
+        }
+        Net.action({ type: 'play', card: code });
+        Sound.play('pick');
+        return;
+      }
+      if (face === 'hearts' || face === 'sevens') {
         Net.action({ type: 'play', card: code });
         Sound.play('pick');
         return;
@@ -238,6 +278,137 @@ export default {
         box.appendChild(asks);
       },
 
+
+      crazy8s(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        const row = document.createElement('div');
+        row.className = 'cd-discard';
+        row.appendChild(cardEl(s.top));
+        // The suit in force, which after a wild is not the top card's own suit
+        // — the single thing people get wrong watching somebody else's screen.
+        const suit = document.createElement('b');
+        suit.className = 'cd-suit';
+        suit.classList.toggle('is-red', REDS.has(s.suit));
+        suit.textContent = SUIT[s.suit] ?? '';
+        row.appendChild(suit);
+        box.appendChild(row);
+
+        if (s.pending > 0) {
+          const owed = document.createElement('div');
+          owed.className = 'cd-owed';
+          owed.textContent = `Pick up ${s.pending} unless you can pass it on`;
+          box.appendChild(owed);
+        }
+        const n = document.createElement('span');
+        n.className = 'cd-count';
+        n.textContent = `${s.deckLeft} to draw`;
+        box.appendChild(n);
+      },
+
+      president(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        const set = document.createElement('div');
+        set.className = 'cd-set';
+        if (s.set) {
+          for (let i = 0; i < s.set.count; i++) {
+            const c = document.createElement('span');
+            c.className = 'cd-setcard';
+            c.textContent = RANK_LABEL[s.set.rank] ?? s.set.rank;
+            set.appendChild(c);
+          }
+          const who = document.createElement('small');
+          who.textContent = `${s.set.byName} — beat ${s.set.count} × ${RANK_LABEL[s.set.rank] ?? s.set.rank}`;
+          set.appendChild(who);
+        } else {
+          const none = document.createElement('span');
+          none.className = 'cd-count';
+          none.textContent = 'Pile is clear — lead anything';
+          set.appendChild(none);
+        }
+        box.appendChild(set);
+
+        const ranks = document.createElement('div');
+        ranks.className = 'cd-took';
+        for (const r of s.ranks ?? []) {
+          if (!r.rank) continue;
+          const chip = document.createElement('span');
+          chip.className = `cd-pts is-${r.rank}`;
+          chip.textContent = `${r.name} · ${r.rank === 'president' ? 'President' : 'Scum'}`;
+          ranks.appendChild(chip);
+        }
+        box.appendChild(ranks);
+      },
+
+      sevens(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        const grid = document.createElement('div');
+        grid.className = 'cd-rows';
+        for (const row of s.rows ?? []) {
+          const line = document.createElement('div');
+          line.className = 'cd-suitrow';
+          const tag = document.createElement('b');
+          tag.classList.toggle('is-red', REDS.has(row.suit));
+          tag.textContent = SUIT[row.suit] ?? '';
+          line.appendChild(tag);
+          if (!row.cards.length) {
+            const none = document.createElement('small');
+            none.textContent = 'needs the seven';
+            line.appendChild(none);
+          } else {
+            const span = document.createElement('small');
+            span.textContent = `${RANK_LABEL[row.low] ?? row.low} – ${RANK_LABEL[row.high] ?? row.high}`;
+            line.appendChild(span);
+          }
+          grid.appendChild(line);
+        }
+        box.appendChild(grid);
+      },
+
+      speed(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        const piles = document.createElement('div');
+        piles.className = 'cd-piles';
+        (s.middle ?? []).forEach((top, i) => {
+          const p = document.createElement('button');
+          p.type = 'button';
+          p.className = 'cd-pilebtn';
+          p.dataset.pile = String(i);
+          p.appendChild(cardEl(top));
+          // Tapping a pile plays the picked card onto it, which is how a
+          // card that fits both piles gets aimed.
+          p.addEventListener('click', () => {
+            const card = [...picked][0];
+            if (!card) { Sound.play('back'); return; }
+            Net.action({ type: 'play', card, pile: i });
+            picked = new Set();
+            $('#cdHand').dataset.key = '';
+            Sound.play('pick');
+          });
+          piles.appendChild(p);
+        });
+        box.appendChild(piles);
+
+        if (s.stuckFor > 1) {
+          const stuck = document.createElement('span');
+          stuck.className = 'cd-count';
+          stuck.textContent = `Stuck — fresh cards in ${Math.max(0, Math.ceil(s.stuckAt - s.stuckFor))}s`;
+          box.appendChild(stuck);
+        }
+        const left = document.createElement('div');
+        left.className = 'cd-took';
+        for (const st of s.stacks ?? []) {
+          const chip = document.createElement('span');
+          chip.className = 'cd-pts';
+          chip.textContent = `${st.name} ${st.left}`;
+          left.appendChild(chip);
+        }
+        box.appendChild(left);
+      },
+
       hearts(s) {
         const box = $('#cdMiddle');
         box.replaceChildren();
@@ -299,6 +470,48 @@ export default {
         if (s.you?.canCall) {
           add(`Cheat! (${s.callWindow}s)`, 'cd-call', () => { Net.action({ type: 'call' }); Sound.play('buzz'); });
         }
+        return;
+      }
+
+      if (face === 'crazy8s') {
+        if (wildCard) {
+          for (const suit of ['s', 'h', 'd', 'c']) {
+            add(SUIT[suit], REDS.has(suit) ? 'cd-suitbtn is-red' : 'cd-suitbtn', () => {
+              Net.action({ type: 'play', card: wildCard, suit });
+              wildCard = null;
+              Sound.play('pick');
+            });
+          }
+          add('Cancel', 'btn-ghost', () => { wildCard = null; paint(last); });
+          return;
+        }
+        if (!s.you?.yourTurn) return;
+        add('Draw', 'btn-ghost', () => { Net.action({ type: 'draw' }); Sound.play('click'); },
+          Boolean(s.drewThisTurn) || s.deckLeft === 0);
+        add('Pass', 'btn-ghost', () => { Net.action({ type: 'pass' }); Sound.play('back'); },
+          !s.drewThisTurn && s.deckLeft > 0);
+        return;
+      }
+
+      if (face === 'president') {
+        if (!s.you?.yourTurn) return;
+        const need = s.you?.needCount ?? 0;
+        const ok = picked.size > 0 && (need === 0 || picked.size === need);
+        add(picked.size ? `Play ${picked.size}` : (need ? `Pick ${need}` : 'Pick a set'),
+          'btn-primary',
+          () => { Net.action({ type: 'play', cards: [...picked] }); picked = new Set(); Sound.play('pick'); },
+          !ok);
+        if (s.set) add('Pass', 'btn-ghost', () => { Net.action({ type: 'pass' }); Sound.play('back'); });
+        return;
+      }
+
+      if (face === 'sevens') {
+        if (!s.you?.yourTurn) return;
+        // Disabled with the reason on it, because "if you can play you must" is
+        // the rule of this game and a dead button teaches it.
+        add(s.you?.mustPlay ? 'You have a card that goes' : 'Cannot go — pass',
+          'btn-ghost', () => { Net.action({ type: 'pass' }); Sound.play('back'); },
+          Boolean(s.you?.mustPlay));
         return;
       }
 
@@ -386,8 +599,13 @@ export default {
       if (shownHand !== s.hand) {
         shownHand = s.hand;
         picked = new Set();
+        wildCard = null;
         $('#cdHand').dataset.key = '';
       }
+      // A wild that is no longer in your hand went down some other way — a
+      // timeout playing it for you, most likely. Forget it rather than leaving
+      // four suit buttons on screen that would play a card you do not have.
+      if (wildCard && !(s.you?.hand ?? []).includes(wildCard)) wildCard = null;
 
       // The other players, with counts and never cards.
       $('#cdSeats').replaceChildren(

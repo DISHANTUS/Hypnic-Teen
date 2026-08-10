@@ -8,5 +8,12 @@ import { cheat } from './cheat.js';
 import { snap } from './snap.js';
 import { gofish } from './gofish.js';
 import { hearts } from './hearts.js';
+import { crazy8s, switchGame } from './crazy8s.js';
+import { president } from './president.js';
+import { sevens } from './sevens.js';
+import { speed } from './speed.js';
 
-export const CARD_GAMES = [cheat, snap, gofish, hearts];
+export const CARD_GAMES = [
+  cheat, snap, gofish, hearts,
+  crazy8s, switchGame, president, sevens, speed,
+];

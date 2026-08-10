@@ -4838,3 +4838,34 @@ body.dropping::after {
   .cd-snap.is-match { animation: none; }
   .cd-card.is-picked { transform: none; }
 }
+
+/* the shedding games */
+.cd-discard { display: flex; align-items: center; gap: var(--sp-xs); }
+.cd-suit { font-size: 1.6rem; line-height: 1; }
+.cd-suit.is-red { color: #c0392b; }
+.cd-owed {
+  font-size: 0.7rem; padding: var(--sp-xs) var(--sp-sm);
+  border-radius: var(--r-sm); background: color-mix(in srgb, var(--warning) 26%, var(--glass));
+}
+.cd-suitbtn { font-size: 1.3rem; padding: var(--sp-xs) var(--sp-md); background: var(--glass); border: 1px solid var(--border); border-radius: var(--r-sm); }
+.cd-suitbtn.is-red { color: #c0392b; }
+
+.cd-set { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; justify-content: center; }
+.cd-setcard {
+  display: grid; place-items: center; width: 30px; height: 42px;
+  border-radius: var(--r-sm); background: var(--accent); color: var(--on-accent, #fff);
+  font-family: var(--font-display); font-size: 0.9rem;
+}
+.cd-set small { width: 100%; text-align: center; font-size: 0.6rem; color: var(--text-3); }
+.cd-pts.is-president { background: color-mix(in srgb, var(--success) 28%, var(--glass)); }
+.cd-pts.is-scum { background: color-mix(in srgb, var(--warning) 28%, var(--glass)); }
+
+.cd-rows { display: grid; gap: 2px; width: min(100%, 260px); }
+.cd-suitrow { display: flex; align-items: baseline; gap: var(--sp-sm); padding: 2px var(--sp-sm); border-radius: var(--r-sm); background: var(--glass); }
+.cd-suitrow b { font-size: 1rem; }
+.cd-suitrow b.is-red { color: #c0392b; }
+.cd-suitrow small { font-size: 0.66rem; color: var(--text-3); }
+
+.cd-piles { display: flex; gap: var(--sp-md); }
+.cd-pilebtn { padding: 0; background: none; border: 2px solid transparent; border-radius: var(--r-sm); }
+.cd-pilebtn:hover, .cd-pilebtn:focus-visible { border-color: var(--accent); }
