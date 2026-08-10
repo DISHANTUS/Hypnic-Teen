@@ -89,12 +89,32 @@ const up = await waitForIt();
 check('the studio answers', up.ok, up.ok ? '' : `${up.why}\n\n${err.trim() || out.trim()}\n`);
 
 if (up.ok) {
+  // The server answers as soon as it is listening, which is before the
+  // launcher has printed anything about addresses — so waiting on health and
+  // then reading stdout read an empty buffer, and every check about the list
+  // passed vacuously against no list at all.
+  const printed = await (async () => {
+    const until = Date.now() + 30_000;
+    while (Date.now() < until) {
+      if (out.includes('Your friends join at')) return true;
+      if (died !== null) return false;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    return false;
+  })();
+  check('it gets as far as printing the links', printed, out.replace(/\x1b\[[0-9;]*m/g, ''));
+
   // Stripped of colour, because the launcher paints its output and a test
   // should not have to know the escape codes.
   const plain = out.replace(/\x1b\[[0-9;]*m/g, '');
 
-  const offered = [...plain.matchAll(/Friends join\s+http:\/\/([0-9.]+):/g)].map((m) => m[1]);
+  // Everything under "Your friends join at", which is now the only list —
+  // the server used to print a second one that could not contain the public
+  // link, and that incomplete one came first.
+  const block = plain.split('Your friends join at')[1] ?? '';
+  const offered = [...block.matchAll(/http:\/\/([0-9.]+):/g)].map((m) => m[1]);
   check('it printed an address for friends to type in', offered.length > 0, `stdout:\n${plain}`);
+  check('and only one list of them', plain.split('Friends join   ').length === 1, 'the server printed its own as well');
 
   // Every address it offers has to be one that actually exists on this
   // machine, and not one of the software-only adapters.

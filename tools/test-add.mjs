@@ -185,6 +185,68 @@ const sendRound = (answer, kind, clues, pictureVar = '__shots') => evaluate(`
   }).then(r => r.json().then(j => ({status: r.status, ...j})));
 `);
 
+/* ------------------ the two ways in that are not the picker --------------- */
+
+// A real DataTransfer carrying a real File, dispatched as the browser would.
+// Nothing about this is faked past the event itself: the page's own handler
+// runs, its own shrink() runs, and the result lands in its own shots[].
+const dropOrPaste = (how) => evaluate(`
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'purple';
+  ctx.fillRect(0, 0, 32, 32);
+
+  return new Promise((resolve) => {
+    c.toBlob(async (blob) => {
+      const file = new File([blob], 'pasted.png', { type: 'image/png' });
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      const before = document.querySelectorAll('.shot').length;
+
+      if (${JSON.stringify(how)} === 'paste') {
+        document.body.focus();
+        document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+      } else {
+        const zone = document.querySelector('.add-page');
+        zone.dispatchEvent(new DragEvent('dragenter', { dataTransfer: dt, bubbles: true, cancelable: true }));
+        const lit = document.body.classList.contains('dropping');
+        zone.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+        window.__litUp = lit;
+      }
+
+      // shrink() reads and redraws the file, so give it a moment.
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+        if (document.querySelectorAll('.shot').length > before) break;
+      }
+      resolve({
+        added: document.querySelectorAll('.shot').length - before,
+        litUp: window.__litUp ?? null,
+        stillDropping: document.body.classList.contains('dropping'),
+      });
+    }, 'image/png');
+  });
+`);
+
+const pasted = await dropOrPaste('paste');
+check('a pasted picture is taken', pasted.added === 1, JSON.stringify(pasted));
+
+const dropped = await dropOrPaste('drop');
+check('a dragged picture is taken', dropped.added === 1, JSON.stringify(dropped));
+check('the page says where to drop it', dropped.litUp === true, `dropping class: ${dropped.litUp}`);
+check('and stops saying so once it lands', dropped.stillDropping === false);
+
+check('the page still says you can paste or drag',
+  (await textOf('#addShot'))?.includes('paste'),
+  await textOf('#addShot'));
+
+// Cleared, so the counts below are about what this test adds next.
+await evaluate(`
+  for (const b of document.querySelectorAll('.shot-drop')) b.click();
+  return document.querySelectorAll('.shot').length;
+`);
+
 check('three pictures made', (await addPictures(3)) === 3);
 
 const first = await sendRound('Naatu Naatu', 'song', ['From RRR', 'Two men dancing']);

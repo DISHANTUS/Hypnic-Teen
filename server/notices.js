@@ -22,8 +22,11 @@ const MAX_KEPT = 60;
 export const KINDS = ['news', 'maintenance', 'reward', 'warning'];
 
 let io = null;
-export function attachNotices(server) {
+/** Delivers to one member's open tabs. Supplied by index.js, which owns sockets. */
+let tell = null;
+export function attachNotices(server, tellPlayer = null) {
   io = server;
+  tell = tellPlayer;
 }
 
 const now = () => Date.now();
@@ -33,7 +36,7 @@ const all = () => store.data.list;
  * Posts a notice. Only ever called for someone who has already been checked as
  * the owner — this module does not decide who is allowed to speak.
  */
-export function postNotice({ title, body, kind = 'news', from = 'Hypnic Teen Studio', pinned = false }) {
+export function postNotice({ title, body, kind = 'news', from = 'Hypnic Teen Studio', pinned = false, to = null }) {
   const text = String(body ?? '').trim().slice(0, 900);
   const head = String(title ?? '').trim().slice(0, 90);
   if (!head) return { error: 'It needs a title.' };
@@ -46,6 +49,10 @@ export function postNotice({ title, body, kind = 'news', from = 'Hypnic Teen Stu
     kind: KINDS.includes(kind) ? kind : 'news',
     from: String(from).slice(0, 40),
     pinned: Boolean(pinned),
+    // A Hypnic ID when this is for one person, null when it is for the room.
+    // A reply to somebody's bug report is not everybody's business, and an
+    // answer that arrives on the public board is worse than no answer.
+    to: to ? String(to).slice(0, 60) : null,
     at: now(),
   };
   all().unshift(notice);
@@ -53,8 +60,11 @@ export function postNotice({ title, body, kind = 'news', from = 'Hypnic Teen Stu
   store.save();
 
   // Anyone on the site right now hears it immediately; anyone who arrives
-  // later picks it up from the board.
-  io?.emit('notice:new', notice);
+  // later picks it up from the board. A private one goes to that member's
+  // tabs alone — broadcasting it and filtering in the browser would put the
+  // text on every machine in the room.
+  if (notice.to) tell?.(notice.to, 'notice:new', notice);
+  else io?.emit('notice:new', notice);
   return { ok: true, notice };
 }
 
@@ -71,7 +81,11 @@ export function removeNotice(id) {
 export function noticesFor(accountId) {
   sweep();
   const seen = new Set(store.data.read[accountId] ?? []);
-  const list = all().map((n) => ({ ...n, read: seen.has(n.id) }));
+  const list = all()
+    // A notice addressed to somebody is for them alone. Filtered here rather
+    // than in the browser, so the words never leave the server for anyone else.
+    .filter((n) => !n.to || n.to === accountId)
+    .map((n) => ({ ...n, read: seen.has(n.id) }));
   return {
     notices: list,
     unread: list.filter((n) => !n.read).length,

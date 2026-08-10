@@ -27,7 +27,7 @@ const KINDS = new Set(['bug', 'idea', 'game', 'other']);
  * @param {string} [note.from] a Hypnic ID, if they happened to be signed in
  * @param {string} [note.where] which screen they were on
  */
-export function addFeedback({ text, kind, from, where } = {}) {
+export function addFeedback({ text, kind, from, fromName, where } = {}) {
   const body = String(text ?? '').trim().slice(0, MAX_TEXT);
   // Two characters is a slip of the thumb, not a report.
   if (body.length < 3) return { error: 'Say a little more and it can be acted on.' };
@@ -37,9 +37,16 @@ export function addFeedback({ text, kind, from, where } = {}) {
     text: body,
     kind: KINDS.has(kind) ? kind : 'other',
     from: from ? String(from).slice(0, 60) : null,
+    // Kept alongside the ID, because an ID is unreadable and the owner needs to
+    // know who they are answering. Stored rather than looked up later, so a
+    // report still says who sent it after they change their name.
+    fromName: fromName ? String(fromName).slice(0, 40) : null,
     where: where ? String(where).slice(0, 80) : null,
     at: Date.now(),
     read: false,
+    // What the owner said back. A list, because a conversation can have more
+    // than one turn and none of them should overwrite the last.
+    replies: [],
   };
 
   store.data.items.unshift(item);
@@ -67,6 +74,33 @@ export function markFeedbackRead(id) {
     store.save();
   }
   return { ok: true, unread: unreadFeedback() };
+}
+
+/**
+ * The owner's answer to one report.
+ *
+ * Recorded here as well as sent, so the panel shows what has already been said
+ * and the owner does not answer the same person twice — the reply itself lands
+ * in their notifications, where the owner cannot see it.
+ *
+ * @returns {{ok:true, item:object}|{error:string}}
+ */
+export function addReply(id, text, by) {
+  const item = store.data.items.find((i) => i.id === id);
+  if (!item) return { error: 'That note is gone.' };
+
+  const body = String(text ?? '').trim().slice(0, MAX_TEXT);
+  if (body.length < 2) return { error: 'Write something to send.' };
+  // Somebody who was not signed in left no address to answer.
+  if (!item.from) return { error: 'They were not signed in, so there is nowhere to send this.' };
+
+  item.replies = item.replies ?? [];
+  item.replies.push({ text: body, at: Date.now(), by: by ? String(by).slice(0, 60) : null });
+  // Answering it is reading it.
+  item.read = true;
+  store.save();
+
+  return { ok: true, item: { ...item } };
 }
 
 export function removeFeedback(id) {

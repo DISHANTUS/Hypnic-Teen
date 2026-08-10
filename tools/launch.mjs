@@ -159,7 +159,15 @@ const willProxy = Boolean(STUDY_BASE) && !STUDY_DEV && process.env.NO_STUDY !== 
 
 const server = spawn(process.execPath, [path.join(ROOT, 'server', 'index.js')], {
   stdio: 'inherit',
-  env: { ...process.env, STUDY_PROXY: willProxy ? '1' : '0', STUDY_PORT: String(STUDY_PORT) },
+  env: {
+    ...process.env,
+    STUDY_PROXY: willProxy ? '1' : '0',
+    STUDY_PORT: String(STUDY_PORT),
+    // So it does not print its own list of addresses. This one below is the
+    // complete one — the server's cannot include the public link, because the
+    // tunnel is not open yet when the server starts listening.
+    UNDER_LAUNCHER: '1',
+  },
 });
 
 /* ------------------------------ hypnic study ------------------------------ */
@@ -393,6 +401,35 @@ if (publicUrl) {
 }
 
 console.log(dim(`\n  on this laptop: http://localhost:${PORT}`));
+
+// The QR moved here from the server, because it belongs under the list it
+// points into, and because the server printing it first pushed the real list —
+// the one with the far-away link on it — up off the screen.
+//
+// It encodes the public link when there is one. A code that only works for
+// people already in the room is the less useful of the two, and the phone
+// scanning it is usually the one that cannot type a URL anyway.
+const scanUrl = publicUrl ?? (addresses.length ? `http://${addresses[0].ip}:${PORT}` : null);
+if (scanUrl) {
+  try {
+    const { default: QRCode } = await import('qrcode');
+    const qr = await QRCode.toString(scanUrl, { type: 'terminal', small: true });
+    console.log(dim(`\n  point a phone camera at this:`));
+    console.log(qr);
+  } catch {
+    /* a terminal that cannot draw it still has the links above */
+  }
+}
+
+// Said plainly, because the difference between the two kinds of public link is
+// the difference between sending it once and re-sending it every evening — and
+// the fix is one file, already written, that people forget exists.
+if (!publicUrl || /trycloudflare\.com/.test(publicUrl ?? '')) {
+  if (!process.env.NGROK_AUTHTOKEN) {
+    console.log(dim('\n  For a link that never changes, start with START-ONLINE.cmd instead'));
+    console.log(dim('  of npm start — it holds your ngrok token.'));
+  }
+}
 
 // Written down as well as printed, because the terminal scrolls and the links
 // are wanted later — usually from a phone, to paste into a chat.

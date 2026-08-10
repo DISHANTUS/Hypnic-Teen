@@ -163,24 +163,90 @@ function paintShots() {
   $('#addShot').hidden = shots.length >= CEILING;
 }
 
-// One tap, any number of files — a phone gallery lets you multi-select, and
-// refusing that would mean tapping through the picker five times.
-$('#addShot').querySelector('input').addEventListener('change', async (e) => {
-  const files = [...(e.target.files ?? [])];
-  e.target.value = ''; // so the same file can be picked again
-  if (!files.length) return;
+/**
+ * Takes pictures from wherever they came from.
+ *
+ * The file picker was the only way in, which is the wrong way round on a
+ * laptop: the pictures for a puzzle are found in a browser, and the natural
+ * thing to do with one is copy it, or drag it straight over. Being made to
+ * save it to Downloads first and then hunt for it in a dialog is enough
+ * friction to lose a submission.
+ */
+async function takeFiles(files) {
+  const pictures = [...files].filter((f) => f && (f.type.startsWith('image/') || /\.(jpe?g|png|webp|gif)$/i.test(f.name ?? '')));
+  if (!pictures.length) {
+    note('That did not have a picture in it. Try copying the image itself.', true);
+    return;
+  }
 
   $('#addShot').classList.add('working');
-  for (const file of files) {
+  let refused = 0;
+  for (const file of pictures) {
     if (shots.length >= CEILING) break;
     try {
       shots.push(await shrink(file));
     } catch {
-      note('One of those could not be read. Try a different picture.', true);
+      refused++;
     }
   }
   $('#addShot').classList.remove('working');
+  if (refused) note(`${refused === 1 ? 'One of those' : `${refused} of those`} could not be read. Try a different picture.`, true);
   paintShots();
+}
+
+// One tap, any number of files — a phone gallery lets you multi-select, and
+// refusing that would mean tapping through the picker five times.
+$('#addShot').querySelector('input').addEventListener('change', (e) => {
+  const files = [...(e.target.files ?? [])];
+  e.target.value = ''; // so the same file can be picked again
+  if (files.length) takeFiles(files);
+});
+
+/* --------------------------- copied and dragged --------------------------- */
+
+// Paste. Anywhere on the page, because there is nothing else on it you would
+// paste an image into, and asking somebody to click the right box first is a
+// step that only exists to make the code simpler.
+document.addEventListener('paste', (e) => {
+  // …except in a text box, where a pasted screenshot is not what they meant
+  // and their clipboard probably holds the song title.
+  const typing = document.activeElement;
+  const items = [...(e.clipboardData?.items ?? [])];
+  const files = items.filter((i) => i.kind === 'file').map((i) => i.getAsFile()).filter(Boolean);
+  if (!files.length) return;
+  if (typing?.tagName === 'INPUT' && typing.type === 'text' && e.clipboardData?.getData('text')) return;
+  e.preventDefault();
+  takeFiles(files);
+});
+
+// Drag and drop. The whole page is the target, so there is no small rectangle
+// to hit — but the box says so, and lights up, or nobody would know.
+const dropZone = document.querySelector('.add-page') ?? document.body;
+let dragDepth = 0;
+
+// Both of these must be cancelled or the browser navigates away to the image,
+// losing everything typed so far.
+for (const type of ['dragover', 'dragenter']) {
+  dropZone.addEventListener(type, (e) => {
+    if (![...(e.dataTransfer?.types ?? [])].includes('Files')) return;
+    e.preventDefault();
+    if (type === 'dragenter' && dragDepth++ === 0) document.body.classList.add('dropping');
+  });
+}
+// Counted rather than toggled: dragging across a child element fires leave on
+// the parent, and a plain toggle flickers the whole page as you move.
+dropZone.addEventListener('dragleave', () => {
+  if (--dragDepth <= 0) {
+    dragDepth = 0;
+    document.body.classList.remove('dropping');
+  }
+});
+dropZone.addEventListener('drop', (e) => {
+  if (![...(e.dataTransfer?.types ?? [])].includes('Files')) return;
+  e.preventDefault();
+  dragDepth = 0;
+  document.body.classList.remove('dropping');
+  takeFiles(e.dataTransfer?.files ?? []);
 });
 
 paintShots();

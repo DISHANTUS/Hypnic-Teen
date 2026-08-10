@@ -216,6 +216,19 @@ export function createPartyGame(cfg) {
   const settingsOf = (state) => state?.settings ?? {};
   const paceOf = (state) => paceById(settingsOf(state).pace);
 
+  /**
+   * Everybody writes, rather than one person per round.
+   *
+   * Poll is built on nobody knowing who asked. A rotating author announces the
+   * name in the prompt, which is fine for Quiz — half the fun there is watching
+   * somebody realise it is them — and destroys this game: the questions worth
+   * asking are the ones nobody has the courage to put their name to.
+   *
+   * So the whole room writes one, once, and the match draws from the pile.
+   */
+  const everyoneWrites = (state) =>
+    cfg.authoring === 'everyone' && settingsOf(state).source === 'written';
+
   /** Which phases this mode walks through, in order. */
   const phasesFor = (state) => {
     // A game whose questions come from the players needs somebody to write one
@@ -230,7 +243,20 @@ export function createPartyGame(cfg) {
       case 'mcq':
         return authored ? ['write', 'answer', 'reveal'] : ['answer', 'reveal'];
       case 'poll':
-        return ['answer', 'reveal'];
+        // A poll can be written by the room too. This case ignored `authored`
+        // entirely, so turning "you write them" on in Poll Game changed the
+        // settings and nothing else — the match ran straight from the bank and
+        // nobody was ever asked to type anything.
+        //
+        // The writing happens once, before the first round, not every round:
+        // everybody types one and the match draws from the pile. Asking again
+        // each round would be tedious, and it would also narrow the field —
+        // a question that appears right after somebody was seen typing is a
+        // question with a name on it.
+        if (!authored) return ['answer', 'reveal'];
+        return everyoneWrites(state) && state.round > 1
+          ? ['answer', 'reveal']
+          : ['write', 'answer', 'reveal'];
       case 'turn':
         return ['choose', 'perform', 'reveal'];
       default:
@@ -265,9 +291,34 @@ export function createPartyGame(cfg) {
     state.roles = {};
     state.phaseList = phasesFor(state);
     state.phaseIndex = -1;
-    if (state.phaseList.includes('write')) pickAuthor(state);
+    // One author per round, unless the whole room writes — in which case there
+    // is no author to pick, and picking one would be the leak.
+    if (state.phaseList.includes('write') && !everyoneWrites(state)) pickAuthor(state);
+    if (everyoneWrites(state) && !state.phaseList.includes('write')) drawFromPool(state);
     cfg.assignRoles?.(state);
     nextPhase(state);
+  }
+
+  /**
+   * Takes one of the room's questions, at random, and forgets it was there.
+   *
+   * Drawn fresh each round rather than shuffled once and dealt in order. The
+   * two are the same odds, but a shuffled list is an ordering that exists on
+   * the server, and this way there is never one to leak. Falls back to the
+   * ready-made deck if the room wrote fewer questions than there are rounds,
+   * so a quiet room still gets a full match.
+   */
+  function drawFromPool(state) {
+    const pool = state.pollPool ?? [];
+    // Nothing left in the pile — the room wrote fewer than there are rounds.
+    // The ready-made question already sitting in roundData carries the match
+    // the rest of the way, which is better than an empty prompt and better
+    // than asking somebody's question twice.
+    if (!pool.length) return;
+    const at = Math.floor(Math.random() * pool.length);
+    const [picked] = pool.splice(at, 1);
+    state.pollPool = pool;
+    state.roundData = { ...picked, authored: true };
   }
 
   /**
@@ -310,6 +361,10 @@ export function createPartyGame(cfg) {
       return beginRound(state);
     }
     state.phase = state.phaseList[state.phaseIndex];
+    // Leaving the writing phase, the pile is complete — take the first one.
+    if (state.phase === 'answer' && everyoneWrites(state) && !state.roundData?.authored) {
+      drawFromPool(state);
+    }
     const seconds = phaseTimeFor(state, state.phase);
     state.phaseTotal = seconds;
     state.timeLeft = seconds;
@@ -332,7 +387,10 @@ export function createPartyGame(cfg) {
     if (state.phase === 'intro') return active.every((p) => state.ready?.includes(p.id));
     // Only one person is writing, so the round moves on the moment they are
     // done rather than waiting out a clock everyone else is watching.
-    if (state.phase === 'write') return Boolean(state.roundData?.authored);
+    if (state.phase === 'write') {
+      if (everyoneWrites(state)) return active.every((p) => (state.written ?? []).includes(p.id));
+      return Boolean(state.roundData?.authored);
+    }
     if (state.phase === 'answer') {
       if (cfg.mode === 'race') return active.every((p) => state.solved.includes(p.id));
       return active.every((p) => state.submissions[p.id] !== undefined);
@@ -399,8 +457,16 @@ export function createPartyGame(cfg) {
       turnPlayerId: state.turnPlayerId ?? null,
       // Whose turn it is to write one. Everyone sees the name — half the fun
       // is watching somebody realise it is them.
-      authorId: state.authorId ?? null,
-      authorName: state.players.find((p) => p.id === state.authorId)?.name ?? null,
+      // Never sent when the whole room writes. There is no author to name, and
+      // naming one is the only way this game can be spoiled.
+      authorId: everyoneWrites(state) ? null : (state.authorId ?? null),
+      authorName: everyoneWrites(state)
+        ? null
+        : (state.players.find((p) => p.id === state.authorId)?.name ?? null),
+      // How many are still typing — a number, never names. "Waiting for Ravi"
+      // would tell the room who has not sent theirs yet, and by the end of the
+      // match that is enough to work out whose was whose.
+      writtenCount: everyoneWrites(state) ? (state.written ?? []).length : null,
       // What the writer is allowed to build, so the form can enforce it before
       // the server has to refuse it.
       compose:
@@ -411,6 +477,8 @@ export function createPartyGame(cfg) {
               correct: settingsOf(state).correctCount ?? 1,
               placeholder: cfg.composePlaceholder ?? 'Ask them something…',
               hint: cfg.composeHint ?? null,
+              // Everybody at once, rather than one named person.
+              everyone: everyoneWrites(state),
             }
           : null,
       reveal: state.phase === 'reveal' ? (cfg.revealFor?.(state) ?? defaultReveal(state)) : null,
@@ -615,7 +683,14 @@ export function createPartyGame(cfg) {
         // turn it is may write, and everything they send is rebuilt here
         // rather than trusted — the client decides nothing about scoring.
         case 'compose': {
-          if (state.phase !== 'write' || player.id !== state.authorId) return;
+          if (state.phase !== 'write') return;
+          // Normally one named person writes. When the whole room writes, the
+          // only rule is one each.
+          if (everyoneWrites(state)) {
+            if ((state.written ?? []).includes(player.id)) return;
+          } else if (player.id !== state.authorId) {
+            return;
+          }
           const settings = settingsOf(state);
           const text = String(action.text ?? '').slice(0, 200).trim();
 
@@ -642,6 +717,30 @@ export function createPartyGame(cfg) {
           // a round where two answers are the same and one of them is wrong.
           const unique = [...new Set(options.map((o) => o.toLowerCase()))];
           if (!text || options.length < 2 || unique.length !== options.length) return;
+
+          // A poll is this same shape with nothing marked right — which the
+          // line below spells out, so it is a compose kind rather than a
+          // special case of one.
+          if (cfg.composeKind === 'poll') {
+            const built = { text, kind: 'opinion', options: options.map((label, i) => ({ id: `o${i}`, label })) };
+
+            // Into the pile, with no name on it — not the writer's id, not
+            // their name, not even the order they typed it in. The only record
+            // that this player wrote *something* is a list of ids used to
+            // count how many are still going, and it is never joined back to a
+            // question. Somebody finally asking the thing they have wanted to
+            // ask for a year should be able to trust that.
+            if (everyoneWrites(state)) {
+              state.pollPool = state.pollPool ?? [];
+              state.pollPool.splice(Math.floor(Math.random() * (state.pollPool.length + 1)), 0, built);
+              state.written = [...(state.written ?? []), player.id];
+              state.dirty = true;
+              return;
+            }
+
+            state.roundData = { ...state.roundData, ...built, authored: true, authorName: player.name };
+            return;
+          }
 
           const correct = [...new Set((Array.isArray(action.correct) ? action.correct : []).map(Number))]
             .filter((i) => Number.isInteger(i) && i >= 0 && i < options.length)
@@ -918,6 +1017,13 @@ export function createPartyGame(cfg) {
     serializeFor(state, playerId) {
       const view = base(state);
       view.you = privateSlice(state, playerId);
+      // Whether *you* have sent yours. Telling somebody about their own
+      // submission gives nothing away, and it is the only way the form knows
+      // to stand down after a reconnect — the alternative is remembering it in
+      // the browser, which a refresh loses.
+      if (view.compose?.everyone) {
+        view.compose = { ...view.compose, done: (state.written ?? []).includes(playerId) };
+      }
       if (cfg.mode === 'answer-vote' && (state.phase === 'vote' || state.phase === 'reveal')) {
         view.answers = Object.entries(state.submissions)
           .filter(([id]) => !id.startsWith('__'))

@@ -53,7 +53,11 @@ export function mayUse(app, id) {
   if (!id) return { allowed: false, why: 'Sign in first.' };
   const state = appState(app);
   if (state.open) return { allowed: true };
-  if (state.allowed.includes(id)) return { allowed: true };
+  // Compared without case, because Hypnic>AzureSloth<Teen and its lowercase
+  // spelling are one person. Study stores the lowercase form, the studio the
+  // mixed one, and an exact-match check locks the owner out of their own app
+  // depending on which side is asking.
+  if (state.allowed.some((a) => a.toLowerCase() === String(id).toLowerCase())) return { allowed: true };
   return {
     allowed: false,
     // Said as a fact about the door rather than about them. "You are not on

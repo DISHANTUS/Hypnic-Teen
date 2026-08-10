@@ -41,7 +41,11 @@
     "sweep": "node tools/sweep.mjs",
     "test:scroll": "node tools/test-scroll.mjs",
     "test:add": "node tools/test-add.mjs",
-    "test:launch": "node tools/test-launch.mjs"
+    "test:launch": "node tools/test-launch.mjs",
+    "test:study-session": "node tools/test-study-session.mjs",
+    "test:inbox": "node tools/test-inbox.mjs",
+    "test:poll-written": "node tools/test-poll-written.mjs",
+    "test:mail": "node tools/test-mail.mjs"
   },
   "engines": {
     "node": ">=20"

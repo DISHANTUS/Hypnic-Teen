@@ -238,32 +238,57 @@ export default {
     }
 
     /**
-     * One player writes the question everybody else is about to answer.
+     * Somebody writes the question everybody else is about to answer.
      *
-     * Only the author gets the form; the rest get a name and a wait, which is
-     * the point — half the tension is watching somebody realise it is them.
+     * Usually one player: they get the form, the rest get a name and a wait,
+     * which is the point — half the tension is watching somebody realise it is
+     * them.
+     *
+     * In Poll it is the whole room at once and no name is ever shown, here or
+     * anywhere after. The questions that game exists for are the ones nobody
+     * would put their name to.
      */
     function paintWrite(s) {
-      const mine = s.authorId && s.authorId === s.you?.id;
+      const everyone = s.compose?.everyone === true;
+      const mine = everyone || (s.authorId && s.authorId === s.you?.id);
       if (!mine) {
         const card = el('div', 'prompt-card');
         card.appendChild(el('h2', null, `${s.authorName ?? 'Someone'} is writing a question…`));
         body.append(card, el('p', 'party-note', 'No idea what is coming. Nobody knows who is next either.'));
         return;
       }
+      // Already sent theirs: a count, never a list of names. "Waiting for
+      // Ravi" would say who has not sent one yet, and over a whole match that
+      // is enough to work out whose question was whose.
+      if (everyone && s.compose?.done) {
+        const card = el('div', 'prompt-card');
+        card.appendChild(el('h2', null, 'Sent — and nobody knows it was you.'));
+        const waiting = typeof s.writtenCount === 'number'
+          ? `${s.writtenCount} of ${s.players?.length ?? '?'} written. Waiting for the rest…`
+          : 'Waiting for the rest…';
+        body.append(card, el('p', 'party-note', waiting));
+        return;
+      }
 
       const need = s.compose?.correct ?? 1;
       const slots = s.compose?.options ?? 4;
       const textOnly = s.compose?.kind === 'text';
+      // A poll is a question with options and nothing marked right, so the
+      // ticks come off and the wording changes — asking somebody to pick the
+      // correct answer to "tea or coffee" is nonsense.
+      const noRightAnswer = s.compose?.kind === 'poll';
 
       const card = el('div', 'prompt-card');
-      card.appendChild(el('h2', null, textOnly ? 'Your scenario' : 'Your question'));
+      card.appendChild(el('h2', null,
+        textOnly ? 'Your scenario' : everyone ? 'Ask the room anything' : 'Your question'));
       body.append(card, el('p', 'party-note',
         textOnly
           ? s.compose?.hint ?? 'Everyone will answer this one.'
-          : need > 1
-            ? `Write ${slots} options and tick the ${need} that are right.`
-            : `Write ${slots} options and tick the right one.`));
+          : noRightAnswer
+            ? s.compose?.hint ?? `Write up to ${slots} things for the room to pick between.`
+            : need > 1
+              ? `Write ${slots} options and tick the ${need} that are right.`
+              : `Write ${slots} options and tick the right one.`));
 
       // A scenario has no options to mark — the room writes its own replies
       // and votes on them, so there is nothing here but the prompt.
@@ -307,6 +332,10 @@ export default {
         const tick = el('input');
         tick.type = need > 1 ? 'checkbox' : 'radio';
         tick.name = 'correct';
+        // Hidden rather than left unticked on a poll: a radio button next to
+        // every option invites somebody to mark one, and then wonder why
+        // nothing happened when they did.
+        if (noRightAnswer) tick.hidden = true;
         const text = el('input');
         text.type = 'text';
         text.maxLength = 80;
@@ -332,6 +361,7 @@ export default {
       const send = el('button', 'btn btn-primary', 'Ask it');
       send.type = 'submit';
       form.append(note, send);
+      if (noRightAnswer) q.placeholder = s.compose?.placeholder ?? 'Ask the room something…';
 
       form.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -345,7 +375,7 @@ export default {
         if (new Set(filled.map((o) => o.toLowerCase())).size !== filled.length) {
           return (note.textContent = 'Two options say the same thing.');
         }
-        if (!correct.length) return (note.textContent = 'Tick the right answer.');
+        if (!noRightAnswer && !correct.length) return (note.textContent = 'Tick the right answer.');
 
         // Blanks in the middle would leave gaps in the option ids, so the list
         // is closed up and the ticks moved with it.

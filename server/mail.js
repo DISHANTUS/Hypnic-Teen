@@ -23,7 +23,12 @@ import nodemailer from 'nodemailer';
 
 const TO = (process.env.MAIL_TO ?? '').trim();
 const USER = (process.env.MAIL_USER ?? '').trim();
-const PASS = (process.env.MAIL_PASS ?? '').trim();
+// Google shows an App Password as four groups of four — "abcd efgh ijkl mnop"
+// — and the obvious thing to do is copy it exactly as shown. The spaces are
+// only for reading it; SMTP wants the sixteen characters. Pasted either way
+// works now, because "I typed it correctly and it still says wrong password"
+// is a miserable half hour.
+const PASS = (process.env.MAIL_PASS ?? '').replace(/\s+/g, '');
 
 export const mailConfigured = Boolean(TO && USER && PASS);
 

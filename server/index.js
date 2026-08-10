@@ -51,7 +51,7 @@ import { CLUE_DIR, clueFor, clueVocabulary, mediaStatus } from './media.js';
 import { joinAddresses } from './addresses.js';
 import { OWN_DIR, ownClues, ownCluesStatus, ownTitles, saveOwnClue } from './own-clues.js';
 import { mayUse, accessState, setAccess, isOwner } from './access.js';
-import { addFeedback, feedbackList, unreadFeedback, markFeedbackRead, removeFeedback } from './feedback.js';
+import { addFeedback, addReply, feedbackList, unreadFeedback, markFeedbackRead, removeFeedback } from './feedback.js';
 import {
   attachTournaments,
   createTournament,
@@ -470,16 +470,57 @@ app.get('/api/feedback', requireAuth, (req, res) => {
 
 app.post('/api/feedback/:id', requireAuth, (req, res) => {
   if (!isOwner(req.accountId)) return res.status(403).json({ error: 'Only the studio owner can do that.' });
-  res.json(req.body?.remove ? removeFeedback(req.params.id) : markFeedbackRead(req.params.id));
+  if (req.body?.remove) return res.json(removeFeedback(req.params.id));
+
+  // An answer. It is recorded against the report and delivered to the person
+  // who wrote it, as a notice only they can see — somebody who took the
+  // trouble to report a bug should hear back, and hearing back on the public
+  // board would be worse than silence.
+  if (typeof req.body?.reply === 'string') {
+    const out = addReply(req.params.id, req.body.reply, req.accountId);
+    if (out.error) return res.status(400).json(out);
+
+    const posted = postNotice({
+      title: 'A reply from the studio',
+      body: `You said: “${out.item.text.slice(0, 160)}${out.item.text.length > 160 ? '…' : ''}”\n\n${req.body.reply}`,
+      kind: 'news',
+      from: 'Hypnic Teen Studio',
+      to: out.item.from,
+    });
+    return res.json({ ok: true, delivered: Boolean(posted.ok), item: out.item });
+  }
+
+  res.json(markFeedbackRead(req.params.id));
 });
 
 /* ------------------------------ who may enter ---------------------------- */
 
 // Study calls this after the studio has verified an ID and PIN, so the answer
 // is about a member who has already proved who they are.
+// Is this member allowed in? Answered for anybody, because the app on the
+// other side has to ask before it lets someone through.
+//
+// The answer used to be built as { ...mayUse(), ...accessState() }, and both
+// of those have an `allowed` key — one a boolean decision, the other the list
+// of everybody permitted. The list won. So this route answered
+// `allowed: ["Hypnic>AzureSloth<Teen"]`, Study read it as Boolean(...), a
+// non-empty array is true, and every member with a valid PIN walked straight
+// into an app that was supposed to be invite-only. The door reported itself
+// locked the entire time.
+//
+// The list is not sent at all now. It named the owner and everybody let in, to
+// anyone who asked, unauthenticated — that is the owner's business, and it
+// belongs in the owner's panel, which has a token behind it.
 app.get('/api/access/:app', (req, res) => {
   const id = String(req.query.id ?? '').trim();
-  res.json({ ...mayUse(req.params.app, id), ...accessState(req.params.app) });
+  const verdict = mayUse(req.params.app, id);
+  res.json({ allowed: verdict.allowed === true, why: verdict.why ?? null, app: req.params.app });
+});
+
+// The whole picture — who is in, who owns it — for the owner alone.
+app.get('/api/access/:app/list', requireAuth, (req, res) => {
+  if (!isOwner(req.accountId)) return res.status(403).json({ error: 'Only the studio owner can see this.' });
+  res.json(accessState(req.params.app));
 });
 
 // Owner-only, and the owner is whoever OWNER_ID names — a signed token, not
@@ -577,6 +618,20 @@ app.post('/api/notices', requireAuth, (req, res) => {
   res.status(out.error ? 400 : 200).json(out);
 });
 
+// Every member's ID and name, so the owner can address a notice to somebody
+// without typing a Hypnic ID from memory — they are long, and one wrong
+// character sends a private note nowhere with nothing to say it went astray.
+// Owner-only: a full member list is not something to hand out.
+app.get('/api/members', requireAuth, (req, res) => {
+  if (!isOwner(req.accountId)) return res.status(403).json({ error: 'Only the studio owner can see this.' });
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    members: memberIds()
+      .map((id) => ({ id, name: publicCard(id)?.name ?? null }))
+      .sort((a, b) => (a.name ?? a.id).localeCompare(b.name ?? b.id)),
+  });
+});
+
 app.delete('/api/notices/:id', requireAuth, (req, res) => {
   if (!process.env.OWNER_ID || req.accountId !== process.env.OWNER_ID) {
     return res.status(403).json({ error: 'Only the studio can remove notices.' });
@@ -647,7 +702,7 @@ const tellPlayer = (accountId, event, payload) => {
 /** How long a tie waits for both sides before CPUs stand in for the missing. */
 const TIE_GRACE_MS = 45_000;
 
-attachNotices(io);
+attachNotices(io, tellPlayer);
 attachSocial({
   server: io,
   tellPlayer: (id, event, payload) => tellPlayer(id, event, payload),
@@ -971,7 +1026,28 @@ httpServer.listen(PORT, '0.0.0.0', async () => {
   const games = listGames().length;
   const addresses = joinAddresses();
   console.log('\n  \x1b[36m✦ HYPNIC TEEN\x1b[0m \x1b[2m·\x1b[0m FUN WORLD');
-  console.log(`  ${games} game${games === 1 ? '' : 's'} loaded\n`);
+  console.log(`  ${games} game${games === 1 ? '' : 's'} loaded`);
+
+  /**
+   * Under the launcher this stops here.
+   *
+   * Both used to print a list of addresses. The server's comes first, because
+   * it is listening within a second, and it cannot contain the public link —
+   * the tunnel takes another twenty. So the first thing on screen was a
+   * complete-looking list of ways to join with the one for a friend far away
+   * missing from it, and the real list scrolled up out of sight behind a QR
+   * code. "I can't see the link my friend can join with" is the obvious
+   * consequence, and it took a screenshot to notice.
+   *
+   * One list, printed once, by whoever knows all of it.
+   */
+  if (process.env.UNDER_LAUNCHER === '1') {
+    console.log('');
+    warmUpAI().catch((err) => console.warn('  [ai] warm-up failed:', err.message));
+    return;
+  }
+
+  console.log('');
   console.log(`  On this PC     http://localhost:${PORT}`);
   for (const a of addresses) {
     console.log(`  Friends join   \x1b[36mhttp://${a.ip}:${PORT}\x1b[0m \x1b[2mon ${a.what}\x1b[0m`);

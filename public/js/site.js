@@ -1514,7 +1514,29 @@ async function renderProfile() {
             $('b', row).textContent = { bug: '🐞 Broken', idea: '💡 Idea', game: '🎮 A game', other: '💬 Something else' }[item.kind] ?? '💬';
             $('time', row).textContent = when(item.at);
             $('p', row).textContent = item.text;
-            $('small', row).textContent = [item.from, item.where].filter(Boolean).join(' · ');
+            // Who said it, in the order a person reads: the name they go by,
+            // then the ID needed to actually find them. An ID alone was
+            // unreadable, and a report you cannot attribute is one you cannot
+            // follow up.
+            $('small', row).textContent =
+              [
+                item.fromName ? `${item.fromName} · ${item.from}` : item.from || 'not signed in',
+                item.where,
+              ]
+                .filter(Boolean)
+                .join(' · ');
+
+            // What has already been said back, so the same person is not
+            // answered twice — the reply itself lands in their notifications,
+            // where this panel cannot see it.
+            for (const r of item.replies ?? []) {
+              const said = document.createElement('p');
+              said.className = 'note-reply';
+              said.innerHTML = '<span>You replied</span><b></b><time></time>';
+              $('b', said).textContent = r.text;
+              $('time', said).textContent = when(r.at);
+              row.insertBefore(said, $('.note-acts', row));
+            }
 
             const act = (text, fn) => {
               const b = document.createElement('button');
@@ -1535,14 +1557,119 @@ async function renderProfile() {
             };
             if (!item.read) act('Mark read', { read: true });
             act('Delete', { remove: true });
+
+            // Answering somebody who was not signed in has nowhere to go, so
+            // the box is not offered rather than offered and then refused.
+            if (item.from) {
+              const form = document.createElement('form');
+              form.className = 'note-answer';
+              form.innerHTML =
+                '<input type="text" maxlength="900" placeholder="Write back…" autocomplete="off" />' +
+                '<button class="btn btn-primary btn-sm" type="submit">Send</button>';
+              form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const box = $('input', form);
+                const text = box.value.trim();
+                if (!text) return;
+                const btn = $('button', form);
+                btn.disabled = true;
+                btn.textContent = 'Sending…';
+                const res = await fetch(`/api/feedback/${item.id}`, {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json', authorization: `Bearer ${Auth.token}` },
+                  body: JSON.stringify({ reply: text }),
+                }).then((r) => r.json()).catch(() => null);
+                btn.disabled = false;
+                btn.textContent = 'Send';
+                if (!res || res.error) return toast(res?.error ?? 'Could not send that.');
+                box.value = '';
+                toast(`Sent to ${item.fromName ?? item.from}`);
+                const fresh = await fetch('/api/feedback', { headers: { authorization: `Bearer ${Auth.token}` } }).then((r) => r.json());
+                paint(fresh.items, fresh.unread);
+              });
+              row.appendChild(form);
+            }
             return row;
           })
         );
       };
 
       paint(box.items, box.unread);
+      // The inbox answering at all is the server saying this is the owner, so
+      // the composer belongs to the same answer rather than a second check.
+      setUpComposer();
     })
     .catch(() => {});
+
+  /* ---- saying something, to everyone or to one person (owner only) ---- */
+
+  /**
+   * Until now the only way to post a notice was to call the API by hand, which
+   * meant in practice that nothing was ever announced.
+   */
+  function setUpComposer() {
+    const box = $('#sayBox');
+    if (!box || box.dataset.ready) return;
+    box.dataset.ready = '1';
+    box.hidden = false;
+
+    let who = 'all';
+    for (const tab of box.querySelectorAll('.say-tab')) {
+      tab.addEventListener('click', () => {
+        who = tab.dataset.who;
+        for (const t of box.querySelectorAll('.say-tab')) t.classList.toggle('on', t === tab);
+        $('#sayToField').hidden = who !== 'one';
+        $('#sayState').textContent = who === 'one' ? 'Only they will see it' : 'Everybody will see it';
+      });
+    }
+    $('#sayState').textContent = 'Everybody will see it';
+
+    // The member list, so an ID never has to be typed from memory — they are
+    // long, and one wrong character sends a private note into nowhere.
+    fetch('/api/members', { headers: { authorization: `Bearer ${Auth.token}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((res) => {
+        if (!res?.members) return;
+        $('#memberIds').replaceChildren(
+          ...res.members.map((m) => {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = m.name ? `${m.name} — ${m.id}` : m.id;
+            return opt;
+          })
+        );
+      })
+      .catch(() => {});
+
+    $('#saySend').addEventListener('click', async () => {
+      const err = $('#sayError');
+      const title = $('#sayTitle').value.trim();
+      const body = $('#sayBody').value.trim();
+      const to = who === 'one' ? $('#sayTo').value.trim() : null;
+
+      const complain = (msg) => { err.textContent = msg; err.hidden = false; };
+      err.hidden = true;
+      if (!title) return complain('Give it a heading.');
+      if (!body) return complain('Write what you want to say.');
+      if (who === 'one' && !to) return complain('Say whose it is, or switch to Everyone.');
+
+      const btn = $('#saySend');
+      btn.disabled = true;
+      btn.textContent = 'Posting…';
+      const res = await fetch('/api/notices', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${Auth.token}` },
+        body: JSON.stringify({ title, body, kind: $('#sayKind').value, to }),
+      }).then((r) => r.json()).catch(() => null);
+      btn.disabled = false;
+      btn.textContent = 'Post it';
+
+      if (!res || res.error) return complain(res?.error ?? 'Could not post that.');
+      $('#sayTitle').value = '';
+      $('#sayBody').value = '';
+      toast(to ? `Sent to ${to}` : 'Posted for everyone');
+    });
+  }
 
   /* ---- who may use IELTS training (owner only) ---- */
 
@@ -1867,6 +1994,9 @@ function openFeedback() {
         text: body,
         kind: $('#fbKind').value,
         from: Auth.profile?.id ?? null,
+        // The name too. An ID on its own is unreadable, and the owner reading
+        // a pile of reports needs to know who they are answering.
+        fromName: Auth.profile?.name ?? null,
         // Which screen they were on when they gave up, which is usually the
         // first thing you would ask them.
         where: location.hash || '#/',

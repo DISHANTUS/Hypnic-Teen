@@ -585,6 +585,47 @@
         <button class="btn btn-ghost btn-sm" id="recToggle" type="button">Set it up</button>
       </section>
 
+      <!-- Owner only: say something, to the room or to one person. Until now
+           the only way to post a notice was to call the API by hand. -->
+      <section class="say-box" id="sayBox" hidden>
+        <div class="setup-head">
+          <h3 class="section-label">Say something</h3>
+          <span class="recovery-state" id="sayState"></span>
+        </div>
+
+        <div class="say-who">
+          <button class="say-tab on" id="sayAll" type="button" data-who="all">📣 Everyone</button>
+          <button class="say-tab" id="sayOne" type="button" data-who="one">✉️ One person</button>
+        </div>
+
+        <div class="field" id="sayToField" hidden>
+          <label for="sayTo">Who it goes to</label>
+          <input id="sayTo" type="text" list="memberIds" placeholder="Hypnic&gt;ShadowFox&lt;Teen" autocomplete="off" />
+          <small class="muted">Only they will see it. Start typing to pick from the members.</small>
+        </div>
+        <datalist id="memberIds"></datalist>
+
+        <div class="field">
+          <label for="sayTitle">Heading</label>
+          <input id="sayTitle" type="text" maxlength="90" placeholder="Server going down at 9" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="sayBody">What to say</label>
+          <textarea id="sayBody" rows="3" maxlength="900" placeholder="Back in about twenty minutes."></textarea>
+        </div>
+        <div class="field">
+          <label for="sayKind">What kind</label>
+          <select id="sayKind">
+            <option value="news">News</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="reward">A reward</option>
+            <option value="warning">A warning</option>
+          </select>
+        </div>
+        <p class="form-error" id="sayError" hidden></p>
+        <button class="btn btn-primary" id="saySend" type="button">Post it</button>
+      </section>
+
       <!-- Owner only: what people have said about the place. -->
       <section class="inbox-box" id="inboxBox" hidden>
         <div class="setup-head">
