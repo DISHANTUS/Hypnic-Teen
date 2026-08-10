@@ -29,5 +29,20 @@ if "%NGROK_AUTHTOKEN%"=="" (
   echo.
 )
 
+
+REM  Sports Betting settles itself off the internet rather than off anybody in
+REM  the room, so it needs a key per sport. Both are free and neither wants a
+REM  card. Leave them blank and the table still works  it follows a demo match
+REM  that plays itself, with real chips on it.
+REM
+REM    cricket   https://cricketdata.org  (sign up, the key is on the dashboard)
+REM    football  https://dashboard.api-football.com
+REM
+REM  Both free tiers are around a hundred calls a day, and one match uses most
+REM  of that. The table spends two per market, so a longer betting window is
+REM  literally a cheaper evening.
+set CRICKET_API_KEY=
+set API_FOOTBALL_KEY=
+
 npm start
 pause
