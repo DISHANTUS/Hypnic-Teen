@@ -46,6 +46,10 @@ const { canasta, legalMeld, worth } = await import('../server/games/cards/canast
 const { golf, cost, scoreGrid } = await import('../server/games/cards/golf.js');
 const { cribbage, countHand, pip } = await import('../server/games/cards/cribbage.js');
 const { bestLayout, isSet, isRun, pointsOf } = await import('../server/games/cards/melds.js');
+const { klondike, spider: spiderGame } = await import('../server/games/cards/solitaire.js');
+const { liarsdeck, skull } = await import('../server/games/cards/bluffs.js');
+const { powderkeg, plates } = await import('../server/games/cards/designer.js');
+const { envelope, fairshares } = await import('../server/games/cards/envelope.js');
 const { CARD_GAMES } = await import('../server/games/cards/index.js');
 const { rankOf, suitOf, RANKS } = await import('../server/cards.js');
 
@@ -138,8 +142,14 @@ console.log('\n  The card room — fifty-two cards, and nobody sees a hand\n');
     check(`${game.name}: and only your own`,
       others.every((c) => !inMine.includes(`"${c}"`)),
       others.filter((c) => inMine.includes(`"${c}"`)).slice(0, 3).join(' '));
+    // Skull gives everybody the same four cards on purpose — three roses and a
+    // skull — so "two hands differ" is not a property it has or should have.
+    const SAME_BY_DESIGN = ['skull'];
     check(`${game.name}: two players get different hands`,
-      JSON.stringify(mine.you.hand) !== JSON.stringify(theirs.you.hand) || mine.you.hand.length === 0);
+      SAME_BY_DESIGN.includes(game.id)
+      || JSON.stringify(mine.you.hand) !== JSON.stringify(theirs.you.hand)
+      || mine.you.hand.length === 0,
+      SAME_BY_DESIGN.includes(game.id) ? 'identical by design' : '');
   }
 }
 
@@ -1260,6 +1270,283 @@ console.log('\n  The card room — fifty-two cards, and nobody sees a hand\n');
   } else {
     check('cribbage: you cannot go past thirty-one', true, 'all aces, nothing to test');
   }
+}
+
+/* ------------------------------ the solitaires ---------------------------- */
+
+{
+  // The whole point of putting these in a room: everybody races the same deal.
+  const { state } = open(klondike, 4);
+  const boards = state.seats.map((s) => JSON.stringify(state.boards[s.seat].columns.map((c) => c.map((x) => x.card))));
+  check('solitaire: everybody gets exactly the same deal',
+    new Set(boards).size === 1, `${new Set(boards).size} different tableaux`);
+  check('solitaire: but each has their own copy to wreck',
+    state.boards[0].columns !== state.boards[1].columns);
+  check('solitaire: seven columns, one more card each',
+    state.boards[0].columns.map((c) => c.length).join(',') === '1,2,3,4,5,6,7',
+    state.boards[0].columns.map((c) => c.length).join(','));
+  check('solitaire: only the bottom of each column is up',
+    state.boards[0].columns.every((c) => c.filter((x) => x.up).length === 1));
+
+  // A face-down card must not reach even its owner.
+  const mine = klondike.serializeFor(state, state.seats[0].id);
+  const buried = state.boards[0].columns.flatMap((c) => c.filter((x) => !x.up).map((x) => x.card));
+  const wire = JSON.stringify(mine);
+  check('solitaire: buried cards are hidden from their own owner',
+    !buried.some((c) => wire.includes(`"${c}"`)), buried.slice(0, 3).join(' '));
+
+  // Only a king opens an empty column.
+  const b = state.boards[0];
+  b.columns[0] = [];
+  b.columns[1] = [{ card: '5h', up: true }];
+  const seat0 = state.seats[0];
+  klondike.__spec.act(state, seat0, { type: 'move', from: 1, to: 0, count: 1 });
+  check('solitaire: nothing but a king opens an empty column',
+    b.columns[0].length === 0, String(b.columns[0].length));
+  b.columns[1] = [{ card: 'Ks', up: true }];
+  klondike.__spec.act(state, seat0, { type: 'move', from: 1, to: 0, count: 1 });
+  check('solitaire: and a king does', b.columns[0].length === 1, String(b.columns[0].length));
+
+  // Alternating colours, descending.
+  b.columns[2] = [{ card: '8h', up: true }];
+  b.columns[3] = [{ card: '7d', up: true }];
+  klondike.__spec.act(state, seat0, { type: 'move', from: 3, to: 2, count: 1 });
+  check('solitaire: red does not go on red', b.columns[2].length === 1, String(b.columns[2].length));
+  b.columns[3] = [{ card: '7s', up: true }];
+  klondike.__spec.act(state, seat0, { type: 'move', from: 3, to: 2, count: 1 });
+  check('solitaire: black on red does', b.columns[2].length === 2, String(b.columns[2].length));
+
+  // Aces go up, and only in order.
+  b.waste = ['Ah'];
+  klondike.__spec.act(state, seat0, { type: 'foundation', from: -1 });
+  check('solitaire: an ace goes up', b.foundations.h.length === 1, b.foundations.h.join(','));
+  b.waste = ['3h'];
+  klondike.__spec.act(state, seat0, { type: 'foundation', from: -1 });
+  check('solitaire: but a three does not follow an ace', b.foundations.h.length === 1, b.foundations.h.join(','));
+  b.waste = ['2h'];
+  klondike.__spec.act(state, seat0, { type: 'foundation', from: -1 });
+  check('solitaire: a two does', b.foundations.h.length === 2, b.foundations.h.join(','));
+
+  // Spider: ten columns, 104 cards, and a complete run leaves the table.
+  const { state: sp } = open(spiderGame, 3, { suits: 2 });
+  const total = sp.boards[0].columns.reduce((n, c) => n + c.length, 0) + sp.boards[0].stock.length;
+  check('spider: a hundred and four cards', total === 104, String(total));
+  check('spider: ten columns', sp.boards[0].columns.length === 10, String(sp.boards[0].columns.length));
+  check('spider: and everybody gets the same deal',
+    JSON.stringify(sp.boards[0].columns.map((c) => c.map((x) => x.card)))
+    === JSON.stringify(sp.boards[1].columns.map((c) => c.map((x) => x.card))));
+
+  const sb = sp.boards[0];
+  sb.columns[0] = ['K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2', 'A']
+    .map((r) => ({ card: `${r}s`, up: true }));
+  // A real move, because harvest runs after one — and from === to is refused,
+  // so the first version of this never triggered anything at all.
+  sb.columns[1] = [{ card: '5h', up: true }];
+  sb.columns[2] = [{ card: '6h', up: true }];
+  spiderGame.__spec.act(sp, sp.seats[0], { type: 'move', from: 1, to: 2, count: 1 });
+  check('spider: a complete run in one suit leaves the table',
+    sb.columns[0].length === 0 && (sb.piles ?? 0) === 1,
+    `${sb.columns[0].length} left, ${sb.piles} piles`);
+
+  // Dealing from the stock is refused while a column is empty.
+  sb.columns[0] = [];
+  const stockWas = sb.stock.length;
+  spiderGame.__spec.act(sp, sp.seats[0], { type: 'stock' });
+  check('spider: no dealing onto an empty column', sb.stock.length === stockWas, String(sb.stock.length));
+}
+
+/* ---------------------------- the bluffing pair --------------------------- */
+
+{
+  const { state } = open(liarsdeck, 4);
+  const held = state.seats.reduce((n, s) => n + s.hand.length, 0);
+  check("liar's deck: twenty cards and everybody knows the list",
+    held + state.deck.length === 20, String(held + state.deck.length));
+
+  const seat = state.seats[state.turn];
+  const lie = seat.hand.find((c) => c[0] !== state.rank) ?? seat.hand[0];
+  liarsdeck.__spec.act(state, seat, { type: 'play', cards: [lie] });
+  check("liar's deck: you may claim anything", Boolean(state.claim));
+  const wire = JSON.stringify(liarsdeck.serialize(state));
+  check("liar's deck: what is under a claim is never sent",
+    !wire.includes(`"${lie}"`) && !('cards' in (liarsdeck.serialize(state).claim ?? {})),
+    wire.slice(0, 70));
+
+  const caller = state.seats.find((s) => s.seat !== seat.seat);
+  liarsdeck.__spec.act(state, caller, { type: 'call' });
+  check("liar's deck: a call puts somebody out",
+    state.seats.some((s) => s.out), state.seats.filter((s) => s.out).map((s) => s.name).join(','));
+
+  // Skull: the rule the whole game rests on.
+  const { state: sk } = open(skull, 4);
+  check('skull: three roses and a skull each',
+    sk.seats.every((s) => s.hand.filter((c) => c === 'SK').length === 1 && s.hand.length === 4),
+    sk.seats.map((s) => s.hand.length).join(','));
+
+  const me = sk.seats[0];
+  skull.__spec.act(sk, me, { type: 'place', card: me.hand.find((c) => c !== 'SK') });
+  const other = sk.seats[1];
+  skull.__spec.act(sk, other, { type: 'place', card: other.hand.find((c) => c !== 'SK') });
+  const pubWire = JSON.stringify(skull.serialize(sk));
+  check('skull: a pile is a height, never its contents',
+    !pubWire.includes('"SK"') && !pubWire.includes('"RO0"'), pubWire.slice(0, 70));
+
+  skull.__spec.act(sk, me, { type: 'bid', n: 2 });
+  check('skull: a bid starts the bidding', sk.stage === 'bidding', sk.stage);
+  for (const s of sk.seats.filter((x) => x.seat !== me.seat)) skull.__spec.act(sk, s, { type: 'pass' });
+  check('skull: everybody passing means you have to do it', sk.stage === 'turning', sk.stage);
+
+  // Your own pile first — all of it.
+  skull.__spec.act(sk, me, { type: 'flip', from: other.seat });
+  check('skull: you must turn your own over first',
+    sk.turned.length === 0, JSON.stringify(sk.turned));
+  skull.__spec.act(sk, me, { type: 'flip', from: me.seat });
+  check('skull: and then you may', sk.turned.length === 1, JSON.stringify(sk.turned));
+}
+
+/* ------------------------------ the rebuilds ------------------------------ */
+
+{
+  const { state } = open(powderkeg, 4);
+  check('powder keg: one keg fewer than players',
+    state.deck.filter((c) => c === 'KEG').length === 3,
+    String(state.deck.filter((c) => c === 'KEG').length));
+  check('powder keg: nobody starts holding one',
+    state.seats.every((s) => !s.hand.includes('KEG')));
+
+  // Drawing the keg without a bucket puts you out; with one, you hide it again.
+  const seat = state.seats[state.turn];
+  seat.hand = ['SKP'];
+  state.deck = ['KEG', 'SKP'];
+  powderkeg.__spec.act(state, seat, { type: 'draw' });
+  check('powder keg: no bucket, no survival', seat.out === true, String(seat.out));
+
+  const { state: safe } = open(powderkeg, 4);
+  const s2 = safe.seats[safe.turn];
+  s2.hand = ['DEF'];
+  safe.deck = ['KEG', 'SKP', 'SKP'];
+  powderkeg.__spec.act(safe, s2, { type: 'draw' });
+  check('powder keg: a bucket saves you', s2.out === false && safe.mustPlace?.by === s2.seat,
+    JSON.stringify(safe.mustPlace));
+  powderkeg.__spec.act(safe, s2, { type: 'place', at: 1 });
+  check('powder keg: and you hide it again', safe.deck.filter((c) => c === 'KEG').length === 1,
+    safe.deck.join(','));
+
+  // A peek is private.
+  const { state: pk } = open(powderkeg, 4);
+  const s3 = pk.seats[pk.turn];
+  s3.hand = ['PEK'];
+  powderkeg.__spec.act(pk, s3, { type: 'play', card: 'PEK' });
+  const pubw = JSON.stringify(powderkeg.serialize(pk));
+  check('powder keg: a peek does not go on the table',
+    !pubw.includes('peeked'), pubw.slice(0, 70));
+  check('powder keg: but you can see it',
+    Array.isArray(powderkeg.serializeFor(pk, s3.id).you.peeked),
+    JSON.stringify(powderkeg.serializeFor(pk, s3.id).you.peeked));
+}
+
+{
+  const { state } = open(plates, 4);
+  check('passing plates: everybody has a hand', state.seats.every((s) => s.hand.length >= 4));
+
+  // The decisive detail: a pick is held, never broadcast, until they are all in.
+  const first = state.seats[0];
+  plates.__spec.act(state, first, { type: 'pick', card: first.hand[0] });
+  const wire = JSON.stringify(plates.serialize(state));
+  check('passing plates: a pick is not broadcast while others are still choosing',
+    !wire.includes(`"${first.hand[0]}"`) && wire.includes('pickedCount'), wire.slice(0, 80));
+  check('passing plates: but the room knows how many are in',
+    plates.serialize(state).pickedCount === 1);
+
+  const before = state.seats.map((s) => s.hand.join(','));
+  for (const s of state.seats.slice(1)) plates.__spec.act(state, s, { type: 'pick', card: s.hand[0] });
+  check('passing plates: the last pick reveals them all',
+    (plates.serialize(state).revealed ?? []).length === 4,
+    JSON.stringify(plates.serialize(state).revealed?.length));
+  const after = state.seats.map((s) => s.hand.join(','));
+  check('passing plates: and the hands move round', before.join('|') !== after.join('|'));
+
+  // Sets only, never partial.
+  const { state: sc } = open(plates, 3);
+  const one = sc.seats[0];
+  sc.taken[one.seat] = ['sashimi:1', 'sashimi:2'];
+  const was = one.score;
+  plates.__spec.scoreHand(sc);
+  check('passing plates: two sashimi are worth nothing', one.score - was === 0, String(one.score - was));
+}
+
+{
+  const { state } = open(envelope, 4);
+  check('the envelope: one card each to start',
+    state.seats.filter((s) => s.hand.length === 1).length === 3 &&
+    state.seats.filter((s) => s.hand.length === 2).length === 1,
+    state.seats.map((s) => s.hand.length).join(','));
+  check('the envelope: one is set aside, so the deck can never be fully counted',
+    Boolean(state.burned), String(state.burned));
+
+  const wire = JSON.stringify(envelope.serialize(state));
+  const held = state.seats.flatMap((s) => s.hand);
+  check('the envelope: a held card is never on the table',
+    !held.some((c) => wire.includes(`"${c}"`)), wire.slice(0, 70));
+  check('the envelope: but the whole deck is printed',
+    (envelope.serialize(state).deckIs ?? []).length === 8);
+
+  // Playing the Heir puts you out.
+  const seat = state.seats[state.turn];
+  seat.hand = ['heir:0', 'runner:0'];
+  envelope.__spec.act(state, seat, { type: 'play', card: 'heir:0' });
+  check('the envelope: playing the Heir puts you out', seat.out === true, String(seat.out));
+
+  // The Duchess must go if you hold the Minister too.
+  const { state: d } = open(envelope, 4);
+  const ds = d.seats[d.turn];
+  ds.hand = ['duchess:0', 'minister:0'];
+  envelope.__spec.act(d, ds, { type: 'play', card: 'minister:0' });
+  check('the envelope: the Duchess must go if you hold the Minister',
+    ds.hand.includes('minister:0'), ds.hand.join(','));
+  envelope.__spec.act(d, ds, { type: 'play', card: 'duchess:0' });
+  check('the envelope: and then the other may', !ds.hand.includes('duchess:0'), ds.hand.join(','));
+
+  // Naming a Runner with a Runner is not allowed.
+  const { state: g } = open(envelope, 4);
+  const gs = g.seats[g.turn];
+  const target = g.seats.find((s) => s.seat !== gs.seat);
+  gs.hand = ['runner:0', 'clerk:0'];
+  target.hand = ['runner:1'];
+  envelope.__spec.act(g, gs, { type: 'play', card: 'runner:0', at: target.seat, guess: 'runner' });
+  check('the envelope: you cannot name a Runner', target.out === false, String(target.out));
+}
+
+{
+  const { state } = open(fairshares, 3);
+  check('fair shares: five each to start', state.seats.every((s) => s.hand.length === 5));
+
+  const seat = state.seats[state.turn];
+  fairshares.__spec.act(state, seat, { type: 'play', card: seat.hand[0] });
+  check('fair shares: nothing is played before drawing', seat.hand.length === 5, String(seat.hand.length));
+  fairshares.__spec.act(state, seat, { type: 'draw' });
+  check('fair shares: and then you have seven', seat.hand.length === 7, String(seat.hand.length));
+
+  // You cannot charge rent for a colour you do not own.
+  seat.hand = ['rent:blue:0'];
+  state.props[seat.seat] = [];
+  fairshares.__spec.act(state, seat, { type: 'play', card: 'rent:blue:0' });
+  check('fair shares: no rent on what you do not own', state.owed === null, JSON.stringify(state.owed));
+
+  state.props[seat.seat] = ['prop:blue:0'];
+  seat.hand = ['rent:blue:0'];
+  fairshares.__spec.act(state, seat, { type: 'play', card: 'rent:blue:0' });
+  check('fair shares: but you can on what you do', state.owed?.amount === 3, JSON.stringify(state.owed));
+
+  // If the bank cannot cover it, property goes instead.
+  const debtor = state.seats.find((s) => s.seat === state.owed.from);
+  state.bank[debtor.seat] = [];
+  state.props[debtor.seat] = ['prop:red:0', 'prop:red:1'];
+  fairshares.__spec.act(state, debtor, { type: 'pay', cards: [] });
+  check('fair shares: no cash means property changes hands',
+    (state.props[debtor.seat] ?? []).length < 2 && (state.props[seat.seat] ?? []).length > 1,
+    `${state.props[debtor.seat]?.length} left, ${state.props[seat.seat]?.length} taken`);
+  check('fair shares: and the debt is settled, never carried', state.owed === null);
 }
 
 /* -------------------------------- nonsense -------------------------------- */

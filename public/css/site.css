@@ -4895,3 +4895,14 @@ body.dropping::after {
 .cd-golfgrid.is-you { padding: var(--sp-xs); border-radius: var(--r-sm); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .cd-golfgrid small { font-size: 0.58rem; color: var(--text-3); }
 .cd-golfslots { display: grid; grid-template-columns: repeat(var(--cols, 3), 1fr); gap: 3px; }
+
+/* the solitaires, the bluffs and the rebuilds */
+.cd-tableau { display: flex; gap: 3px; width: 100%; overflow-x: auto; padding-bottom: var(--sp-xs); scrollbar-width: none; }
+.cd-tableau::-webkit-scrollbar { display: none; }
+.cd-column { display: grid; gap: 0; padding: 2px; background: none; border: 2px solid transparent; border-radius: var(--r-sm); flex: none; }
+.cd-column.is-picked { border-color: var(--accent); }
+.cd-column .cd-card { margin-top: -30px; }
+.cd-column .cd-card:first-child { margin-top: 0; }
+.cd-gap { display: block; width: 32px; height: 45px; border: 1px dashed var(--border); border-radius: var(--r-sm); }
+.cd-skull, .cd-rose { font-size: 1.4rem; }
+.cd-pts.is-gone { opacity: 0.35; text-decoration: line-through; }

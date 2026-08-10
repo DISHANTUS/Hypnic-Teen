@@ -20,6 +20,10 @@ import { RUMMY_GAMES } from './rummy.js';
 import { canasta } from './canasta.js';
 import { golf } from './golf.js';
 import { cribbage } from './cribbage.js';
+import { SOLITAIRE_GAMES } from './solitaire.js';
+import { BLUFF_GAMES } from './bluffs.js';
+import { DESIGNER_GAMES } from './designer.js';
+import { LAST_GAMES } from './envelope.js';
 
 export const CARD_GAMES = [
   cheat, snap, slapjack, gofish, hearts, war,
@@ -27,4 +31,5 @@ export const CARD_GAMES = [
   oldmaid, memory, spoons,
   ...TRICK_GAMES,
   ...RUMMY_GAMES, canasta, golf, cribbage,
+  ...SOLITAIRE_GAMES, ...BLUFF_GAMES, ...DESIGNER_GAMES, ...LAST_GAMES,
 ];

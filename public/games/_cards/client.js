@@ -17,6 +17,13 @@ const SUIT = { s: '♠', h: '♥', d: '♦', c: '♣' };
 const REDS = new Set(['h', 'd']);
 const RANK_LABEL = { T: '10' };
 
+/** The rebuilt decks say what they are; a raw code must never reach a screen. */
+const KEG_NAMES = { KEG: 'the keg', DEF: 'a bucket', SKP: 'skip', PEK: 'peek', SHF: 'shuffle' };
+const PLATE_NAMES = {
+  dumpling: 'Dumplings', roll: 'Rolls', nigiri: 'Nigiri',
+  sashimi: 'Sashimi', tempura: 'Tempura', pudding: 'Pudding',
+};
+
 /** A playing card, or a back. */
 function cardEl(code, { small = false } = {}) {
   const el = document.createElement('span');
@@ -177,6 +184,11 @@ export default {
         Sound.play('pick');
         return;
       }
+      if (face === 'plates' || face === 'envelope' || face === 'skull'
+          || face === 'keg' || face === 'shares') {
+        return togglePick(code, 1);
+      }
+      if (face === 'solitaire') { Sound.play('back'); return; }
       if (face === 'rummy') {
         // Multi-select: a meld is several cards at once, a knock or a throw is
         // one. Which of those a tap becomes is decided by the buttons.
@@ -698,6 +710,248 @@ export default {
         }
       },
 
+      solitaire(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        const board = s.you?.board;
+        if (!board) {
+          const none = document.createElement('span');
+          none.className = 'cd-count';
+          none.textContent = 'Dealing…';
+          box.appendChild(none);
+          return;
+        }
+
+        const cols = document.createElement('div');
+        cols.className = 'cd-tableau';
+        board.columns.forEach((col, i) => {
+          const column = document.createElement('button');
+          column.type = 'button';
+          column.className = 'cd-column';
+          column.dataset.col = String(i);
+          for (const slot of col) column.appendChild(cardEl(slot.card, { small: true }));
+          if (!col.length) {
+            const gap = document.createElement('span');
+            gap.className = 'cd-gap';
+            column.appendChild(gap);
+          }
+          column.addEventListener('click', () => {
+            // First tap picks a column up, second puts it down. Simplest thing
+            // that works on a phone, where there is no dragging worth having.
+            const from = picked.has('col') ? Number([...picked].find((p) => p !== 'col')) : null;
+            if (from === null) { picked = new Set(['col', String(i)]); paint(last); return; }
+            Net.action({ type: 'move', from, to: i, count: 1 });
+            picked = new Set();
+            Sound.play('pick');
+          });
+          column.classList.toggle('is-picked', picked.has(String(i)));
+          cols.appendChild(column);
+        });
+        box.appendChild(cols);
+
+        const row = document.createElement('div');
+        row.className = 'cd-discard';
+        const stock = document.createElement('button');
+        stock.type = 'button';
+        stock.className = 'cd-pilebtn';
+        stock.appendChild(cardEl(board.stock ? null : undefined, { small: true }));
+        stock.addEventListener('click', () => { Net.action({ type: 'stock' }); Sound.play('click'); });
+        row.appendChild(stock);
+        const n = document.createElement('span');
+        n.className = 'cd-count';
+        n.textContent = s.spider
+          ? `${board.stock} to deal · ${board.piles ?? 0} of 8 runs`
+          : `${board.stock} in the stock`;
+        row.appendChild(n);
+        if (!s.spider) {
+          for (const suit of ['s', 'h', 'd', 'c']) {
+            const pile = board.foundations?.[suit] ?? [];
+            row.appendChild(cardEl(pile[pile.length - 1] ?? null, { small: true }));
+          }
+        }
+        box.appendChild(row);
+
+        // The race, which is why these are in a room at all.
+        const race = document.createElement('div');
+        race.className = 'cd-took';
+        for (const p of s.progress ?? []) {
+          const chip = document.createElement('span');
+          chip.className = 'cd-pts';
+          chip.textContent = `${p.name} ${p.done}`;
+          race.appendChild(chip);
+        }
+        box.appendChild(race);
+      },
+
+      liars(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        const on = document.createElement('div');
+        on.className = 'cd-rank';
+        on.innerHTML = '<span>The table is on</span><b></b>';
+        on.querySelector('b').textContent = s.rank;
+        box.appendChild(on);
+        if (s.claim) {
+          const c = document.createElement('div');
+          c.className = 'cd-claim';
+          c.textContent = `${s.claim.byName} says ${s.claim.count} × ${s.claim.rank}`;
+          box.appendChild(c);
+        }
+        if (s.reveal) {
+          const r = document.createElement('div');
+          r.className = `cd-reveal ${s.reveal.lied ? 'is-lie' : 'is-true'}`;
+          r.textContent = s.reveal.lied
+            ? `${s.reveal.byName} lied — out`
+            : `Real cards — ${s.reveal.callerName} is out`;
+          box.appendChild(r);
+        }
+        const deck = document.createElement('span');
+        deck.className = 'cd-count';
+        deck.textContent = 'Deck: 6 kings, 6 queens, 6 aces, 2 wild';
+        box.appendChild(deck);
+      },
+
+      skull(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        const piles = document.createElement('div');
+        piles.className = 'cd-took';
+        for (const p of s.piles ?? []) {
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.className = 'cd-pts';
+          chip.classList.toggle('is-queen', p.seat === s.bid?.by);
+          chip.textContent = `${p.name} · ${p.height} down · ${p.left} left`;
+          chip.disabled = s.stage !== 'turning' || !s.you?.isBidder;
+          chip.addEventListener('click', () => { Net.action({ type: 'flip', from: p.seat }); Sound.play('pick'); });
+          piles.appendChild(chip);
+        }
+        box.appendChild(piles);
+
+        if (s.bid) {
+          const b = document.createElement('div');
+          b.className = 'cd-claim';
+          b.textContent = `${s.bid.byName} bids ${s.bid.n}`;
+          box.appendChild(b);
+        }
+        const turned = document.createElement('div');
+        turned.className = 'cd-row';
+        for (const t of s.turned ?? []) {
+          const c = document.createElement('span');
+          c.className = t.card === 'SK' ? 'cd-skull' : 'cd-rose';
+          c.textContent = t.card === 'SK' ? '💀' : '🌹';
+          turned.appendChild(c);
+        }
+        box.appendChild(turned);
+        if (s.you?.mustFlipOwn) {
+          const own = document.createElement('span');
+          own.className = 'cd-count';
+          own.textContent = 'Your own pile first — all of it';
+          box.appendChild(own);
+        }
+      },
+
+      keg(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        const n = document.createElement('span');
+        n.className = 'cd-count';
+        n.textContent = `${s.deckLeft} in the deck · ${s.kegsLeft} keg${s.kegsLeft === 1 ? '' : 's'} still in it`;
+        box.appendChild(n);
+        if (s.you?.peeked) {
+          const peek = document.createElement('div');
+          peek.className = 'cd-claim';
+          peek.textContent = `Next three: ${s.you.peeked.map((c) => KEG_NAMES[c] ?? c).join(', ')}`;
+          box.appendChild(peek);
+        }
+        if (s.mustPlace) {
+          const p = document.createElement('div');
+          p.className = 'cd-owed';
+          p.textContent = 'Put it back — anywhere you like';
+          box.appendChild(p);
+        }
+      },
+
+      plates(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        const waiting = document.createElement('span');
+        waiting.className = 'cd-count';
+        waiting.textContent = (s.waitingOn ?? []).length
+          ? `Waiting on ${s.waitingOn.join(', ')}`
+          : 'Everybody has picked';
+        box.appendChild(waiting);
+
+        if (s.revealed) {
+          const row = document.createElement('div');
+          row.className = 'cd-took';
+          for (const r of s.revealed) {
+            const chip = document.createElement('span');
+            chip.className = 'cd-pts';
+            chip.textContent = `${r.name}: ${PLATE_NAMES[String(r.card).split(':')[0]] ?? r.card}`;
+            row.appendChild(chip);
+          }
+          box.appendChild(row);
+        }
+        for (const t of s.taken ?? []) {
+          const row = document.createElement('div');
+          row.className = 'cd-meld';
+          const who = document.createElement('small');
+          who.textContent = `${t.name}: ${t.cards.map((c) => PLATE_NAMES[String(c).split(':')[0]] ?? c).join(', ') || 'nothing yet'}`;
+          row.appendChild(who);
+          box.appendChild(row);
+        }
+      },
+
+      envelope(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        // The whole deck, printed. Deduction needs it.
+        const deck = document.createElement('div');
+        deck.className = 'cd-took';
+        for (const c of s.deckIs ?? []) {
+          const gone = (s.discarded ?? []).filter((d) => d.card === c.id).length;
+          const chip = document.createElement('span');
+          chip.className = 'cd-pts';
+          chip.classList.toggle('is-gone', gone >= c.many);
+          chip.textContent = `${c.rank} ${c.name} ${c.many - gone}/${c.many}`;
+          deck.appendChild(chip);
+        }
+        box.appendChild(deck);
+
+        if (s.you?.looked) {
+          const l = document.createElement('div');
+          l.className = 'cd-claim';
+          l.textContent = `${s.you.looked.of} holds the ${s.you.looked.card}`;
+          box.appendChild(l);
+        }
+        const alive = document.createElement('span');
+        alive.className = 'cd-count';
+        alive.textContent = `Still in: ${(s.alive ?? []).map((a) => a.name).join(', ')}`;
+        box.appendChild(alive);
+      },
+
+      shares(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        for (const b of s.boards ?? []) {
+          const row = document.createElement('div');
+          row.className = 'cd-meld';
+          const who = document.createElement('small');
+          const colours = (b.props ?? []).map((p) => String(p).split(':')[1]);
+          who.textContent = `${b.name} — ${b.complete}/3 sets · bank ${b.bank}` +
+            (colours.length ? ` · ${colours.join(' ')}` : '');
+          row.appendChild(who);
+          box.appendChild(row);
+        }
+        if (s.owed) {
+          const o = document.createElement('div');
+          o.className = 'cd-owed';
+          o.textContent = `Owes ${s.owed.amount} — pay up or hand over property`;
+          box.appendChild(o);
+        }
+      },
+
       hearts(s) {
         const box = $('#cdMiddle');
         box.replaceChildren();
@@ -856,6 +1110,104 @@ export default {
         add(picked.size === 1 ? 'Play it' : 'Pick one', 'btn-primary',
           () => { Net.action({ type: 'play', card: [...picked][0] }); picked = new Set(); Sound.play('pick'); },
           picked.size !== 1);
+        return;
+      }
+
+      if (face === 'liars') {
+        if (s.you?.canCall) {
+          add(`Liar! (${s.callWindow}s)`, 'cd-call', () => { Net.action({ type: 'call' }); Sound.play('buzz'); });
+        }
+        if (!s.you?.yourTurn || s.claim) return;
+        add(picked.size ? `Play ${picked.size} as ${s.rank}` : 'Pick cards', 'btn-primary',
+          () => { Net.action({ type: 'play', cards: [...picked] }); picked = new Set(); Sound.play('pick'); },
+          picked.size === 0);
+        return;
+      }
+
+      if (face === 'skull') {
+        if (s.stage === 'placing') {
+          add(picked.size === 1 ? 'Place it' : 'Pick one', 'btn-primary',
+            () => { Net.action({ type: 'place', card: [...picked][0] }); picked = new Set(); Sound.play('pick'); },
+            picked.size !== 1);
+          if (s.you?.placed > 0) {
+            for (let n = 1; n <= Math.min(4, (s.piles ?? []).reduce((a, p) => a + p.height, 0)); n++) {
+              add('Bid ' + n, 'cd-bid', () => { Net.action({ type: 'bid', n }); Sound.play('pick'); });
+            }
+          }
+          return;
+        }
+        if (s.stage === 'bidding') {
+          const low = (s.bid?.n ?? 0) + 1;
+          for (let n = low; n < low + 3; n++) {
+            add('Bid ' + n, 'cd-bid', () => { Net.action({ type: 'bid', n }); Sound.play('pick'); });
+          }
+          add('Pass', 'btn-ghost', () => { Net.action({ type: 'pass' }); Sound.play('back'); });
+        }
+        return;
+      }
+
+      if (face === 'keg') {
+        if (s.you?.placing) {
+          for (const at of [0, Math.floor((s.you.deckLeft ?? 0) / 2), s.you.deckLeft ?? 0]) {
+            add(at === 0 ? 'On top' : at >= (s.you.deckLeft ?? 0) ? 'At the bottom' : 'In the middle',
+              'btn-ghost', () => { Net.action({ type: 'place', at }); Sound.play('pick'); });
+          }
+          return;
+        }
+        if (!s.you?.yourTurn) return;
+        if (picked.size === 1) {
+          add('Play it', 'btn-ghost',
+            () => { Net.action({ type: 'play', card: [...picked][0] }); picked = new Set(); Sound.play('pick'); });
+        }
+        add('Draw', 'btn-primary', () => { Net.action({ type: 'draw' }); Sound.play('click'); });
+        return;
+      }
+
+      if (face === 'plates') {
+        if (s.you?.picked) return;
+        add(picked.size === 1 ? 'Take it' : 'Pick one', 'btn-primary',
+          () => { Net.action({ type: 'pick', card: [...picked][0] }); picked = new Set(); Sound.play('pick'); },
+          picked.size !== 1);
+        return;
+      }
+
+      if (face === 'envelope') {
+        if (!s.you?.yourTurn) return;
+        const target = (s.you?.targets ?? [])[0];
+        add(picked.size === 1 ? 'Play it' : 'Pick one', 'btn-primary',
+          () => {
+            Net.action({ type: 'play', card: [...picked][0], at: target?.seat, guess: 'clerk' });
+            picked = new Set();
+            Sound.play('pick');
+          },
+          picked.size !== 1);
+        return;
+      }
+
+      if (face === 'shares') {
+        if (s.you?.owes) {
+          add(`Pay ${s.you.owes.amount}`, 'cd-call',
+            () => { Net.action({ type: 'pay', cards: [...picked] }); picked = new Set(); Sound.play('back'); });
+          return;
+        }
+        if (!s.you?.yourTurn) return;
+        if (s.you?.mustDraw) {
+          add('Draw two', 'btn-primary', () => { Net.action({ type: 'draw' }); Sound.play('click'); });
+          return;
+        }
+        add(picked.size === 1 ? 'Play it' : `Pick one (${s.you.playsLeft} left)`, 'btn-primary',
+          () => { Net.action({ type: 'play', card: [...picked][0] }); picked = new Set(); Sound.play('pick'); },
+          picked.size !== 1);
+        add('End turn', 'btn-ghost', () => { Net.action({ type: 'end' }); Sound.play('back'); });
+        return;
+      }
+
+      if (face === 'solitaire') {
+        add(s.spider ? 'Deal a row' : 'Turn one', 'btn-primary',
+          () => { Net.action({ type: 'stock' }); Sound.play('click'); });
+        if (!s.spider) {
+          add('Send up', 'btn-ghost', () => { Net.action({ type: 'foundation', from: -1 }); Sound.play('pick'); });
+        }
         return;
       }
 
