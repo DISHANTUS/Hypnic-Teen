@@ -4869,3 +4869,20 @@ body.dropping::after {
 .cd-piles { display: flex; gap: var(--sp-md); }
 .cd-pilebtn { padding: 0; background: none; border: 2px solid transparent; border-radius: var(--r-sm); }
 .cd-pilebtn:hover, .cd-pilebtn:focus-visible { border-color: var(--accent); }
+
+/* memory, spoons and the trick games */
+.cd-grid { display: grid; grid-template-columns: repeat(var(--cols, 4), 1fr); gap: 4px; width: min(100%, 320px); }
+.cd-slot { padding: 0; background: none; border: 0; display: grid; place-items: center; }
+.cd-slot.is-gone { opacity: 0.25; }
+.cd-spoons { display: flex; gap: var(--sp-xs); }
+.cd-spoon { font-size: 1.6rem; }
+.cd-spoon.is-gone { opacity: 0.2; }
+.cd-trump { display: flex; align-items: baseline; gap: var(--sp-xs); }
+.cd-trump span { font-size: 0.66rem; color: var(--text-3); }
+.cd-trump b { font-size: 1.5rem; }
+.cd-trump b.is-red { color: #c0392b; }
+.cd-bid {
+  min-width: 38px; padding: var(--sp-xs); border-radius: var(--r-sm);
+  border: 1px solid var(--border); background: var(--glass); color: var(--text);
+  font-family: var(--font-display);
+}

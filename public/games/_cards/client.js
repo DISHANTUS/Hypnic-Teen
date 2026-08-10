@@ -157,6 +157,12 @@ export default {
         return;
       }
 
+      if (face === 'war' || face === 'memory') { Sound.play('back'); return; }
+      if (face === 'spoons') {
+        Net.action({ type: 'pass', card: code });
+        Sound.play('click');
+        return;
+      }
       if (!allowed || !s.you?.yourTurn) { Sound.play('back'); return; }
 
       if (face === 'crazy8s') {
@@ -169,6 +175,18 @@ export default {
         }
         Net.action({ type: 'play', card: code });
         Sound.play('pick');
+        return;
+      }
+      if (face === 'tricks') {
+        Net.action({ type: 'play', card: code });
+        Sound.play('pick');
+        return;
+      }
+      if (face === 'spoons') {
+        // Tapping a card passes it on. There are no turns, so this is live the
+        // whole time — and it is refused below four so a hand cannot empty.
+        Net.action({ type: 'pass', card: code });
+        Sound.play('click');
         return;
       }
       if (face === 'hearts' || face === 'sevens') {
@@ -409,6 +427,151 @@ export default {
         box.appendChild(left);
       },
 
+      war(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        const row = document.createElement('div');
+        row.className = 'cd-trick';
+        for (const b of s.battle ?? []) {
+          const w = document.createElement('div');
+          w.className = 'cd-played';
+          w.appendChild(cardEl(b.card));
+          const who = document.createElement('small');
+          who.textContent = b.name;
+          w.appendChild(who);
+          row.appendChild(w);
+        }
+        if (!row.children.length) {
+          const none = document.createElement('span');
+          none.className = 'cd-count';
+          none.textContent = 'Turning them over…';
+          row.appendChild(none);
+        }
+        box.appendChild(row);
+        if (s.warDepth > 0) {
+          const war = document.createElement('div');
+          war.className = 'cd-owed';
+          war.textContent = `WAR — ${s.spoils} on the table`;
+          box.appendChild(war);
+        }
+      },
+
+      oldmaid(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        const rows = document.createElement('div');
+        rows.className = 'cd-took';
+        for (const p of s.pairs ?? []) {
+          const chip = document.createElement('span');
+          chip.className = 'cd-pts';
+          chip.textContent = `${p.name} · ${p.count} pair${p.count === 1 ? '' : 's'}`;
+          rows.appendChild(chip);
+        }
+        box.appendChild(rows);
+        if (s.you?.drawing) {
+          const d = document.createElement('span');
+          d.className = 'cd-count';
+          d.textContent = `Drawing from ${s.you.drawing.name} — ${s.you.drawing.cards} cards, all face down`;
+          box.appendChild(d);
+        }
+        if (s.maid) {
+          const m = document.createElement('div');
+          m.className = 'cd-owed';
+          m.textContent = `${s.maid.name} is the Old Maid`;
+          box.appendChild(m);
+        }
+      },
+
+      memory(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        const grid = document.createElement('div');
+        grid.className = 'cd-grid';
+        grid.style.setProperty('--cols', String(s.columns ?? 4));
+        for (const slot of s.grid ?? []) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'cd-slot';
+          b.classList.toggle('is-gone', Boolean(slot.gone));
+          if (slot.card) b.appendChild(cardEl(slot.card, { small: true }));
+          else b.appendChild(cardEl(null, { small: true }));
+          b.disabled = Boolean(slot.card) || !s.you?.yourTurn || Boolean(s.looking);
+          b.addEventListener('click', () => { Net.action({ type: 'turn', at: slot.at }); Sound.play('pick'); });
+          grid.appendChild(b);
+        }
+        box.appendChild(grid);
+        const scores = document.createElement('div');
+        scores.className = 'cd-took';
+        for (const p of s.pairsBy ?? []) {
+          const chip = document.createElement('span');
+          chip.className = 'cd-pts';
+          chip.textContent = `${p.name} ${p.pairs}`;
+          scores.appendChild(chip);
+        }
+        box.appendChild(scores);
+      },
+
+      spoons(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        const row = document.createElement('div');
+        row.className = 'cd-spoons';
+        for (let i = 0; i < (s.spoons ?? 0); i++) {
+          const sp = document.createElement('span');
+          sp.className = 'cd-spoon';
+          sp.classList.toggle('is-gone', i < (s.grabbed?.length ?? 0));
+          sp.textContent = '🥄';
+          row.appendChild(sp);
+        }
+        box.appendChild(row);
+        const said = document.createElement('span');
+        said.className = 'cd-count';
+        said.textContent = s.grabbing
+          ? `${s.grabbed.length} of ${s.spoons} gone — GO`
+          : (s.you?.best ? `Your best: ${s.you.best.of} × ${s.you.best.say}` : 'Pass to your left');
+        box.appendChild(said);
+      },
+
+      tricks(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        const t = document.createElement('div');
+        t.className = 'cd-trump';
+        t.innerHTML = '<span>Trump</span><b></b>';
+        const b = t.querySelector('b');
+        b.textContent = SUIT[s.trump] ?? '—';
+        b.classList.toggle('is-red', REDS.has(s.trump));
+        box.appendChild(t);
+
+        const trick = document.createElement('div');
+        trick.className = 'cd-trick';
+        for (const p of s.trick ?? []) {
+          const w = document.createElement('div');
+          w.className = 'cd-played';
+          w.appendChild(cardEl(p.card));
+          const who = document.createElement('small');
+          who.textContent = p.name;
+          w.appendChild(who);
+          trick.appendChild(w);
+        }
+        if (!trick.children.length) {
+          const none = document.createElement('span');
+          none.className = 'cd-count';
+          none.textContent = s.bidding ? 'Everybody is bidding' : 'Lead away';
+          trick.appendChild(none);
+        }
+        box.appendChild(trick);
+
+        const bids = document.createElement('div');
+        bids.className = 'cd-took';
+        for (const p of s.bids ?? []) {
+          const chip = document.createElement('span');
+          chip.className = 'cd-pts';
+          chip.textContent = p.bid === null ? `${p.name} ${p.took}` : `${p.name} ${p.took}/${p.bid}`;
+          bids.appendChild(chip);
+        }
+        box.appendChild(bids);
+      },
       hearts(s) {
         const box = $('#cdMiddle');
         box.replaceChildren();
@@ -515,10 +678,40 @@ export default {
         return;
       }
 
+      if (face === 'oldmaid') {
+        if (!s.you?.yourTurn) return;
+        const n = s.you?.drawing?.cards ?? 0;
+        add(n ? `Draw one of ${n}` : 'Nothing to draw', 'btn-primary',
+          () => { Net.action({ type: 'draw', at: Math.floor(Math.random() * n) }); Sound.play('pick'); },
+          n === 0);
+        return;
+      }
+
+      if (face === 'spoons') {
+        // Always live, and deliberately not gated on having four of a kind —
+        // once anybody has grabbed, being fast is the whole game.
+        add(s.you?.gotSpoon ? 'You have one' : 'GRAB', 'cd-snap-btn',
+          () => { Net.action({ type: 'grab' }); Sound.play('buzz'); },
+          Boolean(s.you?.gotSpoon));
+        return;
+      }
+
+      if (face === 'tricks') {
+        if (!s.bidding) return;
+        if (s.you?.bid !== null && s.you?.bid !== undefined) return;
+        for (let n = 0; n <= Math.min(6, s.you?.maxBid ?? 0); n++) {
+          add(String(n), 'cd-bid', () => { Net.action({ type: 'bid', tricks: n }); Sound.play('pick'); });
+        }
+        return;
+      }
+
+      if (face === 'war' || face === 'memory') return;
+
       if (face === 'snap') {
         // Always live. A button that only appears on a match would be a button
         // that tells you the answer.
-        add('SNAP', 'cd-snap-btn', () => { Net.action({ type: 'snap' }); Sound.play('buzz'); });
+        add((s.cue ?? 'SNAP').replace('!', '').toUpperCase(), 'cd-snap-btn',
+          () => { Net.action({ type: 'snap' }); Sound.play('buzz'); });
         return;
       }
 
