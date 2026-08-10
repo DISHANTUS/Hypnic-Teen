@@ -292,7 +292,7 @@ function openChain(n, settings = {}) {
   chainreaction.onAction(state, players[0], { type: 'drop', at: 0 }, api);
   const b = state.bursting;
   check('a big cascade runs many waves', (b?.waves ?? 0) >= 5, String(b?.waves));
-  check('the film never exceeds the cap', (b?.film.length ?? 0) <= 64, String(b?.film.length));
+  check('the film never exceeds the cap', (b?.film.length ?? 0) <= 24, String(b?.film.length));
   check('and what was cut is stated, not hidden',
     typeof b?.cut === 'number' && b.cut === Math.max(0, b.waves - b.film.length),
     JSON.stringify({ waves: b?.waves, kept: b?.film.length, cut: b?.cut }));

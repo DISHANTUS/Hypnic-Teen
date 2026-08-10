@@ -228,8 +228,22 @@ export const chainreaction = createBoardGame({
  * so the cascade feeds itself forever. That is not a runaway to guard against
  * with a step limit; it is the game being over.
  */
-/** How many waves of a cascade are kept for the client to play back. */
-const FILMED = 64;
+/**
+ * How many waves of a cascade are kept for the client to play back.
+ *
+ * Twenty-four is not a guess about correctness, it is a guess about attention:
+ * the client plays a frame every ninety milliseconds, so this is already better
+ * than two seconds of explosion, and past that a cascade is a blur rather than
+ * a thing you are following. It also bounds the payload, which matters more
+ * than it looks — the whole board rides in every frame and the state is
+ * serialised once per player, so eight people watching a long chain on a big
+ * board is the worst case the wire ever sees.
+ *
+ * Nothing reaches it in practice. A cascade ends the moment one colour is left,
+ * and the longest measured is nineteen waves on a board primed to burst in
+ * every cell.
+ */
+const FILMED = 24;
 
 function settle(state, owner) {
   const { cols, rows } = state.settings;
