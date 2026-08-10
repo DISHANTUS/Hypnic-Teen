@@ -5235,7 +5235,21 @@ body.dropping::after {
 }
 
 /* Chain Reaction: a grid of cells, each drawn as the orbs it holds. */
-.bd-board.is-chain { aspect-ratio: auto; gap: 3px; width: min(100%, 340px); }
+/* Chain Reaction, drawn the way the game is known: a black field, and the grid
+   itself lit in the colour of whoever is to play. That last part does more work
+   than it looks — with eight players round one board, whose turn it is has to
+   be readable without looking away from the cells. */
+.bd-board.is-chain {
+  --turn: var(--accent);
+  aspect-ratio: auto;
+  gap: 0;
+  width: min(100%, 340px);
+  padding: 2px;
+  border-radius: var(--r-sm);
+  background: #0b0d10;
+  border: 1px solid color-mix(in srgb, var(--turn) 55%, #0b0d10);
+  transition: border-color 220ms ease;
+}
 .bd-orbcell {
   display: flex;
   align-items: center;
@@ -5244,24 +5258,61 @@ body.dropping::after {
   gap: 2px;
   aspect-ratio: 1;
   padding: 2px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--border);
-  background: var(--glass);
+  border-radius: 0;
+  border: 0;
+  /* One hairline per cell rather than a gap, so the grid reads as ruled lines
+     the way the original's does. */
+  box-shadow: inset -1px -1px 0 color-mix(in srgb, var(--turn) 34%, transparent);
+  background: transparent;
+  transition: box-shadow 220ms ease;
 }
-.bd-orbcell.can-drop { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+.bd-orbcell.can-drop { cursor: pointer; }
+.bd-orbcell:disabled { cursor: default; }
+
+/* An orb is a sphere: a highlight up and to the left, and a darker rim. Flat
+   discs read as counters, and this game is not about counters. */
 .bd-orb {
   width: 30%;
   aspect-ratio: 1;
   border-radius: 50%;
-  background: var(--tint);
-  border: 1px solid color-mix(in srgb, #000 30%, var(--tint));
+  background: radial-gradient(circle at 32% 28%,
+    color-mix(in srgb, #fff 62%, var(--tint)) 0%,
+    var(--tint) 52%,
+    color-mix(in srgb, #000 34%, var(--tint)) 100%);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--tint) 70%, transparent);
 }
+
+/* Two orbs sit apart, three make a triangle, and the group turns slowly —
+   which is how you tell a loaded cell from a quiet one out of the corner of
+   your eye. */
+.bd-orbcell[data-orbs="2"], .bd-orbcell[data-orbs="3"], .bd-orbcell[data-orbs="4"] {
+  animation: bd-orbit 3.2s linear infinite;
+}
+@keyframes bd-orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* One short of going. The whole read of the board is what is about to burst. */
 .bd-orbcell.is-critical { box-shadow: inset 0 0 0 2px var(--tint); }
-.bd-orbcell.is-critical .bd-orb { animation: bd-strain 900ms ease-in-out infinite; }
+.bd-orbcell.is-critical .bd-orb { animation: bd-strain 620ms ease-in-out infinite; }
 @keyframes bd-strain {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.18); }
+  50% { transform: scale(1.2); }
+}
+
+/* The wave itself. Put on a cell at the moment it bursts and taken off by the
+   next frame, so a cascade lights up in sequence rather than all at once. */
+.bd-orbcell.is-burst { animation: bd-burst 260ms ease-out; }
+@keyframes bd-burst {
+  0% { box-shadow: inset 0 0 0 2px var(--tint), 0 0 0 0 color-mix(in srgb, var(--tint) 80%, transparent); }
+  100% { box-shadow: inset 0 0 0 0 transparent, 0 0 22px 6px transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bd-orbcell[data-orbs] { animation: none; }
+  .bd-orbcell.is-critical .bd-orb { animation: none; }
+  .bd-orbcell.is-burst { animation: none; }
 }
 .bd-seat.is-gone { opacity: 0.35; }
 

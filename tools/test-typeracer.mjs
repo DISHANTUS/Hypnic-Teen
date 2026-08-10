@@ -228,6 +228,85 @@ function openChain(n, settings = {}) {
 }
 
 {
+  // The cascade is filmed, wave by wave, so the client can play it rather than
+  // cut to the end. Watching one orb take half the board is the entire game;
+  // sending only the settled board is reporting a firework as a noise.
+  const { state, players } = openChain(2, { cols: 5, rows: 5 });
+  // A corner loaded to one short, with its two neighbours also loaded, so one
+  // drop sets off more than a single wave.
+  state.cells[0] = { n: 1, owner: 0 };   // corner, holds 2
+  state.cells[1] = { n: 2, owner: 0 };   // top edge, holds 3
+  state.cells[5] = { n: 2, owner: 0 };   // left edge, holds 3
+  // Seat 1 needs something on the board and it needs to be out of reach of the
+  // blast. Without it the cascade stops after one wave for a perfectly good
+  // reason — one colour left is the game being over — and the fixture measures
+  // that instead of what it meant to.
+  state.cells[24] = { n: 1, owner: 1 };  // the far corner
+  state.played = [0, 1];
+  state.turn = 0;
+  chainreaction.onAction(state, players[0], { type: 'drop', at: 0 }, api);
+
+  const film = state.bursting?.film ?? [];
+  check('a cascade is filmed wave by wave', film.length >= 2, `${film.length} waves`);
+  check('every frame says which cells burst',
+    film.every((f) => Array.isArray(f.burst) && f.burst.length > 0));
+  check('and carries the whole board',
+    film.every((f) => f.cells.length === state.cells.length));
+
+  // The last frame has to be the board the server actually settled on. A film
+  // that ends anywhere else would leave the screen showing a lie until the
+  // next state push corrected it.
+  const last = film[film.length - 1].cells;
+  check('the last frame is the settled board',
+    last.every((c, i) => c.n === state.cells[i].n && c.owner === state.cells[i].owner),
+    JSON.stringify({ last: last.slice(0, 3), real: state.cells.slice(0, 3) }));
+
+  // Orbs are conserved across a wave except for the ones a burst pushes off
+  // the edge of the board, so the count never rises.
+  let prev = Infinity;
+  for (const f of film) {
+    const total = f.cells.reduce((n, c) => n + c.n, 0);
+    if (total > prev) { prev = -1; break; }
+    prev = total;
+  }
+  check('no frame invents orbs', prev !== -1);
+
+  const moved = state.moveNo;
+  chainreaction.onAction(state, players[1], { type: 'drop', at: 24 }, api);
+  check('each move gets its own number', state.moveNo === moved + 1, String(state.moveNo));
+}
+
+{
+  // A board primed to burst everywhere: the longest cascade that can actually
+  // happen, since the colour check stops a self-feeding one the moment a single
+  // colour is left. The film is capped, and what it cut is stated rather than
+  // trimmed away silently.
+  const { state, players } = openChain(2, { cols: 9, rows: 12 });
+  for (let i = 0; i < state.cells.length; i++) {
+    const cap = capacityOf(9, 12, i % 9, Math.floor(i / 9));
+    state.cells[i] = { n: cap - 1, owner: 0 };
+  }
+  state.cells[state.cells.length - 1] = { n: 1, owner: 1 };  // out of reach, for a while
+  state.played = [0, 1];
+  state.turn = 0;
+  chainreaction.onAction(state, players[0], { type: 'drop', at: 0 }, api);
+  const b = state.bursting;
+  check('a big cascade runs many waves', (b?.waves ?? 0) >= 5, String(b?.waves));
+  check('the film never exceeds the cap', (b?.film.length ?? 0) <= 64, String(b?.film.length));
+  check('and what was cut is stated, not hidden',
+    typeof b?.cut === 'number' && b.cut === Math.max(0, b.waves - b.film.length),
+    JSON.stringify({ waves: b?.waves, kept: b?.film.length, cut: b?.cut }));
+}
+
+{
+  // Eight players, like the game everybody knows.
+  check('chain reaction seats eight', chainreaction.maxPlayers === 8,
+    String(chainreaction.maxPlayers));
+  const { state } = openChain(8, { cols: 6, rows: 8 });
+  check('and eight actually sit down', state.seats.length === 8, String(state.seats.length));
+}
+
+{
   // The cascade that never settles. A board owned by one colour feeds itself
   // forever — and that is the game being over, not a runaway.
   const { state, players } = openChain(2, { cols: 4, rows: 4 });

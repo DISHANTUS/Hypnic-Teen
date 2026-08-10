@@ -278,6 +278,26 @@ for (const game of GAMES) {
       owned.titles === owned.n, `${owned.titles} of ${owned.n}`);
   }
 
+  // Chain Reaction is the one game here whose whole appeal is what happens
+  // after you move, so looking at an empty board proves very little. Drop one
+  // and check an orb actually arrives — and that the grid is lit in the colour
+  // of whoever is to play, which is how the original tells you whose turn it is
+  // without making you look away from the cells.
+  if (game.face === 'chain') {
+    const grid = await evaluate(`
+      const b = document.querySelector('.bd-board.is-chain');
+      return b ? getComputedStyle(b).getPropertyValue('--turn').trim() : '';
+    `);
+    check(`${game.name}: the grid is lit in the colour of whoever is to play`,
+      /^(#|rgb)/.test(grid), grid || '(nothing)');
+
+    const before = await evaluate(`return document.querySelectorAll('.bd-orb').length`);
+    await evaluate(`document.querySelector('.bd-orbcell.can-drop')?.click(); return true;`);
+    await wait(900);
+    const after = await evaluate(`return document.querySelectorAll('.bd-orb').length`);
+    check(`${game.name}: an orb lands when you drop one`, after > before, `${before} → ${after}`);
+  }
+
   // A board has to have a size.
   //
   // Counting cells proves the DOM was built and proves nothing about whether

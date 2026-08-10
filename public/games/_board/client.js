@@ -16,8 +16,16 @@ import { Sound } from '/js/sound.js';
 import { confetti, floatText, pulse, motionReduced } from '/js/fx.js';
 import { mountClock } from '/js/turnclock.mjs';
 
-const SEAT_TINT = ['#e74c3c', '#3498db', '#2ecc71', '#f1c40f'];
-const SEAT_NAME = ['Red', 'Blue', 'Green', 'Yellow'];
+// Four for the boards that seat four, eight for Chain Reaction. The extra four
+// are only ever reached by `% 8`, so nothing that indexes `% 4` sees them.
+const SEAT_TINT = [
+  '#e74c3c', '#3498db', '#2ecc71', '#f1c40f',
+  '#9b59b6', '#e67e22', '#1abc9c', '#ec407a',
+];
+const SEAT_NAME = [
+  'Red', 'Blue', 'Green', 'Yellow',
+  'Purple', 'Orange', 'Teal', 'Pink',
+];
 
 /** What happens after this, per game. */
 const NEXT = {
@@ -102,6 +110,9 @@ export default {
     let dropping = null;
     let shownThrow = null;
     let shownSaid = '';
+    /** Which move's cascade has already been played, and the timer playing it. */
+    let shownMove = -1;
+    let chainTimer = null;
 
     $('#bdBriefed').addEventListener('click', () => {
       Net.action({ type: 'briefed' });
@@ -667,12 +678,65 @@ export default {
      * what it will take with it, and counting dots on forty-eight cells is not
      * something anybody can do at a glance.
      */
+    /**
+     * Draw one board — either the settled one or a frame of a cascade.
+     *
+     * `live` is false while a cascade is playing back, which suppresses the
+     * drop targets: a cell you could legally drop into a moment ago may not
+     * survive the explosion, and lighting it up mid-blast invites a tap that
+     * the server will refuse.
+     */
+    function drawOrbs(s, cells, live) {
+      const box = $('#bdBoard');
+      const canDrop = live ? new Set(s.you?.canDrop ?? []) : new Set();
+      const boxes = box.querySelectorAll('.bd-orbcell');
+      for (let i = 0; i < boxes.length; i++) {
+        const cell = boxes[i];
+        const c = cells[i];
+        if (!c) continue;
+        const cap = (s.cells ?? [])[i]?.cap ?? 4;
+        cell.classList.toggle('can-drop', canDrop.has(i));
+        // One short of going, which is the thing worth seeing from across a
+        // table without counting anything.
+        cell.classList.toggle('is-critical', c.n > 0 && c.n === cap - 1);
+        cell.style.setProperty('--tint', c.owner === null ? 'transparent' : SEAT_TINT[c.owner % 8]);
+        // Two orbs sit differently from three, and the count is drawn as an
+        // attribute so CSS can arrange them rather than JS positioning each one.
+        cell.dataset.orbs = String(Math.min(c.n, 4));
+        if (Number(cell.dataset.n) !== c.n || cell.dataset.owner !== String(c.owner)) {
+          cell.dataset.n = String(c.n);
+          cell.dataset.owner = String(c.owner);
+          cell.replaceChildren(
+            ...Array.from({ length: c.n }, () => {
+              const orb = document.createElement('i');
+              orb.className = 'bd-orb';
+              return orb;
+            })
+          );
+        }
+      }
+    }
+
+    /** Flash the cells that burst on this wave, then let the class fall off. */
+    function flashBurst(at) {
+      const box = $('#bdBoard');
+      for (const i of at) {
+        const cell = box.querySelector(`.bd-orbcell[data-cell="${i}"]`);
+        if (!cell) continue;
+        cell.classList.remove('is-burst');
+        // Reading offsetWidth restarts the animation; without it a cell that
+        // bursts on two waves in a row only animates once.
+        void cell.offsetWidth;
+        cell.classList.add('is-burst');
+      }
+    }
+
     function paintChain(s) {
       const box = $('#bdBoard');
       const shape = 'chain' + s.cols + 'x' + s.rows;
       if (box.dataset.size !== shape) {
         box.dataset.size = shape;
-        box.classList.remove('is-ring', 'is-chequer', 'is-ladder');
+        box.classList.remove('is-ring', 'is-chequer', 'is-ladder', 'is-mahjong');
         box.classList.add('is-chain');
         box.style.setProperty('--n', String(s.cols));
         box.replaceChildren(
@@ -691,36 +755,53 @@ export default {
         );
       }
 
-      const canDrop = new Set(s.you?.canDrop ?? []);
-      const cells = box.querySelectorAll('.bd-orbcell');
-      for (let i = 0; i < cells.length; i++) {
-        const cell = cells[i];
-        const c = (s.cells ?? [])[i];
-        if (!c) continue;
-        cell.classList.toggle('can-drop', canDrop.has(i));
-        // One short of going, which is the thing worth seeing from across a
-        // table without counting anything.
-        cell.classList.toggle('is-critical', c.n > 0 && c.n === c.cap - 1);
-        cell.style.setProperty('--tint', c.owner === null ? 'transparent' : SEAT_TINT[c.owner % 4]);
-        const want = c.n;
-        if (Number(cell.dataset.n) !== want || cell.dataset.owner !== String(c.owner)) {
-          cell.dataset.n = String(want);
-          cell.dataset.owner = String(c.owner);
-          cell.replaceChildren(
-            ...Array.from({ length: want }, () => {
-              const orb = document.createElement('i');
-              orb.className = 'bd-orb';
-              return orb;
-            })
-          );
-        }
+      // The grid takes the colour of whoever is to play. It is the one thing
+      // the original does that nothing else here does, and it means you never
+      // have to look away from the board to know whose turn it is.
+      const turnTint = SEAT_TINT[(s.turn ?? 0) % 8];
+      box.style.setProperty('--turn', turnTint);
+
+      // Play the cascade rather than cutting to the end of it.
+      //
+      // The server settles the whole chain in one go and sends the board it
+      // arrived at, plus every wave on the way. Skipping straight to the final
+      // board technically shows the truth and throws away the game: the thing
+      // people play this for is watching one orb take half the board.
+      const film = s.bursting?.film;
+      if (film?.length && s.moveNo !== shownMove && !motionReduced) {
+        shownMove = s.moveNo;
+        clearTimeout(chainTimer);
+        let at = 0;
+        const step = () => {
+          if (at >= film.length) {
+            // Land on the real board, which is the only one the server voucher
+            // for — the frames are a retelling, not the record.
+            chainTimer = null;
+            drawOrbs(s, s.cells ?? [], true);
+            return;
+          }
+          const frame = film[at++];
+          flashBurst(frame.burst);
+          drawOrbs(s, frame.cells, false);
+          // Not on every wave. A long cascade firing a sound per frame is a
+          // machine gun, and the first few are the ones that carry the news.
+          if (at <= 4) Sound.play('orb');
+          // The first waves are slower. A cascade that starts at full speed
+          // reads as a glitch; one that accelerates reads as a chain.
+          chainTimer = setTimeout(step, at < 3 ? 150 : 90);
+        };
+        step();
+        return;
       }
+      if (chainTimer) return;   // a cascade is mid-flight; do not fight it
+      shownMove = s.moveNo;
+      drawOrbs(s, s.cells ?? [], true);
 
       $('#bdSeats').replaceChildren(
         ...(s.counts ?? []).map((p) => {
           const el = document.createElement('div');
           el.className = 'bd-seat';
-          el.style.setProperty('--tint', SEAT_TINT[p.seat % 4]);
+          el.style.setProperty('--tint', SEAT_TINT[p.seat % 8]);
           el.classList.toggle('is-turn', p.seat === s.turn);
           el.classList.toggle('is-you', p.seat === s.you?.seat);
           el.classList.toggle('is-gone', p.out);
@@ -946,6 +1027,10 @@ export default {
     return () => {
       off?.();
       clock.destroy();
+      // A cascade mid-flight would keep drawing into a board that has left the
+      // page, which is a leak and, once the elements are gone, a throw.
+      clearTimeout(chainTimer);
+      chainTimer = null;
       wrap.classList.remove('bd-stage');
       root.remove();
       hud.innerHTML = '';

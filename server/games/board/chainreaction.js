@@ -50,7 +50,10 @@ export const chainreaction = createBoardGame({
   accent: '#e84393',
   face: 'chain',
   minPlayers: 2,
-  maxPlayers: 4,
+  // Eight, like the game everybody knows. The cascade is what makes a crowd
+  // worth having — one orb in the wrong corner can hand the board to somebody
+  // who has not moved yet.
+  maxPlayers: 8,
   turnSeconds: 20,
 
   howToPlay: [
@@ -75,6 +78,7 @@ export const chainreaction = createBoardGame({
     state.cells = [];
     state.played = [];
     state.bursting = null;
+    state.moveNo = 0;
     state.result = null;
   },
 
@@ -84,6 +88,7 @@ export const chainreaction = createBoardGame({
     state.cells = Array.from({ length: cols * rows }, () => ({ n: 0, owner: null }));
     state.played = [];
     state.bursting = null;
+    state.moveNo = 0;
     state.result = null;
     state.turn = 0;
     state.said = 'Drop one anywhere.';
@@ -106,6 +111,10 @@ export const chainreaction = createBoardGame({
     cell.n += 1;
     cell.owner = seat.seat;
     if (!state.played.includes(seat.seat)) state.played.push(seat.seat);
+    // Stamped per move so a client can tell a fresh cascade from a repeat of
+    // the state it is already showing. Without it, every state push during an
+    // animation would restart the animation.
+    state.moveNo = (state.moveNo ?? 0) + 1;
 
     const waves = settle(state, seat.seat);
     state.said = waves > 1
@@ -181,6 +190,10 @@ export const chainreaction = createBoardGame({
       })),
       result: state.result,
       played: state.played,
+      // The cascade, wave by wave, for the client to play out. The cells above
+      // are already the settled board — this is how it got there.
+      bursting: state.bursting,
+      moveNo: state.moveNo ?? 0,
     };
   },
 
@@ -215,17 +228,26 @@ export const chainreaction = createBoardGame({
  * so the cascade feeds itself forever. That is not a runaway to guard against
  * with a step limit; it is the game being over.
  */
+/** How many waves of a cascade are kept for the client to play back. */
+const FILMED = 64;
+
 function settle(state, owner) {
   const { cols, rows } = state.settings;
+  const film = [];
   let waves = 0;
+  let cut = 0;
 
   for (;;) {
     const over = state.cells
       .map((c, i) => ({ c, i }))
       .filter(({ c, i }) => c.n >= capacityOf(cols, rows, i % cols, Math.floor(i / cols)));
-    if (!over.length) return waves;
+    if (!over.length) break;
 
     waves += 1;
+    // Which cells are about to go, recorded *before* they go — the flash
+    // belongs on the cell that burst, not on the neighbours it fed.
+    const bursting = over.map(({ i }) => i);
+
     // A whole wave at once, so the order cells are visited in cannot change
     // the outcome — which it would if each burst were applied as it was found.
     for (const { c, i } of over) {
@@ -236,10 +258,25 @@ function settle(state, owner) {
         state.cells[j].owner = owner;
       }
     }
+
+    // The board after this wave, so the client can play the cascade rather than
+    // cut to the end of it. Watching the chain propagate is the entire game —
+    // sending only the final board is like reporting a firework as a noise.
+    if (film.length < FILMED) {
+      film.push({ burst: bursting, cells: state.cells.map((c) => ({ n: c.n, owner: c.owner })) });
+    } else {
+      cut += 1;
+    }
+
     // The only way out of a cascade that feeds itself.
     const colours = new Set(state.cells.filter((c) => c.n > 0).map((c) => c.owner));
-    if (colours.size <= 1) return waves;
+    if (colours.size <= 1) break;
   }
+
+  // A cascade long enough to be trimmed is rare and worth admitting to rather
+  // than hiding — the client says so instead of quietly skipping to the end.
+  state.bursting = film.length ? { film, cut, waves } : null;
+  return waves;
 }
 
 export { capacityOf, neighbours };
