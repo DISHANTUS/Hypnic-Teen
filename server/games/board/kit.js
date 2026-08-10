@@ -53,19 +53,21 @@ export function passTurn(state, to = null) {
 /* ------------------------------ ring geometry ----------------------------- */
 
 /**
- * One lap of a square ring, counter-clockwise, as [row, col] pairs.
+ * One lap of a square ring, clockwise on screen, as [row, col] pairs.
  *
- * Counter-clockwise on a screen where row zero is the top means starting at the
- * top-left and going *down* the left edge first — which reads as clockwise if
- * you picture the grid the other way up, and is the single easiest thing here
- * to get backwards.
+ * Clockwise where row zero is the top means starting at the top-left and going
+ * *right* along the top edge first, then down the right, left along the bottom,
+ * and up the left. This is the single easiest thing here to get backwards, and
+ * it was backwards for a while: the direction is not a matter of taste, it is
+ * fixed by where each player has to turn inward, which the board itself states
+ * in colour. See `inward` in thayam.js.
  */
 export function ringPath(lo, hi) {
   const cells = [];
-  for (let r = lo; r < hi; r++) cells.push([r, lo]);
-  for (let c = lo; c < hi; c++) cells.push([hi, c]);
-  for (let r = hi; r > lo; r--) cells.push([r, hi]);
-  for (let c = hi; c > lo; c--) cells.push([lo, c]);
+  for (let c = lo; c < hi; c++) cells.push([lo, c]);
+  for (let r = lo; r < hi; r++) cells.push([r, hi]);
+  for (let c = hi; c > lo; c--) cells.push([hi, c]);
+  for (let r = hi; r > lo; r--) cells.push([r, lo]);
   return cells;
 }
 

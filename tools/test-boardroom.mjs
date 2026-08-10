@@ -148,6 +148,34 @@ console.log('\n  The board room — the server refuses\n');
     wrong.length === 0, JSON.stringify(wrong));
   check('and that corner is always a cross',
     wire.paths.every((p) => SAFE.has(p[24])), wire.paths.map((p) => p[24]).join(' '));
+
+  // Travel is clockwise, and this is the check that pins it. The rule as spoken
+  // is "you turn in from the square one short of the cross you came on at", and
+  // for all four players at once that only works one way round: the 23rd square
+  // of the lap has to touch that player's own coloured corner. Anticlockwise it
+  // touches nothing of the sort for any of the four.
+  const notTouching = wire.paths.filter((p) => {
+    const [ar, ac] = p[23].split(',').map(Number);
+    const [br, bc] = p[24].split(',').map(Number);
+    return Math.abs(ar - br) > 1 || Math.abs(ac - bc) > 1;
+  });
+  check('the lap ends one short of your own cross, beside your corner',
+    notTouching.length === 0,
+    wire.paths.map((p) => `${p[0]}:${p[23]}->${p[24]}`).join(' '));
+
+  const top = wire.paths.find((p) => p[0] === '0,3');
+  check('and the direction is clockwise', top[1] === '0,4', `0,3 -> ${top[1]}`);
+
+  // A route that jumps would let a coin appear somewhere it never walked.
+  const jumps = wire.paths.flatMap((p) => p.slice(1).map((cell, i) => {
+    const [ar, ac] = p[i].split(',').map(Number);
+    const [br, bc] = cell.split(',').map(Number);
+    return Math.max(Math.abs(ar - br), Math.abs(ac - bc)) === 1 ? null : `${p[i]}->${cell}`;
+  })).filter(Boolean);
+  check('every step of every route is to a touching square',
+    jumps.length === 0, jumps.slice(0, 4).join(' '));
+  check('and no route walks the same square twice',
+    wire.paths.every((p) => new Set(p).size === 49));
 }
 
 /* ------------------------------ coming on --------------------------------- */
@@ -426,20 +454,27 @@ console.log('\n  The board room — the server refuses\n');
   check('thayam: coins on the outer ring cannot be paired',
     (thayam.serializeFor(state, seat.id).you.canPair ?? []).length === 0);
 
-  // Inside and together, they can.
-  a.at = 30;
-  b.at = 30;
+  // Inside and together on a mala, they can. The crosses are read off the route
+  // rather than written in, so a future correction to the board moves this
+  // fixture with it instead of quietly turning the check into a lie.
+  const route = thayam.serialize(state).paths[0];
+  const malas = route.map((cell, i) => (i > 24 && i < 48 && SAFE.has(cell) ? i : -1))
+    .filter((i) => i > 0);
+  check('thayam: there are inner malas to pair on', malas.length >= 2, malas.join(','));
+
+  a.at = malas[0];
+  b.at = malas[0];
   const offered = thayam.serializeFor(state, seat.id).you.canPair;
-  check('thayam: two of yours together inside can be paired',
+  check('thayam: two of yours together on an inner mala can be paired',
     offered.some((p) => p.includes(a.i) && p.includes(b.i)), JSON.stringify(offered));
 
   // Apart, they cannot.
-  b.at = 32;
+  b.at = malas[1];
   check('thayam: but not if they are on different squares',
     (thayam.serializeFor(state, seat.id).you.canPair ?? []).length === 0);
 
   // Join them.
-  b.at = 30;
+  b.at = malas[0];
   thayam.onAction(state, { id: seat.id }, { type: 'pair', coins: [a.i, b.i] }, api);
   check('thayam: pairing joins both coins', a.pair === b.i && b.pair === a.i, a.pair + '/' + b.pair);
 
@@ -448,14 +483,15 @@ console.log('\n  The board room — the server refuses\n');
   check('thayam: an odd throw cannot move a pair', odd.length === 0, JSON.stringify(odd));
   const even = legalMoves(state, seat, 4).filter((m) => m.coin === a.i || m.coin === b.i);
   check('thayam: an even throw moves it half as far',
-    even.length === 1 && even[0].to === 32, JSON.stringify(even));
+    even.length === 1 && even[0].to === malas[0] + 2, JSON.stringify(even));
   check('thayam: and it is offered once, not twice', even.length === 1, String(even.length));
 
   // Moving it takes both.
   state.rolled = { sticks: [2, 2], value: 4, grace: false };
   state.turn = 0;
   thayam.onAction(state, { id: seat.id }, { type: 'move', coin: even[0].coin }, api);
-  check('thayam: both coins of a pair move together', a.at === 32 && b.at === 32, a.at + '/' + b.at);
+  check('thayam: both coins of a pair move together',
+    a.at === malas[0] + 2 && b.at === malas[0] + 2, a.at + '/' + b.at);
 
   // And they can be separated again — on your own turn. The move above was not
   // a grace throw, so it handed the turn on, and the first version of this
@@ -518,6 +554,86 @@ console.log('\n  The board room — the server refuses\n');
   const view = thayam.serializeFor(state, seat.id);
   check('thayam: and the reason reaches the player',
     (view.you.blocked ?? []).some((x) => x.why === 'gate'), JSON.stringify(view.you.blocked));
+
+  // Stagnation: a coin that has walked the whole lap without a cut stops on the
+  // square before its own cross and cannot move again, whatever comes up.
+  coin.at = 23;
+  const stuck = [1, 2, 3, 4, 5, 6, 12]
+    .filter((v) => legalMoves(state, seat, v).some((m) => m.coin === coin.i));
+  check('thayam: a coin that walked the lap without a cut is stagnant',
+    stuck.length === 0, `still moves on ${stuck.join(',')}`);
+  seat.cuts = 1;
+  check('thayam: and one cut anywhere frees it',
+    legalMoves(state, seat, 3).some((m) => m.coin === coin.i && m.to === 26));
+}
+
+{
+  // The blockade win. If somebody gets every coin inside while you have never
+  // cut, there is nothing left out there for you to land on, so you can never
+  // get in — and the game is over even though nobody reached the middle.
+  const { state } = open(thayam, 2, { coins: 4 });
+  const [mine, theirs] = state.seats;
+  mine.cuts = 2;
+  theirs.cuts = 0;
+  for (const c of state.coins.filter((c2) => c2.seat === mine.seat)) c.at = 30;
+  for (const c of state.coins.filter((c2) => c2.seat === theirs.seat)) c.at = 20;
+
+  check('thayam: nobody is home yet',
+    state.seats.every((s) => (s.home ?? 0) === 0));
+  thayam.__spec.tick(state, 0.25);
+  check('thayam: all inside against a player who never cut ends it',
+    state.blockade === mine.seat && thayam.__spec.isDone(state), String(state.blockade));
+  check('thayam: and the shut-out player is told so',
+    thayam.serializeFor(state, theirs.id).you.shutOut === true);
+  check('thayam: while the winner is not',
+    thayam.serializeFor(state, mine.id).you.shutOut === false);
+  check('thayam: the winner ranks first',
+    thayam.results(state)[0].playerId === mine.id);
+
+  // But a coin still in hand is a coin that comes back out, and a coin that
+  // comes back out can be cut. That is not a blockade.
+  const { state: st2 } = open(thayam, 2, { coins: 4 });
+  const [a2, b2] = st2.seats;
+  a2.cuts = 2; b2.cuts = 0;
+  for (const c of st2.coins.filter((c2) => c2.seat === a2.seat)) c.at = 30;
+  st2.coins.find((c) => c.seat === a2.seat).at = -1;
+  for (const c of st2.coins.filter((c2) => c2.seat === b2.seat)) c.at = 20;
+  thayam.__spec.tick(st2, 0.25);
+  check('thayam: one coin still in hand is not a blockade',
+    st2.blockade === null && !thayam.__spec.isDone(st2), String(st2.blockade));
+
+  // Three players: two of them shut out can still cut each other, so neither is
+  // finished and the game goes on.
+  const { state: st3 } = open(thayam, 3, { coins: 3 });
+  const [a3, b3, c3] = st3.seats;
+  a3.cuts = 1; b3.cuts = 0; c3.cuts = 0;
+  for (const c of st3.coins.filter((x) => x.seat === a3.seat)) c.at = 30;
+  for (const c of st3.coins.filter((x) => x.seat !== a3.seat)) c.at = 20;
+  thayam.__spec.tick(st3, 0.25);
+  check('thayam: two shut-out players can still cut each other, so no blockade',
+    st3.blockade === null, String(st3.blockade));
+  void b3; void c3;
+
+  // And nothing fires at the opening throw, where everybody has no cuts and
+  // nothing on the board.
+  const { state: st4 } = open(thayam, 2, { coins: 4 });
+  thayam.__spec.tick(st4, 0.25);
+  check('thayam: a fresh board is not a blockade', st4.blockade === null);
+}
+
+{
+  // Pairing happens on a mala — safe ground — not on any old inner square.
+  const { state } = open(thayam, 2, { coins: 4 });
+  const seat = state.seats[0];
+  const path = thayam.serialize(state).paths[0];
+  const plain = path.findIndex((cell, i) => i > 24 && i < 48 && !SAFE.has(cell));
+  const [p, q] = state.coins.filter((c) => c.seat === 0);
+  p.at = plain; q.at = plain;
+  check('thayam: two coins on a plain inner square cannot be paired',
+    (thayam.serializeFor(state, seat.id).you.canPair ?? []).length === 0,
+    `square ${path[plain]}`);
+  thayam.onAction(state, { id: seat.id }, { type: 'pair', coins: [p.i, q.i] }, api);
+  check('thayam: and the server refuses it too', p.pair === null && q.pair === null);
 }
 
 /* ----------------------------------- Ludo --------------------------------- */

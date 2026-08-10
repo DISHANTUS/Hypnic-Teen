@@ -5207,6 +5207,16 @@ body.dropping::after {
   max-width: 30ch;
 }
 
+/* Shut out of the middle for good. Louder than "blocked for now", because it
+   is not a hint about this throw — it is the game telling you how it ends. */
+.bd-shutout {
+  color: var(--danger, #e74c3c);
+  font-weight: 600;
+  max-width: 34ch;
+  border-top: 1px solid rgba(231, 76, 60, 0.35);
+  padding-top: 0.35rem;
+}
+
 /* Chain Reaction: a grid of cells, each drawn as the orbs it holds. */
 .bd-board.is-chain { aspect-ratio: auto; gap: 3px; width: min(100%, 340px); }
 .bd-orbcell {

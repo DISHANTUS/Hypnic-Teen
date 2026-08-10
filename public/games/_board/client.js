@@ -789,9 +789,11 @@ export default {
               // such field at all, so negating an undefined came out true and
               // every player of it was being told about a rule that belongs to
               // a different game entirely.
-              hint: s.you?.yourTurn && s.you?.canLeaveFirstLayer === false
-                ? 'You cannot leave the outer ring until you have cut somebody.'
-                : NEXT[face] ?? '',
+              hint: s.you?.shutOut
+                ? 'Nothing left to cut — you cannot get inside any more.'
+                : s.you?.yourTurn && s.you?.canLeaveFirstLayer === false
+                  ? 'You cannot leave the outer ring until you have cut somebody.'
+                  : NEXT[face] ?? '',
               left: s.turnLeft,
               total: s.phaseTotal,
               yours: Boolean(s.you?.yourTurn),
@@ -847,6 +849,19 @@ export default {
         note.textContent = stuck.some((x) => x.why === 'gate')
           ? 'That would take a coin inside, and you have not cut anybody yet.'
           : 'That would land on a pair, and a single coin cannot cut one.';
+        $('#bdActs').appendChild(note);
+      }
+
+      // Shut out for good, which is a different thing from blocked for now and
+      // deserves to be said in different words. A player who has never cut and
+      // has nothing left to cut cannot reach the middle at all — telling them
+      // "not yet" would be a lie, and they would sit there throwing sticks at a
+      // game that is already decided.
+      if (face === 'thayam' && s.you?.shutOut) {
+        const note = document.createElement('span');
+        note.className = 'bd-blocked bd-shutout';
+        note.textContent = 'You never cut anybody, and there is nobody left out here to cut. '
+          + 'The inner track is closed to you.';
         $('#bdActs').appendChild(note);
       }
 

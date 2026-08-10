@@ -113,19 +113,31 @@ const RINGS = [ringPath(0, SIZE - 1), ringPath(1, SIZE - 2), ringPath(2, SIZE - 
  * Where a player turns in, one ring further down.
  *
  * Not the square directly inward from where they came on — the *corner* of the
- * next ring that lies ahead of them in the direction they are travelling. That
- * is what the real board says, and it says it in colour: each player's two
- * crosses are painted the same, their entry on the outer side and the inner
- * corner they turn in at. All four pairs agree, which is also how the direction
- * of travel was settled — down the left, right along the bottom, up the right,
- * left along the top.
+ * next ring painted in that player's own colour. The real board says this twice
+ * over and both readings agree, which is the only reason the direction of
+ * travel is knowable at all:
+ *
+ *   The colours. Each player has two crosses painted alike, their entry on the
+ *   outer side and the inner corner they turn in at. Bottom pairs with
+ *   bottom-right, left with bottom-left, top with top-left, right with
+ *   top-right.
+ *
+ *   The distance. A coin walks its whole lap and turns in from the square one
+ *   short of the cross it came on at — 23 of the outer ring's 24. For all four
+ *   players at once, that 23rd square touches their own coloured corner only if
+ *   travel runs right along the top, down the right, left along the bottom and
+ *   up the left. Clockwise. The other way round, not one of the four lands
+ *   anywhere near its corner.
+ *
+ * So this table and `ringPath`'s direction are one fact stated in two places,
+ * and the boardroom test checks both against each other.
  */
 const inward = (entry, ring) => {
   const [r, c] = entry;
-  if (c === 0) return [SIZE - 1 - ring, ring];                 // left, going down
-  if (r === SIZE - 1) return [SIZE - 1 - ring, SIZE - 1 - ring]; // bottom, going right
-  if (c === SIZE - 1) return [ring, SIZE - 1 - ring];          // right, going up
-  return [ring, ring];                                          // top, going left
+  if (c === 0) return [SIZE - 1 - ring, ring];                   // left  → bottom-left
+  if (r === SIZE - 1) return [SIZE - 1 - ring, SIZE - 1 - ring];  // bottom → bottom-right
+  if (c === SIZE - 1) return [ring, SIZE - 1 - ring];            // right → top-right
+  return [ring, ring];                                            // top   → top-left
 };
 
 const ENTRIES = BOARD.entries.map((k) => k.split(',').map(Number));
@@ -148,6 +160,38 @@ const FIRST_LAYER = RINGS[0].length;
 export const SAFE = new Set(BOARD.crosses);
 export const isSafe = (cell) => SAFE.has(cellKey(cell));
 
+/** Which square a coin is standing on, by its own route. */
+const cellOf = (coin) => cellKey(PATHS[coin.seat % 4][coin.at]);
+
+/**
+ * Shut out for good — no cuts, and nothing left anywhere that they could cut.
+ *
+ * A player who has never cut cannot leave the outer ring, and the only way to
+ * cut is to land on somebody out there with them. So once every other coin on
+ * the board is already inside — where they cannot follow — the door is not shut
+ * for now, it is shut forever. Coins still in hand do not count as safe: they
+ * come back out onto the ring, and a coin coming back out is a target.
+ *
+ * This is what makes the blockade win real rather than a formality. Without it
+ * the table would sit there throwing sticks at a game that was already decided.
+ */
+function shutOut(state, seat) {
+  if ((seat.cuts ?? 0) > 0) return false;
+  return !state.coins.some((c) => c.seat !== seat.seat && c.at < FIRST_LAYER);
+}
+
+/** The one player left who can still reach the middle, if there is exactly one. */
+function blockadeWinner(state) {
+  if (state.seats.length < 2) return null;
+  const alive = state.seats.filter((s) => !s.out && !shutOut(state, s));
+  if (alive.length !== 1) return null;
+  // Somebody has to have actually got inside — otherwise this fires on a board
+  // where everyone is simply still in hand at the start.
+  const win = alive[0];
+  if (!state.coins.some((c) => c.seat === win.seat && c.at >= FIRST_LAYER)) return null;
+  return win;
+}
+
 export const thayam = createBoardGame({
   id: 'thayam',
   name: 'Thayam',
@@ -163,10 +207,12 @@ export const thayam = createBoardGame({
     'Two long sticks are thrown. They read one, two, three or blank — both blank is twelve.',
     'Throw a one — dayam — to bring your first coin on. After that, a one or a five brings any coin on.',
     'One, five, six and twelve all earn you another throw.',
+    'Coins go round clockwise, a full lap of the outer ring, and turn inward at the corner cross painted your colour.',
     'Only one coin may stand on a plain square, even your own. A cross holds as many as you like.',
     'Land on somebody else off a cross and you cut them — that coin goes back to their hand, and you throw again.',
-    'You cannot leave the outer ring until you have cut somebody. It is a war, not a race — and a coin held at the gate simply does not move that throw.',
-    'Inside, two of your coins standing together may be paired. A pair moves half as far, so only even throws move it — and a single coin cannot cut a pair.',
+    'You cannot leave the outer ring until you have cut somebody. A coin that gets all the way round without one stops on the square before its own cross and stays there, dead, until somebody of yours draws blood.',
+    'So if a rival gets every coin inside while you have never cut, you can never follow — and they have won, centre or no centre.',
+    'Inside, two of your coins standing on the same cross may be paired. A pair moves half as far, so only even throws move it — and only another pair can cut it.',
     'Bring all your coins to the centre. You need the exact throw to land on it.',
   ],
 
@@ -180,6 +226,7 @@ export const thayam = createBoardGame({
     state.rolled = null;
     state.graceLeft = 0;
     state.mustMove = false;
+    state.blockade = null;
   },
 
   setUp(state) {
@@ -196,7 +243,21 @@ export const thayam = createBoardGame({
     }
     state.turn = 0;
     state.rolled = null;
+    state.blockade = null;
     state.said = 'Throw a one to come on.';
+  },
+
+  // Checked on the clock rather than after a move, because the thing that shuts
+  // the last door is somebody *else's* coin going inside, not your own.
+  tick(state) {
+    if (state.blockade !== null) return;
+    const win = blockadeWinner(state);
+    if (!win) return;
+    state.blockade = win.seat;
+    win.won = 1;
+    state.said = `${win.name} is inside and nobody else ever cut anybody — nobody can follow.`;
+    state.log.push(state.said);
+    state.dirty = true;
   },
 
   act(state, seat, action) {
@@ -229,10 +290,14 @@ export const thayam = createBoardGame({
       const b = state.coins.find((c) => c.seat === seat.seat && c.i === Number(action.coins?.[1]));
       if (!a || !b || a === b) return;
       if (a.pair !== null || b.pair !== null) return;
-      // Both have to be inside, and on the same square — you cannot pair coins
-      // that are not standing together.
+      // Both inside, on the same square, and that square a cross. Two of your
+      // coins can only ever share a plain square if something else has already
+      // gone wrong — one to a plain square is the rule — so this is belt and
+      // braces, but it is also the rule as it is actually spoken: you pair on a
+      // mala, standing together on safe ground.
       if (a.at < FIRST_LAYER || b.at < FIRST_LAYER) return;
       if (a.at !== b.at || a.at === HOME) return;
+      if (!SAFE.has(cellOf(a))) return;
       a.pair = b.i;
       b.pair = a.i;
       state.said = `${seat.name} pairs two coins.`;
@@ -300,11 +365,16 @@ export const thayam = createBoardGame({
   },
 
   isDone: (state) => state.seats.some((s) => s.home >= state.settings.coins)
+    || state.blockade !== null
     || inPlay(state).length <= 1,
 
   table(state) {
     return {
       size: SIZE,
+      // Who, if anybody, has won by shutting everybody else out of the middle,
+      // so the board can say why it stopped rather than just stopping.
+      blockade: state.blockade,
+      shutOut: state.seats.filter((s) => shutOut(state, s)).map((s) => s.seat),
       // Every square that is a cross, so the client draws the board rather
       // than being told where to put nine X marks.
       safe: [...SAFE],
@@ -332,7 +402,8 @@ export const thayam = createBoardGame({
     // Which of your coins could be joined right now: two of yours, inside, on
     // the same square, neither already paired.
     const inside = state.coins.filter((c) =>
-      c.seat === seat.seat && c.at >= FIRST_LAYER && c.at !== HOME && c.pair === null);
+      c.seat === seat.seat && c.at >= FIRST_LAYER && c.at !== HOME && c.pair === null
+      && SAFE.has(cellOf(c)));
     const canPair = [];
     for (let a = 0; a < inside.length; a++) {
       for (let b = a + 1; b < inside.length; b++) {
@@ -352,12 +423,18 @@ export const thayam = createBoardGame({
       needsThrow: !state.rolled,
       cuts: seat.cuts ?? 0,
       canLeaveFirstLayer: (seat.cuts ?? 0) > 0,
+      // Not "you cannot get in yet" but "you cannot get in, ever". Worth saying
+      // out loud — a player staring at a coin that will not move deserves to
+      // know which of the two it is.
+      shutOut: shutOut(state, seat),
       inHand: state.coins.filter((c) => c.seat === seat.seat && c.at === -1).length,
       home: seat.home ?? 0,
     };
   },
 
-  rank: (a, b) => (b.home ?? 0) - (a.home ?? 0) || (b.cuts ?? 0) - (a.cuts ?? 0),
+  rank: (a, b) => (b.won ?? 0) - (a.won ?? 0)
+    || (b.home ?? 0) - (a.home ?? 0)
+    || (b.cuts ?? 0) - (a.cuts ?? 0),
 });
 
 /* -------------------------------- the rules ------------------------------- */
@@ -486,6 +563,7 @@ function apply(state, seat, coin, move) {
     seat.score = seat.home * 10 + (seat.cuts ?? 0);
     state.said = `${seat.name} brings one home — ${seat.home} of ${state.settings.coins}.`;
     state.log.push(state.said);
+    if (seat.home >= state.settings.coins) seat.won = 1;
   } else {
     state.said = `${seat.name} moves ${move.to - move.from}.`;
   }
