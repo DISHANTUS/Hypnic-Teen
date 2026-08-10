@@ -7,8 +7,12 @@
 //
 //   npm run test:games
 
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+
 import { listGames, getGame } from '../server/games/index.js';
 
+const ROOT = path.join(import.meta.dirname, '..');
 const results = [];
 const check = (label, ok, extra = '') => {
   results.push({ ok, label });
@@ -79,10 +83,17 @@ check(
   party.length > 0 && party.every((g) => g.client === '_party'),
   `${party.length} party games: ${party.map((g) => g.id).join(', ')}`
 );
+// The rule that actually matters is that the renderer a game names exists —
+// not that it is the only game naming it. Slots, plinko, the wheel and scratch
+// cards are one game in four costumes and share a screen on purpose, which the
+// old "client === id" version read as four broken games.
 check(
-  'every other game names its own renderer',
-  standalone.every((g) => g.client === g.id),
-  standalone.map((g) => `${g.id}→${g.client}`).join(', ')
+  'every other game names a renderer that exists',
+  standalone.every((g) => existsSync(path.join(ROOT, 'public', 'games', g.client, 'client.js'))),
+  standalone
+    .filter((g) => !existsSync(path.join(ROOT, 'public', 'games', g.client, 'client.js')))
+    .map((g) => `${g.id}→${g.client} (missing)`)
+    .join(', ') || standalone.map((g) => `${g.id}→${g.client}`).join(', ')
 );
 
 /* ------------------------- every game completes -------------------------- */

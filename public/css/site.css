@@ -1149,6 +1149,9 @@ input::placeholder { color: var(--text-3); }
 .stage-wrap.cw-stage,
 .stage-wrap.rl-stage,
 .stage-wrap.he-stage,
+.stage-wrap.bj-stage,
+.stage-wrap.lo-stage,
+.stage-wrap.ch-stage,
 .stage-wrap.td-stage {
   overflow-y: auto;
   overflow-x: hidden;
@@ -1177,6 +1180,9 @@ input::placeholder { color: var(--text-3); }
 .stage-wrap.cw-stage,
 .stage-wrap.rl-stage,
 .stage-wrap.he-stage,
+.stage-wrap.bj-stage,
+.stage-wrap.lo-stage,
+.stage-wrap.ch-stage,
   .stage-wrap.td-stage {
     max-height: none;
     overflow: visible;
@@ -4035,3 +4041,264 @@ body.dropping::after {
 
 .he-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .he-log li { font-size: 0.68rem; color: var(--text-3); }
+
+/* ----------------------------------------------------------- blackjack */
+
+/* No dealer, so the screen is about the other players rather than one hand you
+   are trying to beat. How many cards somebody is holding is the real tell. */
+
+.bj { display: grid; gap: var(--sp-md); padding: var(--sp-lg); }
+.bj-table { display: grid; gap: var(--sp-md); }
+
+.bj-pot { display: flex; align-items: baseline; gap: var(--sp-sm); justify-content: center; flex-wrap: wrap; }
+.bj-pot span { font-size: var(--t-label); color: var(--text-3); }
+.bj-pot b { font-family: var(--font-display); font-size: var(--t-h3); color: var(--accent); }
+.bj-pot small { font-size: 0.62rem; color: var(--warning); width: 100%; text-align: center; }
+.bj-said { text-align: center; font-size: var(--t-label); min-height: 1.2em; }
+
+.bj-card {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 54px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: #fdfdfb;
+  color: #1b1c22;
+  font-family: var(--font-display);
+  line-height: 1;
+}
+.bj-card b { font-size: 1rem; }
+.bj-card i { font-style: normal; font-size: 0.85rem; }
+.bj-card.is-red { color: #c8392b; }
+.bj-card.is-back {
+  background: repeating-linear-gradient(45deg, #7a2230, #7a2230 4px, #93313f 4px, #93313f 8px);
+  border-color: #5e1a25;
+}
+.bj-card.is-small { width: 24px; height: 34px; }
+.bj-card.is-small b { font-size: 0.66rem; }
+.bj-card.is-small i { font-size: 0.58rem; }
+
+.bj-seats { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: var(--sp-sm); }
+.bj-seat {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: var(--sp-sm);
+  border: var(--bd-w) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.bj-seat.is-you { border-color: var(--accent); }
+.bj-seat.is-out { opacity: 0.4; }
+.bj-seat.is-bust { border-color: var(--danger); opacity: 0.7; }
+.bj-seat.is-stood { background: color-mix(in srgb, var(--success) 10%, var(--surface)); }
+.bj-seat-cards { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; }
+.bj-seat-who { display: grid; justify-items: center; gap: 1px; text-align: center; }
+.bj-seat-who b { font-size: 0.68rem; max-width: 11ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bj-seat-who small { font-size: 0.58rem; color: var(--text-3); }
+
+.bj-you {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+  padding: var(--sp-md);
+  border-radius: var(--r-md);
+  background: var(--glass);
+}
+.bj-hand { display: flex; gap: 4px; flex-wrap: wrap; }
+.bj-total { display: grid; gap: 1px; }
+.bj-total b { font-family: var(--font-display); font-size: var(--t-h2); }
+.bj-total b.is-bust { color: var(--danger); }
+.bj-total b.is-blackjack { color: var(--success); }
+.bj-total small { font-size: 0.62rem; color: var(--text-3); }
+
+.bj-acts { display: flex; gap: var(--sp-sm); flex-wrap: wrap; }
+.bj-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.bj-log li { font-size: 0.68rem; color: var(--text-3); }
+
+/* ------------------------------------------------------------- lottery */
+
+.lo { display: grid; gap: var(--sp-md); padding: var(--sp-lg); }
+.lo-table { display: grid; gap: var(--sp-md); }
+
+.lo-pot { display: flex; align-items: baseline; gap: var(--sp-sm); justify-content: center; flex-wrap: wrap; }
+.lo-pot span { font-size: var(--t-label); color: var(--text-3); }
+.lo-pot b { font-family: var(--font-display); font-size: var(--t-h2); color: var(--accent); }
+.lo-pot small { width: 100%; text-align: center; font-size: 0.62rem; color: var(--warning); }
+
+/* The balls, one at a time. */
+.lo-balls { display: flex; gap: var(--sp-sm); justify-content: center; min-height: 46px; flex-wrap: wrap; }
+.lo-ball {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+  font-family: var(--font-display);
+  font-size: var(--t-title);
+  animation: lo-ball-kf 460ms var(--ease-entrance);
+}
+@keyframes lo-ball-kf {
+  0% { opacity: 0; transform: translateY(-22px) scale(0.6); }
+  60% { opacity: 1; transform: translateY(4px) scale(1.12); }
+  100% { opacity: 1; transform: none; }
+}
+.lo-said { text-align: center; font-size: var(--t-label); min-height: 1.2em; }
+
+/* Picking six. Big targets — this is one thumb in a hurry. */
+.lo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(40px, 1fr)); gap: 4px; }
+.lo-num {
+  min-height: 40px;
+  border: var(--bd-w) solid var(--ink);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: inherit;
+  font-family: var(--font-display);
+  font-size: var(--t-label);
+  cursor: pointer;
+}
+.lo-num.is-on { background: var(--accent); color: var(--on-accent, #fff); border-color: var(--accent); }
+.lo-buy { display: flex; gap: var(--sp-sm); align-items: center; flex-wrap: wrap; margin-top: var(--sp-sm); }
+.lo-chosen { flex: 1; min-width: 120px; font-size: var(--t-label); color: var(--text-3); }
+
+.lo-mine, .lo-tickets { display: grid; gap: 3px; }
+.lo-ticket {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 3px var(--sp-sm);
+  border-radius: var(--r-sm);
+  background: var(--glass);
+  font-size: 0.66rem;
+}
+.lo-ticket.is-mine { background: color-mix(in srgb, var(--accent) 12%, var(--glass)); }
+.lo-ticket b { min-width: 7ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lo-ticket small { color: var(--text-3); margin-left: auto; }
+.lo-tnum {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 3px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  font-family: var(--font-display);
+}
+.lo-tnum.is-hit { background: var(--success); color: #fff; }
+
+.lo-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.lo-log li { font-size: 0.68rem; color: var(--text-3); }
+
+@media (prefers-reduced-motion: reduce) { .lo-ball { animation: none; } }
+
+/* ------------------------------------------------------------ the machines */
+
+/* Slots, plinko, the wheel and scratch cards share a screen, because they
+   share a game: stake, everybody goes at once, best result takes the pot. */
+
+.ch { display: grid; gap: var(--sp-md); padding: var(--sp-lg); }
+.ch-table { display: grid; gap: var(--sp-md); justify-items: center; }
+
+.ch-pot { display: flex; align-items: baseline; gap: var(--sp-sm); flex-wrap: wrap; justify-content: center; }
+.ch-pot span { font-size: var(--t-label); color: var(--text-3); }
+.ch-pot b { font-family: var(--font-display); font-size: var(--t-h2); color: var(--accent); }
+.ch-pot small { width: 100%; text-align: center; font-size: 0.62rem; color: var(--warning); }
+
+.ch-mine { display: grid; place-items: center; min-height: 92px; width: 100%; }
+.ch-said { text-align: center; font-size: var(--t-label); min-height: 1.2em; }
+.ch-acts { display: flex; gap: var(--sp-sm); flex-wrap: wrap; justify-content: center; }
+
+/* Reels and scratch panels are the same shape with a different count. */
+.ch-reels, .ch-panels { display: flex; gap: var(--sp-sm); flex-wrap: wrap; justify-content: center; }
+.ch-panels { max-width: 260px; }
+.ch-cell {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 68px;
+  border: var(--bd-w) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  font-size: 1.8rem;
+}
+.ch-cell.is-spinning { animation: ch-spin-kf 340ms steps(3) infinite; }
+@keyframes ch-spin-kf {
+  0% { transform: translateY(-6px); opacity: 0.5; }
+  50% { transform: translateY(6px); opacity: 1; }
+  100% { transform: translateY(-6px); opacity: 0.5; }
+}
+
+/* The plinko board: a row of slots, worth more towards the edges. */
+.ch-plinko {
+  /* Set from the client once it knows how many rows the board has;
+     declared here so it has a shape before that. */
+  --slots: 13;
+  display: grid;
+  grid-template-columns: repeat(var(--slots), 1fr);
+  gap: 2px;
+  width: 100%;
+}
+.ch-slot {
+  display: grid;
+  place-items: center;
+  min-height: 34px;
+  border-radius: var(--r-sm);
+  background: var(--glass);
+  font-family: var(--font-display);
+  font-size: 0.56rem;
+}
+.ch-slot.is-hit { background: var(--accent); color: var(--on-accent, #fff); }
+.ch-disc {
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin-top: var(--sp-sm);
+  border-radius: 50%;
+  background: var(--accent);
+  animation: ch-drop-kf 900ms var(--ease-standard) infinite;
+}
+@keyframes ch-drop-kf {
+  0% { transform: translateY(-30px); opacity: 0; }
+  40% { opacity: 1; }
+  100% { transform: translateY(10px); opacity: 0; }
+}
+
+.ch-wedge {
+  display: grid;
+  place-items: center;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  border: 4px solid var(--accent);
+  font-family: var(--font-display);
+  font-size: 2rem;
+  color: var(--accent);
+}
+.ch-wedge.is-spinning { animation: ch-wheel-kf 700ms linear infinite; }
+@keyframes ch-wheel-kf { to { transform: rotate(360deg); } }
+
+.ch-others { display: flex; gap: var(--sp-sm); flex-wrap: wrap; justify-content: center; }
+.ch-other {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  padding: var(--sp-xs) var(--sp-sm);
+  border-radius: var(--r-sm);
+  background: var(--glass);
+  font-size: 0.62rem;
+}
+.ch-other.is-you { background: color-mix(in srgb, var(--accent) 14%, var(--glass)); }
+.ch-other.is-won { background: color-mix(in srgb, var(--success) 20%, var(--glass)); }
+.ch-other b { font-size: 0.66rem; max-width: 10ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-other i { font-style: normal; color: var(--text-3); }
+
+.ch-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; width: 100%; }
+.ch-log li { font-size: 0.68rem; color: var(--text-3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ch-cell.is-spinning, .ch-disc, .ch-wedge.is-spinning { animation: none; }
+}

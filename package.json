@@ -56,7 +56,10 @@
     "test:roulette:ui": "node tools/test-roulette-ui.mjs",
     "test:cards": "node tools/test-cards.mjs",
     "test:holdem": "node tools/test-holdem.mjs",
-    "test:holdem:ui": "node tools/test-holdem-ui.mjs"
+    "test:holdem:ui": "node tools/test-holdem-ui.mjs",
+    "test:blackjack": "node tools/test-blackjack.mjs",
+    "test:lottery": "node tools/test-lottery.mjs",
+    "test:chance": "node tools/test-chance.mjs"
   },
   "engines": {
     "node": ">=20"
