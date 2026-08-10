@@ -31,8 +31,9 @@ import songs from './songs.js';
 import arena from './arena.js';
 import battleship from './battleship.js';
 import standoff from './standoff.js';
+import crossword from './crossword.js';
 
-const modules = [clash, imposter, truthDare, situations, quiz, findWord, movies, songs, poll, standoff, arena, battleship];
+const modules = [clash, imposter, truthDare, situations, quiz, findWord, movies, songs, poll, standoff, crossword, arena, battleship];
 
 const registry = new Map(modules.map((g) => [g.id, g]));
 

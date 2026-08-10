@@ -47,7 +47,10 @@
     "test:poll-written": "node tools/test-poll-written.mjs",
     "test:mail": "node tools/test-mail.mjs",
     "test:standoff": "node tools/test-standoff.mjs",
-    "test:standoff:ui": "node tools/test-standoff-ui.mjs"
+    "test:standoff:ui": "node tools/test-standoff-ui.mjs",
+    "test:crossword:grid": "node tools/test-crossword-grid.mjs",
+    "test:crossword": "node tools/test-crossword.mjs",
+    "test:crossword:ui": "node tools/test-crossword-ui.mjs"
   },
   "engines": {
     "node": ">=20"

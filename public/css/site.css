@@ -1146,6 +1146,7 @@ input::placeholder { color: var(--text-3); }
 .stage-wrap.party-stage,
 .stage-wrap.bs-stage,
 .stage-wrap.so-stage,
+.stage-wrap.cw-stage,
 .stage-wrap.td-stage {
   overflow-y: auto;
   overflow-x: hidden;
@@ -1171,6 +1172,7 @@ input::placeholder { color: var(--text-3); }
   .stage-wrap.party-stage,
   .stage-wrap.bs-stage,
   .stage-wrap.so-stage,
+.stage-wrap.cw-stage,
   .stage-wrap.td-stage {
     max-height: none;
     overflow: visible;
@@ -3643,4 +3645,159 @@ body.dropping::after {
   .so-beam { animation: none; }
   .so-beam { opacity: 0.55; }
   .so-throw:hover:not(:disabled) { transform: none; }
+}
+
+/* ------------------------------------------------------------ crossword */
+
+/* One puzzle, several sides racing it. The grid must fit a phone without
+   scrolling sideways: the half of the board you cannot see is the half your
+   teammate just filled in. */
+
+.cw { display: grid; gap: var(--sp-lg); padding: var(--sp-lg); }
+.cw-table { display: grid; gap: var(--sp-lg); }
+
+/* Who is where. In a solo room this is the scoreboard; in teams it is also
+   who you are playing with. */
+.cw-sides { display: flex; flex-wrap: wrap; gap: var(--sp-sm); }
+.cw-side {
+  /* Set from the client to the side colour; declared here so the chip is
+     right before that happens. */
+  --side: var(--accent);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'name score' 'who score';
+  gap: 0 var(--sp-sm);
+  align-items: center;
+  flex: 1 1 140px;
+  padding: var(--sp-sm) var(--sp-md);
+  border-left: 3px solid var(--side, var(--accent));
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  background: var(--glass);
+}
+.cw-side.is-you { background: color-mix(in srgb, var(--side) 16%, var(--glass)); }
+.cw-side b { grid-area: name; font-size: var(--t-label); }
+.cw-side span { grid-area: score; font-family: var(--font-display); font-size: var(--t-title); color: var(--side); }
+.cw-side small { grid-area: who; font-size: 0.62rem; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The word the room has been shown. Loudest thing on the screen, deliberately
+   — it is a race and the race has to start the moment it appears. */
+.cw-flash {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: var(--sp-md);
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+  text-align: center;
+  animation: cw-flash-kf 500ms var(--ease-entrance);
+}
+@keyframes cw-flash-kf {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+.cw-flash-label { font-size: var(--t-label); opacity: 0.9; }
+.cw-flash-word { font-family: var(--font-display); font-size: clamp(1.6rem, 8vw, 2.4rem); letter-spacing: 0.08em; }
+.cw-flash-where, .cw-flash-clock { font-size: var(--t-label); opacity: 0.85; }
+
+/* The board. Sized off the column count so a 13-wide puzzle shrinks to fit
+   rather than running off the side. */
+.cw-gridwrap { display: flex; justify-content: center; }
+.cw-grid {
+  /* Both set from the client once it knows the puzzle. Declared so the grid
+     has a shape before the first state arrives. */
+  --cols: 10;
+  --rows: 10;
+  display: grid;
+  grid-template-columns: repeat(var(--cols), 1fr);
+  gap: 2px;
+  width: min(100%, calc(var(--cols) * 42px));
+  aspect-ratio: var(--cols) / var(--rows);
+}
+.cw-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface);
+  font-family: var(--font-display);
+  font-size: clamp(0.7rem, 3.4vw, 1.05rem);
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--m-fast) var(--ease-standard);
+}
+/* A square no word runs through. Not a hole — the grid keeps its shape. */
+.cw-cell.is-block { background: transparent; border-color: transparent; cursor: default; }
+.cw-cell.is-on { background: color-mix(in srgb, var(--accent) 22%, var(--surface)); border-color: var(--accent); }
+.cw-cell.is-done { background: color-mix(in srgb, var(--success) 12%, var(--surface)); }
+.cw-cell.is-fill { animation: cw-fill-kf 420ms var(--ease-entrance); }
+@keyframes cw-fill-kf {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.cw-num {
+  position: absolute;
+  top: 1px;
+  left: 2px;
+  font-family: var(--font-ui);
+  font-size: 0.42rem;
+  color: var(--text-3);
+  line-height: 1;
+}
+.cw-letter { font-weight: 700; }
+
+/* Typing an answer. A whole word at a time — square-by-square entry on a
+   touchscreen is how a room gives up on a crossword. */
+.cw-answer {
+  padding: var(--sp-md);
+  border: var(--bd-w) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.cw-answer label { display: grid; gap: 1px; margin-bottom: var(--sp-sm); }
+.cw-answer label b { font-size: var(--t-label); color: var(--accent); }
+.cw-answer label span { font-size: var(--t-label); }
+.cw-answer-row { display: flex; gap: var(--sp-sm); }
+.cw-answer-row input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-title);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.cw-answer-note { margin: var(--sp-sm) 0 0; font-size: var(--t-label); color: var(--warning); }
+
+/* The clue lists. Two columns where there is room, one where there is not. */
+.cw-clues { display: grid; gap: var(--sp-lg); grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.cw-clues h3 { margin: 0 0 var(--sp-sm); font-size: var(--t-label); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
+.cw-clues ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.cw-clue {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr;
+  grid-template-areas: 'num text' 'num note';
+  gap: 0 var(--sp-sm);
+  padding: var(--sp-xs) var(--sp-sm);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background var(--m-fast) var(--ease-standard);
+}
+.cw-clue:hover { background: var(--glass); }
+.cw-clue.is-on { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.cw-clue.is-solved { opacity: 0.55; cursor: default; }
+.cw-clue.is-solved .cw-clue-text { text-decoration: line-through; }
+.cw-clue.is-locked { opacity: 0.75; cursor: not-allowed; }
+.cw-clue b { grid-area: num; font-size: var(--t-label); color: var(--text-3); }
+.cw-clue-text { grid-area: text; font-size: var(--t-label); line-height: 1.35; }
+.cw-clue-note { grid-area: note; font-size: 0.62rem; color: var(--text-3); }
+.cw-clue.is-locked .cw-clue-note { color: var(--warning); }
+
+.cw-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.cw-log li { font-size: 0.68rem; color: var(--text-3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cw-cell.is-fill, .cw-flash { animation: none; }
 }
