@@ -7,6 +7,19 @@
 
 import { Sound } from '/js/sound.js';
 import { confetti, floatText, pulse } from '/js/fx.js';
+import { mountClock, clockFrom } from '/js/turnclock.mjs';
+
+/**
+ * What each phase is called, and what happens after it.
+ *
+ * The second half is the point: a clock says how long is left and says nothing
+ * about what is about to happen, which was the other half of the complaint.
+ */
+const CLOCK_PHASES = {
+    brief: { label: 'Everybody is reading the rules', hint: 'Then throwing opens.' },
+    bets: { label: 'Throw in what you like', hint: 'Your chance is exactly your share of the pot.' },
+    payout: { label: 'Paying out', hint: 'Then it goes again.' },
+  };
 
 export default {
   mount({ canvas, wrap, hud, Net }) {
@@ -44,6 +57,8 @@ export default {
         <span class="hud-chip" id="jpClock">—</span>
         <span class="hud-chip hud-accent" id="jpPhase">Throw in</span>
       </div>`;
+
+    const clock = mountClock(hud);
 
     const $ = (sel) => root.querySelector(sel);
     const $hud = (sel) => hud.querySelector(sel);
@@ -96,6 +111,8 @@ export default {
     }
 
     function paint(s) {
+      // Whose turn, how long, and what comes next.
+      clock.paint(clockFrom(s, CLOCK_PHASES, { yours: Boolean(s.you?.yourTurn ?? s.you?.can ?? s.you?.canPlay) }));
       if (s.phase === 'brief') {
         brief.hidden = false;
         table.hidden = true;
@@ -186,6 +203,7 @@ export default {
     const off = Net.on('game:state', paint);
 
     return () => {
+      clock.destroy();
       off?.();
       wrap.classList.remove('jp-stage');
       root.remove();

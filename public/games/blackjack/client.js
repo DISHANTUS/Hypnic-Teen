@@ -10,6 +10,7 @@
 
 import { Sound } from '/js/sound.js';
 import { confetti, floatText, shake, pulse } from '/js/fx.js';
+import { mountClock, clockFrom } from '/js/turnclock.mjs';
 
 const SUIT = { s: '♠', h: '♥', d: '♦', c: '♣' };
 const REDS = new Set(['h', 'd']);
@@ -26,6 +27,19 @@ function cardEl(code, small = false) {
   el.innerHTML = `<b>${rank}</b><i>${SUIT[code[1]] ?? ''}</i>`;
   return el;
 }
+
+/**
+ * What each phase is called, and what happens after it.
+ *
+ * The second half is the point: a clock says how long is left and says nothing
+ * about what is about to happen, which was the other half of the complaint.
+ */
+const CLOCK_PHASES = {
+    brief: { label: 'Everybody is reading the rules', hint: 'Then the ante.' },
+    bets: { label: 'Ante up', hint: 'Then two cards each, one of everybody else’s face down.' },
+    play: { label: 'Playing the hands', you: 'Your move', hint: 'Closest to twenty-one without going over.' },
+    payout: { label: 'Paying out', hint: 'Then the next hand.' },
+  };
 
 export default {
   mount({ canvas, wrap, hud, Net }) {
@@ -64,6 +78,8 @@ export default {
         <span class="hud-chip" id="bjClock">—</span>
         <span class="hud-chip hud-accent" id="bjPhase">Ante up</span>
       </div>`;
+
+    const clock = mountClock(hud);
 
     const $ = (sel) => root.querySelector(sel);
     const $hud = (sel) => hud.querySelector(sel);
@@ -160,6 +176,8 @@ export default {
     }
 
     function paint(s) {
+      // Whose turn, how long, and what comes next.
+      clock.paint(clockFrom(s, CLOCK_PHASES, { yours: Boolean(s.you?.yourTurn ?? s.you?.can ?? s.you?.canPlay) }));
       if (s.phase === 'brief') {
         brief.hidden = false;
         table.hidden = true;
@@ -235,6 +253,7 @@ export default {
     const off = Net.on('game:state', paint);
 
     return () => {
+      clock.destroy();
       off?.();
       wrap.classList.remove('bj-stage');
       root.remove();

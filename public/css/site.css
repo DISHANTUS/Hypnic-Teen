@@ -4965,3 +4965,49 @@ body.dropping::after {
   font-size: 0.72rem;
 }
 .cage-rate { margin: 0; }
+
+/* ------------------------------------------------------------- the clock */
+
+/* Sits under the hud chips, full width, so it is the first thing in the
+   playing area rather than another small badge among small badges. */
+.clk { display: grid; gap: 3px; width: 100%; padding: var(--sp-xs) 0 0; }
+.clk-row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-sm); }
+.clk-who { font-size: 0.82rem; font-family: var(--font-display); color: var(--text-2); }
+.clk-who.is-you { color: var(--accent); }
+.clk-left { font-size: 0.72rem; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+.clk-track {
+  height: 5px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-3) 22%, transparent);
+  overflow: hidden;
+}
+.clk-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--text-3);
+  /* Matches the tick rate rather than being instant, so the bar slides between
+     pushes instead of stepping. Linear, because an eased countdown reads as
+     the clock speeding up and slowing down. */
+  transition: width 260ms linear;
+}
+.clk.is-you .clk-fill { background: var(--accent); }
+.clk.is-urgent .clk-fill { background: var(--warning); }
+.clk.is-urgent .clk-left { color: var(--warning); }
+.clk.is-idle .clk-track { opacity: 0.25; }
+
+.clk-next { font-size: 0.62rem; color: var(--text-3); }
+
+/* Only when it becomes urgent, and only when it is your turn — a table that
+   pulses at everybody all the time is a table people stop looking at. */
+.clk-nudge .clk-track { animation: clk-nudge-kf 700ms ease-out 2; }
+@keyframes clk-nudge-kf {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(2.2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clk-fill { transition: none; }
+  .clk-nudge .clk-track { animation: none; }
+}

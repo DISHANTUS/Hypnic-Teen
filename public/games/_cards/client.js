@@ -12,6 +12,7 @@
 
 import { Sound } from '/js/sound.js';
 import { confetti, floatText, pulse, motionReduced } from '/js/fx.js';
+import { mountClock } from '/js/turnclock.mjs';
 
 const SUIT = { s: '♠', h: '♥', d: '♦', c: '♣' };
 const REDS = new Set(['h', 'd']);
@@ -41,6 +42,40 @@ function cardEl(code, { small = false } = {}) {
 }
 
 const label = (code) => `${RANK_LABEL[code[0]] ?? code[0]}${SUIT[code[1]] ?? ''}`;
+
+/**
+ * What happens after this, per game.
+ *
+ * The feedback was that nobody could tell how a game flowed. A clock alone does
+ * not answer that — somebody watching a betting phase has no way to know a
+ * wheel is about to spin unless the table says so. These are the lines that
+ * say so, and they are per face because the honest answer differs every time.
+ */
+const NEXT = {
+  cheat: 'Then anyone can call you a liar.',
+  snap: 'Watch for two of the same, back to back.',
+  gofish: 'Ask for a rank you are already holding.',
+  hearts: 'Follow the suit led if you can.',
+  crazy8s: 'Match the top card by suit or number.',
+  president: 'Beat the set or pass.',
+  sevens: 'If you can play, you must.',
+  speed: 'No turns — play the moment you see one.',
+  war: 'The cards decide it. Nothing to do but watch.',
+  oldmaid: 'Draw blind from the player on your left.',
+  memory: 'Everybody gets a moment to see a miss.',
+  spoons: 'Four of a kind and grab. Then everybody grabs.',
+  tricks: 'Highest trump takes it, or highest of the suit led.',
+  rummy: 'Draw, lay what you can, throw one away.',
+  golf: 'Lowest total wins. A matched column is nothing.',
+  cribbage: 'Never past thirty-one.',
+  solitaire: 'Same deal for everybody — furthest wins.',
+  liars: 'Anyone can call it.',
+  skull: 'Bid what you could turn over, starting with your own.',
+  keg: 'Draw last. Hope it is not the keg.',
+  plates: 'Everybody picks at once, then the hands move round.',
+  envelope: 'Everything played is public. Count what has gone.',
+  shares: 'Three complete sets and you are out.',
+};
 
 export default {
   mount({ canvas, wrap, hud, Net, meta }) {
@@ -76,6 +111,8 @@ export default {
         <span class="hud-chip" id="cdClock">—</span>
         <span class="hud-chip hud-accent" id="cdTurn">—</span>
       </div>`;
+
+    const clock = mountClock(hud);
 
     const $ = (sel) => root.querySelector(sel);
     const $hud = (sel) => hud.querySelector(sel);
@@ -1305,6 +1342,12 @@ export default {
         const waiting = s.seats.filter((p) => p.connected && !s.briefed.includes(p.id)).length;
         $('#cdBriefWait').textContent = waiting ? `${waiting} still reading…` : 'Everyone is ready.';
         $hud('#cdClock').textContent = `${s.timeLeft}s`;
+        clock.paint({
+          label: waiting ? 'Everybody is reading the rules' : 'Everybody is ready',
+          hint: NEXT[face] ?? '',
+          left: s.timeLeft,
+          total: s.phaseTotal,
+        });
         return;
       }
 
@@ -1321,6 +1364,36 @@ export default {
         : s.phase === 'between' ? 'Scoring'
         : s.you?.yourTurn ? 'Your turn'
         : s.turnName ? `${s.turnName}'s turn` : 'Playing';
+
+      // Whose turn, how long, and what comes next — the three things the
+      // feedback said were missing, in one strip rather than three chips.
+      const mySeat = s.you?.seat;
+      const turnName = s.turnName || '';
+      clock.paint(
+        s.phase === 'between' ? {
+          label: 'Scoring the hand',
+          hint: 'The next hand deals itself.',
+          left: s.timeLeft,
+          total: s.phaseTotal,
+        } : s.phase === 'over' ? {
+          label: 'That is the lot',
+          hint: '',
+          idle: true,
+        } : s.turnLeft > 0 ? {
+          label: s.you?.yourTurn ? 'Your turn' : turnName ? `Waiting on ${turnName}` : 'Playing',
+          hint: NEXT[face] ?? '',
+          left: s.turnLeft,
+          total: s.phaseTotal || s.turnLeft,
+          yours: Boolean(s.you?.yourTurn),
+        } : {
+          // The games with no turns at all — Snap, Speed, Spoons, War. Saying
+          // "waiting on nobody" would be worse than saying nothing.
+          label: 'Everybody at once',
+          hint: NEXT[face] ?? '',
+          idle: true,
+        }
+      );
+      void mySeat;
 
       if (shownHand !== s.hand) {
         shownHand = s.hand;
@@ -1386,6 +1459,7 @@ export default {
 
     return () => {
       off?.();
+      clock.destroy();
       wrap.classList.remove('cd-stage');
       root.remove();
       hud.innerHTML = '';

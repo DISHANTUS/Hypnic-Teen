@@ -227,6 +227,13 @@ for (const game of GAMES) {
 
   check(`${game.name}: it says whose turn it is`, Boolean(await textOf('#cdTurn')), await textOf('#cdTurn'));
 
+  // The clock. A blank one looks exactly like no clock, so this asks for the
+  // words rather than for the element.
+  check(`${game.name}: the clock says what is happening`,
+    Boolean((await textOf('.clk-who'))?.trim()), await textOf('.clk-who'));
+  check(`${game.name}: and what happens next`,
+    Boolean((await textOf('.clk-next'))?.trim()), await textOf('.clk-next'));
+
   const fit = JSON.parse(await evaluate(`
     const w = document.documentElement;
     return JSON.stringify({ pageWidth: w.clientWidth, scrollWidth: w.scrollWidth });

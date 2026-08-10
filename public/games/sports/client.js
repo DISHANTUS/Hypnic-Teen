@@ -12,8 +12,19 @@
 
 import { Sound } from '/js/sound.js';
 import { confetti, floatText, pulse } from '/js/fx.js';
+import { mountClock, clockFrom } from '/js/turnclock.mjs';
 
 const AMOUNTS = [10, 25, 50, 100];
+
+/**
+ * What each phase is called, and what happens after it.
+ *
+ * The second half is the point: a clock says how long is left and says nothing
+ * about what is about to happen, which was the other half of the complaint.
+ */
+const CLOCK_PHASES = {
+    brief: { label: 'Everybody is reading the rules', hint: 'Then the first market opens.' },
+  };
 
 export default {
   mount({ canvas, wrap, hud, Net }) {
@@ -67,6 +78,8 @@ export default {
         <span class="hud-chip" id="spTimer">—</span>
         <span class="hud-chip hud-accent" id="spPhase">Betting</span>
       </div>`;
+
+    const clock = mountClock(hud);
 
     const $ = (sel) => root.querySelector(sel);
     const $hud = (sel) => hud.querySelector(sel);
@@ -163,6 +176,31 @@ export default {
     }
 
     function paint(s) {
+      // This table's clock belongs to the market, not to the table — several
+      // are in flight at once and the one that matters is whichever is still
+      // taking bets. The generic phase mapping has nothing to say about that,
+      // so it only covers the brief and this covers the rest.
+      if (s.phase === 'brief') {
+        clock.paint(clockFrom(s, CLOCK_PHASES, {}));
+      } else if (!s.matchId) {
+        clock.paint({ label: 'Waiting on a match', hint: 'The host picks what everybody is watching.', idle: true });
+      } else if (s.open?.phase === 'betting') {
+        clock.paint({
+          label: 'Betting is open',
+          hint: 'When it shuts, the window starts — nothing you have already seen counts.',
+          left: s.open.timeLeft,
+          total: s.phaseTotal,
+          yours: true,
+        });
+      } else if (s.open?.phase === 'locking') {
+        clock.paint({ label: 'Shutting', hint: 'Reading the match to start the clock.', idle: true });
+      } else {
+        clock.paint({
+          label: s.pending?.length ? `${s.pending.length} out on the match` : 'Between markets',
+          hint: 'Results come off the internet. Nobody here decides them.',
+          idle: true,
+        });
+      }
       if (s.phase === 'brief') {
         brief.hidden = false;
         table.hidden = true;
@@ -313,6 +351,7 @@ export default {
     const off = Net.on('game:state', paint);
 
     return () => {
+      clock.destroy();
       off?.();
       wrap.classList.remove('sp-stage');
       root.remove();

@@ -400,6 +400,12 @@ for (const table of TABLES) {
   check(`${table.name}: its own furniture is there`, (await count(table.furniture)) > 0,
     `${await count(table.furniture)} × ${table.furniture}`);
 
+  // The clock, on every table. A blank one looks exactly like no clock.
+  check(`${table.name}: the clock says what is happening`,
+    Boolean((await textOf('.clk-who'))?.trim()), await textOf('.clk-who'));
+  check(`${table.name}: and what happens next`,
+    Boolean((await textOf('.clk-next'))?.trim()), await textOf('.clk-next'));
+
   await table.peculiar?.();
 
   // Getting in has to cost chips, and cost them once.

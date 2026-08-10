@@ -8,6 +8,20 @@
 
 import { Sound } from '/js/sound.js';
 import { confetti, floatText, motionReduced } from '/js/fx.js';
+import { mountClock, clockFrom } from '/js/turnclock.mjs';
+
+/**
+ * What each phase is called, and what happens after it.
+ *
+ * The second half is the point: a clock says how long is left and says nothing
+ * about what is about to happen, which was the other half of the complaint.
+ */
+const CLOCK_PHASES = {
+    brief: { label: 'Everybody is reading the rules', hint: 'Then the counter opens.' },
+    buy: { label: 'Pick your numbers', hint: 'Twenty come out of eighty.' },
+    draw: { label: 'Drawing', hint: 'A long card that comes in is worth far more.' },
+    payout: { label: 'Paying out', hint: 'Nobody hits and the pot rides on.' },
+  };
 
 export default {
   mount({ canvas, wrap, hud, Net }) {
@@ -44,6 +58,8 @@ export default {
         <span class="hud-chip" id="knClock">—</span>
         <span class="hud-chip hud-accent" id="knPhase">Pick your spots</span>
       </div>`;
+
+    const clock = mountClock(hud);
 
     const $ = (sel) => root.querySelector(sel);
     const $hud = (sel) => hud.querySelector(sel);
@@ -123,6 +139,8 @@ export default {
     }
 
     function paint(s) {
+      // Whose turn, how long, and what comes next.
+      clock.paint(clockFrom(s, CLOCK_PHASES, { yours: Boolean(s.you?.yourTurn ?? s.you?.can ?? s.you?.canPlay) }));
       if (s.phase === 'brief') {
         brief.hidden = false;
         table.hidden = true;
@@ -204,6 +222,7 @@ export default {
     const off = Net.on('game:state', paint);
 
     return () => {
+      clock.destroy();
       clearDraw();
       off?.();
       wrap.classList.remove('kn-stage');
