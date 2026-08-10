@@ -110,7 +110,17 @@ console.log('\n  The board room — the server refuses\n');
   check('the centre is one of them', isSafe([3, 3]));
   check('and the four places players come on are too',
     [[6, 3], [3, 0], [0, 3], [3, 6]].every(isSafe));
-  check('a plain square is not safe', !isSafe([0, 0]) && !isSafe([1, 1]));
+  // Corners of the board and the square inside the middle. Not (1,1) — that is
+  // a cross on the real board, and the first version of this check used it as
+  // an example of a plain square.
+  check('a plain square is not safe', !isSafe([0, 0]) && !isSafe([2, 2]) && !isSafe([4, 4]));
+
+  // The four crosses one ring in are the corners of that ring, not the middles
+  // of its sides. Off a photograph of the board, and the thing that was wrong.
+  check('the inner four crosses are corners',
+    [[1, 1], [1, 5], [5, 1], [5, 5]].every(isSafe) &&
+    ![[1, 3], [3, 1], [3, 5], [5, 3]].some(isSafe),
+    [...SAFE].sort().join(' '));
 
   const { state } = open(thayam, 4, { coins: 6 });
   check('four players, six coins each, all in hand',
@@ -126,6 +136,18 @@ console.log('\n  The board room — the server refuses\n');
     wire.paths.map((p) => p[0]).join(' '));
   check('every spiral ends at the centre',
     wire.paths.every((p) => p[p.length - 1] === wire.centre), wire.centre);
+
+  // The board says this in colour: each player's entry and the inner corner
+  // they turn in at are painted the same. All four pairs agreeing is what
+  // settled the direction of travel, so it is worth holding on to.
+  const TURNS = { '6,3': '5,5', '3,0': '5,1', '0,3': '1,1', '3,6': '1,5' };
+  const wrong = wire.paths
+    .map((p) => ({ from: p[0], into: p[24], want: TURNS[p[0]] }))
+    .filter((x) => x.into !== x.want);
+  check('each player turns in at their own coloured corner',
+    wrong.length === 0, JSON.stringify(wrong));
+  check('and that corner is always a cross',
+    wire.paths.every((p) => SAFE.has(p[24])), wire.paths.map((p) => p[24]).join(' '));
 }
 
 /* ------------------------------ coming on --------------------------------- */

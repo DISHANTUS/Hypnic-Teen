@@ -75,16 +75,21 @@ export const BOARD = {
   rows: 7,
 
   /**
-   * Nine crosses.
+   * Nine crosses, off a photograph of the real board.
    *
-   * Four where the players come on, four one ring in, and the middle. A coin on
-   * a cross cannot be cut and any number may stand there, which is the only
-   * reason a crowded board does not seize up.
+   * Four where the players come on — the middle of each outer side — four at
+   * the corners of the ring inside that, and the middle. A coin on a cross
+   * cannot be cut and any number may stand there, whoever they belong to, which
+   * is the only reason a crowded board does not seize up.
+   *
+   * The inner four were on the wrong squares to begin with: the *midpoints* of
+   * the inner ring rather than its corners. It looked plausible and it was the
+   * difference between this board and a board.
    */
   crosses: [
-    '6,3', '3,0', '0,3', '3,6',
-    '5,3', '3,1', '1,3', '3,5',
-    '3,3',
+    '6,3', '3,0', '0,3', '3,6',   // the four the players come on at
+    '5,1', '5,5', '1,5', '1,1',   // the corners of the ring inside
+    '3,3',                        // pazham, the middle
   ],
 
   /** Bottom, left, top, right — one player to a side. */
@@ -104,13 +109,23 @@ const CENTRE = [MID, MID];
  */
 const RINGS = [ringPath(0, SIZE - 1), ringPath(1, SIZE - 2), ringPath(2, SIZE - 3)];
 
-/** The same side of the board, one ring further in. */
+/**
+ * Where a player turns in, one ring further down.
+ *
+ * Not the square directly inward from where they came on — the *corner* of the
+ * next ring that lies ahead of them in the direction they are travelling. That
+ * is what the real board says, and it says it in colour: each player's two
+ * crosses are painted the same, their entry on the outer side and the inner
+ * corner they turn in at. All four pairs agree, which is also how the direction
+ * of travel was settled — down the left, right along the bottom, up the right,
+ * left along the top.
+ */
 const inward = (entry, ring) => {
   const [r, c] = entry;
-  if (r === 0) return [ring, MID];
-  if (r === SIZE - 1) return [SIZE - 1 - ring, MID];
-  if (c === 0) return [MID, ring];
-  return [MID, SIZE - 1 - ring];
+  if (c === 0) return [SIZE - 1 - ring, ring];                 // left, going down
+  if (r === SIZE - 1) return [SIZE - 1 - ring, SIZE - 1 - ring]; // bottom, going right
+  if (c === SIZE - 1) return [ring, SIZE - 1 - ring];          // right, going up
+  return [ring, ring];                                          // top, going left
 };
 
 const ENTRIES = BOARD.entries.map((k) => k.split(',').map(Number));
@@ -149,7 +164,7 @@ export const thayam = createBoardGame({
     'Throw a one — dayam — to bring your first coin on. After that, a one or a five brings any coin on.',
     'One, five, six and twelve all earn you another throw.',
     'Only one coin may stand on a plain square, even your own. A cross holds as many as you like.',
-    'Land on somebody else off a cross and you cut them — that coin goes back to their hand.',
+    'Land on somebody else off a cross and you cut them — that coin goes back to their hand, and you throw again.',
     'You cannot leave the outer ring until you have cut somebody. It is a war, not a race — and a coin held at the gate simply does not move that throw.',
     'Inside, two of your coins standing together may be paired. A pair moves half as far, so only even throws move it — and a single coin cannot cut a pair.',
     'Bring all your coins to the centre. You need the exact throw to land on it.',
@@ -247,10 +262,16 @@ export const thayam = createBoardGame({
       const move = moves.find((m) => m.coin === which);
       if (!move) return;
 
+      const cutsBefore = seat.cuts ?? 0;
       apply(state, seat, coin, move);
+      // Cutting somebody earns a throw of its own, on top of whatever the
+      // dice said. It is the reward that makes the war rule worth obeying —
+      // without it, the throw that finally opens your way inward costs you the
+      // rest of your turn.
+      const cutSomebody = (seat.cuts ?? 0) > cutsBefore;
 
       // A grace throw earns another. Anything else ends the turn.
-      if (state.rolled.grace) {
+      if (state.rolled.grace || cutSomebody) {
         state.rolled = null;
         state.turnLeft = state.settings.turnSeconds;
         state.dirty = true;
