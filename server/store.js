@@ -41,6 +41,24 @@ export class JsonStore {
     this.timer.unref?.();
   }
 
+  /**
+   * Write it out now, for the changes that must not be lost.
+   *
+   * The debounce plus the shutdown hook is enough on a machine where a process
+   * gets asked to stop. On Windows a forced stop is TerminateProcess, which
+   * cannot be caught by anything — so the hook never runs and up to four
+   * hundred milliseconds of writes go with it. That is invisible for a score
+   * that will be rewritten in a minute, and very visible for a tournament
+   * somebody just posted, which simply is not there when the studio comes back.
+   */
+  saveNow() {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    this.flush();
+  }
+
   flush() {
     const tmp = `${this.file}.tmp`;
     writeFileSync(tmp, JSON.stringify(this.data, null, 2));

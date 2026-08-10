@@ -58,8 +58,17 @@ function shuffle(list) {
 const all = () => store.data.list;
 const find = (id) => all().find((t) => t.id === id) ?? null;
 
+/**
+ * Tournaments are written out immediately rather than on the debounce.
+ *
+ * There are a handful of them a night and every one is somebody deliberately
+ * posting something to the whole room, so the cost of writing at once is
+ * nothing and the cost of losing one is a person asking where their tournament
+ * went. Everything else in the studio can afford the four hundred millisecond
+ * window; this cannot.
+ */
 function persist() {
-  store.save();
+  store.saveNow();
 }
 
 /* ------------------------------- the model ------------------------------- */

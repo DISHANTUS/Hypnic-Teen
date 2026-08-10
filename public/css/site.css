@@ -4906,3 +4906,62 @@ body.dropping::after {
 .cd-gap { display: block; width: 32px; height: 45px; border: 1px dashed var(--border); border-radius: var(--r-sm); }
 .cd-skull, .cd-rose { font-size: 1.4rem; }
 .cd-pts.is-gone { opacity: 0.35; text-decoration: line-through; }
+
+/* ------------------------------------------------------- rooms and the cage */
+
+/* A door rather than a card. Bigger tint, no player count, and it says what
+   is behind it instead of what it is. */
+.room-tile {
+  position: relative;
+  display: grid;
+  gap: var(--sp-xs);
+  padding: var(--sp-lg);
+  text-align: left;
+  border-radius: var(--r-lg);
+  border: 1px solid color-mix(in srgb, var(--tint, var(--accent)) 40%, var(--border));
+  background:
+    radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--tint, var(--accent)) 22%, transparent), transparent 60%),
+    var(--glass);
+  color: var(--text);
+}
+.room-tile .emoji { font-size: 2rem; line-height: 1; }
+.room-tile h3 { margin: 0; font-family: var(--font-display); font-size: var(--t-h3); }
+.room-tile p { margin: 0; font-size: 0.74rem; color: var(--text-3); }
+.room-tile .card-foot { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.68rem; color: var(--text-3); }
+.room-tile .go { color: color-mix(in srgb, var(--tint, var(--accent)) 80%, var(--text)); }
+.room-back { margin-left: auto; }
+
+/* Removing a tournament from the card it is on, rather than from inside it. */
+.cup-card { position: relative; }
+.cup-bin {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--warning) 22%, var(--glass));
+  color: var(--warning);
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.cage-sheet { max-width: 380px; }
+.cage-figures { display: flex; gap: var(--sp-lg); }
+.cage-figures div { display: grid; gap: 1px; }
+.cage-figures span { font-size: 0.62rem; color: var(--text-3); }
+.cage-figures b { font-family: var(--font-display); font-size: var(--t-h2); color: var(--accent); }
+.cage-daily { margin: 0; font-size: 0.68rem; color: var(--text-3); }
+.cage-quick { display: flex; gap: var(--sp-xs); flex-wrap: wrap; }
+.cage-chip {
+  padding: var(--sp-xs) var(--sp-sm);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--glass);
+  color: var(--text-2);
+  font-size: 0.72rem;
+}
+.cage-rate { margin: 0; }

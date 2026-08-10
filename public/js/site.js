@@ -128,6 +128,8 @@ function paintChrome() {
   av.style.background = p.accent;
   $('#chipName').textContent = p.name;
   $('#chipLevel').textContent = `Lv ${p.level} · ${p.points} pts`;
+  // The cage only exists for somebody who has an account to hold chips.
+  paintCageBadge();
 }
 
 function paintNav() {
@@ -209,33 +211,62 @@ function gameCard(game, onPlay) {
  * heading reads as something broken rather than as something coming.
  */
 const ROOMS = [
-  { id: 'party', title: 'The party', blurb: 'Everybody at once, no cards, no chips.' },
-  { id: 'cards', title: 'The card room', blurb: 'A pack of cards and a table. Nothing is staked.' },
-  { id: 'casino', title: 'The casino floor', blurb: 'Played for chips. No house, and the pot is the only money there is.' },
+  {
+    id: 'casino', title: 'The Casino', emoji: '🎰', accent: '#e0a94b',
+    blurb: 'Played for chips. No house, and the pot is the only money there is.',
+  },
+  {
+    id: 'cards', title: 'The Card Room', emoji: '🃏', accent: '#4ba3e0',
+    blurb: 'A pack of cards and a table. Nothing is staked.',
+  },
 ];
+
+/**
+ * One door per room, rather than every game at once.
+ *
+ * Headings were enough at thirty-six games and stopped being enough at
+ * sixty-two: the party games — the thing somebody who has just arrived is
+ * actually looking for — ended up above forty-nine cards of Blackjack and Go
+ * Fish, and the page became a scroll rather than a shelf. So the two big rooms
+ * are doors now and the party games stay on the front, which is the split
+ * everybody already had in their head.
+ */
+function roomTile(room, count) {
+  const tile = document.createElement('button');
+  tile.className = 'room-tile';
+  tile.type = 'button';
+  tile.style.setProperty('--tint', room.accent);
+  tile.innerHTML = `
+    <span class="emoji"></span>
+    <h3></h3>
+    <p></p>
+    <div class="card-foot">
+      <span></span>
+      <span class="go">Open →</span>
+    </div>`;
+  $('.emoji', tile).textContent = room.emoji;
+  $('h3', tile).textContent = room.title;
+  $('p', tile).textContent = room.blurb;
+  $('.card-foot span', tile).textContent = `${count} game${count === 1 ? '' : 's'}`;
+  tile.addEventListener("click", () => go(`#/shelf/${room.id}`));
+  return tile;
+}
 
 function shelveByRoom(list, onPlay) {
   const out = [];
   for (const room of ROOMS) {
-    const mine = list.filter((g) => (g.room ?? 'party') === room.id);
-    if (!mine.length) continue;
-
-    const head = document.createElement('div');
-    head.className = 'shelf-room';
-    head.innerHTML = `<h3></h3><p></p><span></span>`;
-    $('h3', head).textContent = room.title;
-    $('p', head).textContent = room.blurb;
-    $('span', head).textContent = `${mine.length} game${mine.length === 1 ? '' : 's'}`;
-    out.push(head);
-
-    for (const g of mine) out.push(gameCard(g, onPlay));
+    const n = list.filter((g) => (g.room ?? 'party') === room.id).length;
+    // A room with nothing in it prints no door. An empty one reads as broken
+    // rather than as something coming.
+    if (n) out.push(roomTile(room, n));
   }
-  // Anything in a room this list has never heard of still gets shown. A game
-  // that vanished from the shelf because somebody typed a new room name would
-  // be a very quiet way to lose it.
-  const known = new Set(ROOMS.map((r) => r.id));
-  const strays = list.filter((g) => !known.has(g.room ?? 'party'));
-  for (const g of strays) out.push(gameCard(g, onPlay));
+  // Everything else stays on the front — the party games, and anything filed
+  // under a room name this list has never heard of. A game that vanished
+  // because somebody invented a room would be a very quiet way to lose it.
+  const behindDoors = new Set(ROOMS.map((r) => r.id));
+  for (const g of list) {
+    if (!behindDoors.has(g.room ?? 'party')) out.push(gameCard(g, onPlay));
+  }
   return out;
 }
 
@@ -720,6 +751,30 @@ function paintCupColumn(list) {
           : `${t.gameName} · ${size} · ${CUP_STATUS[t.status]}`;
       $('.cup-tag', card).textContent = t.entrants.some((e) => e.id === Net.playerId) ? 'Entered' : CUP_STATUS[t.status];
       card.addEventListener('click', () => go(`#/cup/${t.id}`));
+
+      // Getting rid of one meant opening it first, which is a strange place to
+      // hide the only control that matters when somebody has posted a
+      // tournament you want gone. It is here now, for whoever may actually use
+      // it — the organiser, or whoever runs the studio.
+      if (t.hostId === Net.playerId || Auth.profile?.isOwner) {
+        const bin = document.createElement('button');
+        bin.type = 'button';
+        bin.className = 'cup-bin';
+        bin.title = `Call off "${t.name}"`;
+        bin.setAttribute('aria-label', `Call off ${t.name}`);
+        bin.textContent = '✕';
+        bin.addEventListener('click', async (e) => {
+          // The card behind it is a link to the tournament; without this,
+          // removing one would navigate into it on the way out.
+          e.stopPropagation();
+          if (!confirm(`Call off "${t.name}"? Everyone entered will lose their place.`)) return;
+          const res = await Net.cancelCup(t.id);
+          if (res?.error) return toast(res.error);
+          toast(`"${res.name}" is off`);
+          Net.listCups().then((r) => paintCupColumn(r.tournaments));
+        });
+        card.appendChild(bin);
+      }
       return card;
     })
   );
@@ -1556,8 +1611,10 @@ async function renderProfile() {
    * table become a rank somebody did not play for, which is the entire reason
    * the two are separate numbers.
    */
+  // Kept here as well as in the nav dialog? No — the markup moved, so this
+  // block no longer has anything to paint and the dialog owns it now.
   (function setUpCage() {
-    const cage = $('#cageBox');
+    const cage = document.getElementById('cageBox');
     if (!cage || !Auth.token) return;
 
     const paintCage = (w) => {
@@ -2051,6 +2108,166 @@ function renderStudio() {
   $('#replayIntro').addEventListener('click', () => playIntro({ force: true }));
 }
 
+
+/**
+ * One room's games, behind its door.
+ *
+ * Rendered into the same grid the front uses, so a card looks and behaves
+ * identically wherever it is — which matters more than it sounds, because the
+ * whole reason these moved behind doors is that they had stopped looking like
+ * a shelf and started looking like a list.
+ */
+function renderRoomShelf(roomId) {
+  const room = ROOMS.find((r) => r.id === roomId);
+  if (!room) return go('#/');
+
+  render('view-home');
+  const grid = $('#gameGrid');
+  const mine = games.filter((g) => (g.room ?? 'party') === room.id);
+
+  $('#gameCount').textContent = `${mine.length} game${mine.length === 1 ? '' : 's'}`;
+  const head = $('.section-head h2');
+  if (head) head.textContent = room.title;
+  const blurb = $('.section-head p');
+  if (blurb) blurb.textContent = room.blurb;
+
+  // A way back that is not the browser button, because half the room is on a
+  // phone with no obvious one.
+  const back = document.createElement('button');
+  back.type = 'button';
+  back.className = 'btn btn-quiet room-back';
+  back.textContent = '← All games';
+  back.addEventListener('click', () => go('#/'));
+  $('.section-head')?.appendChild(back);
+
+  $('#joinCta')?.addEventListener('click', openJoinDialog);
+  $('#hostCta')?.addEventListener('click', () => grid.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+
+  grid.replaceChildren(...mine.map((g) => gameCard(g, (game) => hostGame(game.id))));
+  $('#feedbackBtn')?.addEventListener('click', openFeedback);
+
+  // The tournament column belongs to the front page only; in here it would be
+  // a second thing competing with the games somebody came to look at.
+  const column = document.getElementById('cupColumn');
+  if (column) column.hidden = true;
+}
+
+/* ---------------------------------- the cage ------------------------------ */
+
+/**
+ * Buying chips with points.
+ *
+ * The endpoints have existed since the casino opened and nothing linked to
+ * them, so the only way to change money up was a URL nobody had been given.
+ * Worth being loud about the one thing people get wrong: this does not spend
+ * your points. Points are rank and they never go down — the cage only records
+ * how many you have put through it.
+ */
+
+
+
+/**
+ * The cage, from the nav.
+ *
+ * This is the cage that already existed — it lived at the bottom of the profile
+ * screen, which is a strange place to keep the only shop in the studio, and the
+ * reason nobody could find it. Moved rather than copied: two implementations of
+ * "change points into chips" would be two places for the rate to drift.
+ */
+async function openCage() {
+  const dlg = document.getElementById('cageDialog');
+  if (!dlg || !Auth.token) return;
+  await refreshCage();
+  document.getElementById('cageClose').onclick = () => dlg.close();
+  dlg.showModal();
+}
+
+/** Paint the cage from the wallet, wherever it currently is on screen. */
+async function refreshCage() {
+  const cage = document.getElementById('cageBox');
+  if (!cage || !Auth.token) return null;
+  const w = await fetch('/api/chips', { headers: { authorization: `Bearer ${Auth.token}` } })
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
+  if (!w) return null;
+  cage.hidden = false;
+  document.getElementById('cageChips').textContent = String(w.balance ?? 0);
+  document.getElementById('cagePoints').textContent = String(w.spendablePoints ?? 0);
+  document.getElementById('cageBest').textContent = String(w.biggestWin ?? 0);
+  document.getElementById('cageState').textContent = w.dailyClaimed ? 'daily taken' : 'daily waiting';
+  document.getElementById('cageState').classList.toggle('warn', !w.dailyClaimed);
+  document.getElementById('cageNote').textContent =
+    `${w.rate} point buys ${w.rate} chip. Everyone gets topped up to ${w.topUpCeiling} once a day, `
+    + 'so a bad night is never the end of it.';
+  document.getElementById('cageAmount').max = String(w.spendablePoints ?? 0);
+  return w;
+}
+
+/** The chip count on the nav button, so the cage says something at a glance. */
+async function paintCageBadge() {
+  const btn = document.getElementById('cageBtn');
+  const badge = document.getElementById('chipCount');
+  if (!btn || !badge) return;
+  if (!Auth.signedIn) { btn.hidden = true; return; }
+  btn.hidden = false;
+  const w = await fetch('/api/chips', { headers: { authorization: `Bearer ${Auth.token}` } })
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
+  if (!w) { badge.hidden = true; return; }
+  badge.hidden = false;
+  badge.textContent = w.balance > 999 ? `${Math.floor(w.balance / 1000)}k` : String(w.balance ?? 0);
+}
+
+/** Buying, and the daily top-up, wired once at boot rather than per render. */
+function wireCage() {
+  const buy = document.getElementById('cageBuy');
+  if (!buy) return;
+  buy.addEventListener('click', async () => {
+    const err = document.getElementById('cageError');
+    err.hidden = true;
+    const points = Number(document.getElementById('cageAmount').value);
+    if (!points || points < 1) {
+      err.textContent = 'How many points?';
+      err.hidden = false;
+      return;
+    }
+    buy.disabled = true;
+    const res = await fetch('/api/chips/buy', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${Auth.token}` },
+      body: JSON.stringify({ points }),
+    }).then((r) => r.json()).catch(() => null);
+    buy.disabled = false;
+    if (!res || res.error) {
+      err.textContent = res?.error ?? 'Could not do that.';
+      err.hidden = false;
+      return;
+    }
+    document.getElementById('cageAmount').value = '';
+    toast(`${res.chips} chips. Good luck.`);
+    Sound.play('unlock');
+    await refreshCage();
+    paintCageBadge();
+  });
+
+  // The daily top-up had no route and no button for as long as it has existed,
+  // so the ceiling that caps it has been enforcing itself against nobody.
+  const state = document.getElementById('cageState');
+  state?.addEventListener('click', async () => {
+    const res = await fetch('/api/chips/daily', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${Auth.token}` },
+      body: '{}',
+    }).then((r) => r.json()).catch(() => null);
+    if (!res || res.error) return;
+    toast(res.given > 0 ? `+${res.given} chips` : 'Already taken today');
+    Sound.play(res.given > 0 ? 'win' : 'back');
+    await refreshCage();
+    paintCageBadge();
+  });
+}
+wireCage();
+
 /* --------------------------------- router -------------------------------- */
 
 function route() {
@@ -2085,7 +2302,11 @@ function route() {
 
   // Everything past the gate needs a Hypnic ID.
   if (!Auth.signedIn && !PUBLIC_ROUTES.includes(hash)) {
-    if (hash.startsWith('#/room/')) sessionStorage.setItem('htfw:pendingRoom', hash);
+    // Remember wherever they were trying to get to, not only a game room. A
+    // shared link to the casino used to send a signed-out visitor to the gate
+    // and then, once they had an ID, to the home page — dropping the thing
+    // they had clicked on.
+    sessionStorage.setItem('htfw:pendingRoom', hash);
     return go('#/gate');
   }
   if (Auth.signedIn && PUBLIC_ROUTES.includes(hash) && hash !== '#/reveal') return go('#/');
@@ -2098,6 +2319,11 @@ function route() {
   lastRoute = ''; // out of the room entirely — nothing to guard against
 
   if (cupMatch) return renderCup(cupMatch[1]);
+
+  // A room's own shelf. Deliberately not #/room/, which already means a game
+  // room with a four letter code.
+  const shelfMatch = hash.match(/^#\/shelf\/([a-z]+)$/);
+  if (shelfMatch) return renderRoomShelf(shelfMatch[1]);
 
   switch (hash) {
     case '#/gate': return renderLanding();
@@ -2544,6 +2770,7 @@ function openNews() {
 }
 
 newsBtn.addEventListener('click', openNews);
+document.getElementById('cageBtn').addEventListener('click', openCage);
 document.getElementById('newsClose').addEventListener('click', () => document.getElementById('newsDialog').close());
 Net.on('notice:new', (notice) => {
   notices = [notice, ...notices.filter((n) => n.id !== notice.id)];
@@ -2757,8 +2984,14 @@ function retryCatalogue() {
       retrying = null;
       games = list;
       // Redraw whatever is on screen now that there is something to draw.
-      if (location.hash === '#/' || !location.hash) renderHome();
-      else paintChrome();
+      //
+      // This used to redraw only the home screen and merely repaint the chrome
+      // anywhere else, which was invisible for as long as the home screen was
+      // the only view that needed the catalogue. A room's own shelf needs it
+      // too, so arriving on one before the games had loaded left it empty for
+      // good — no error, no spinner, just a page with nothing on it.
+      paintChrome();
+      route();
       return;
     }
     // Backing off to half a minute: a laptop that is properly off should not

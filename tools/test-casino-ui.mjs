@@ -336,9 +336,15 @@ const TABLES = [
 for (const table of TABLES) {
   console.log(`\n  \x1b[2m— ${table.name} —\x1b[0m`);
 
-  // Back to the arcade, fresh, for each table.
+  // Back to the arcade, fresh, for each table, and then through the casino's
+  // door — which is what a person does, and the only way to get a fresh boot.
+  // Navigating straight to a hash from a page that is already loaded is a
+  // fragment change, not a reload, so the app keeps running with whatever it
+  // booted with — including, in this driver, no signed-in account.
   await send('Page.navigate', { url: base });
-  await wait(1800);
+  await wait(1500);
+  await evaluate(`location.hash = '#/shelf/casino'; return true;`);
+  await wait(900);
   await evaluate(`document.querySelector('.si-skip')?.click(); for (const d of document.querySelectorAll('dialog[open]')) d.close(); return true;`);
   if (!check(`${table.name}: the arcade loads`, await waitFor('.game-card', 15000))) continue;
   await watchForErrors(evaluate);

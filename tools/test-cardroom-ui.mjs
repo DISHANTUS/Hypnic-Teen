@@ -151,8 +151,14 @@ await evaluate(`localStorage.setItem('htfw:token', ${JSON.stringify(me.token)});
 for (const game of GAMES) {
   console.log(`\n  \x1b[2m— ${game.name} —\x1b[0m`);
 
+  // The arcade first, then through the room's door — which is what a person
+  // does, and the only way to get a fresh boot. Navigating straight to a hash
+  // from a page that is already loaded is a fragment change, not a reload, so
+  // the app keeps running with whatever it booted with.
   await send('Page.navigate', { url: base });
   await wait(1500);
+  await evaluate(`location.hash = '#/shelf/cards'; return true;`);
+  await wait(900);
   await evaluate(`document.querySelector('.si-skip')?.click(); for (const d of document.querySelectorAll('dialog[open]')) d.close(); return true;`);
   if (!check(`${game.name}: the arcade loads`, await waitFor('.game-card', 15000))) continue;
   await watchForErrors(evaluate);
@@ -160,7 +166,11 @@ for (const game of GAMES) {
   const opened = await evaluate(`
     const cards = [...document.querySelectorAll('.game-card')];
     const it = cards.find(c => (c.querySelector('h3')?.textContent ?? '').trim() === ${JSON.stringify(game.name)});
-    if (!it) return 'not on the shelf';
+    if (!it) {
+      return 'not on the shelf — showing: '
+        + cards.slice(0, 4).map(c => c.querySelector('h3')?.textContent?.trim()).join(', ')
+        + ' (' + cards.length + ' cards, hash ' + location.hash + ')';
+    }
     it.click();
     return true;
   `);

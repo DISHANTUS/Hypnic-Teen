@@ -50,6 +50,11 @@ class AuthClient {
     for (const fn of this.listeners) fn(this.profile);
   }
 
+  /**
+   * A fresh login or signup. Same trap as applyProfile — neither endpoint
+   * sends isOwner, so the owner's controls would be missing until the first
+   * page reload after signing in.
+   */
   setSession(token, profile) {
     this.token = token;
     this.profile = profile;
@@ -81,10 +86,20 @@ class AuthClient {
     return this.profile;
   }
 
-  /** Local update from a match reward, so the UI reacts instantly. */
+  /**
+   * Local update from a match reward, so the UI reacts instantly.
+   *
+   * `isOwner` is carried across rather than taken from the incoming profile.
+   * Only /api/me sends it — a reward, a login and a signup all send the public
+   * profile, which has no such field — so overwriting wholesale meant the owner
+   * lost their own controls the moment they finished a game, and got them back
+   * only by reloading the page. That is exactly the shape of "the button was
+   * there yesterday".
+   */
   applyProfile(profile) {
     if (!profile) return;
-    this.profile = profile;
+    const owner = profile.isOwner ?? this.profile?.isOwner ?? false;
+    this.profile = { ...profile, isOwner: owner };
     this.emit();
   }
 

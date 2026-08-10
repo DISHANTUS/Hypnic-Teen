@@ -58,6 +58,7 @@ import {
   buyChips,
   spendablePoints,
   historyFor,
+  claimDaily,
   chipBoard,
   CAGE_RATE,
   DAILY_TOP_UP,
@@ -666,6 +667,21 @@ app.get('/api/chips', requireAuth, (req, res) => {
   });
 });
 
+/**
+ * The daily top-up.
+ *
+ * It was written the day the casino opened and never given a route, so the
+ * ceiling that stops somebody sitting on a fortune of free chips has been
+ * enforcing itself against nobody. It tops you *up to* a floor rather than
+ * adding a flat amount, which is why somebody who is doing well gets nothing
+ * and somebody who has lost everything can still sit down tomorrow.
+ */
+app.post('/api/chips/daily', requireAuth, (req, res) => {
+  const out = claimDaily(req.accountId);
+  if (out.error) return res.status(400).json(out);
+  res.json({ ...out, ...walletFor(req.accountId) });
+});
+
 app.post('/api/chips/buy', requireAuth, (req, res) => {
   const profile = getProfile(req.accountId);
   const out = buyChips(profile, req.body?.points);
@@ -714,14 +730,27 @@ app.delete('/api/notices/:id', requireAuth, (req, res) => {
 app.get('/api/quiz', (_req, res) => res.json({ questions: publicQuiz() }));
 app.get('/api/titles', (_req, res) => res.json(titleCatalogue()));
 
+/**
+ * Signing in hands back the same `isOwner` that /api/me does.
+ *
+ * It did not, and only /api/me did — which is read on boot and nowhere else.
+ * So the owner had their controls after a page load and lost them the moment
+ * anything replaced the stored profile: a fresh login, a signup, or finishing
+ * a match. The symptom was a button that came and went for no reason anybody
+ * could describe, which is why the flag now travels with every profile the
+ * server hands out rather than with one of them.
+ */
+const withOwner = (result) =>
+  (result?.profile ? { ...result, profile: { ...result.profile, isOwner: isOwner(result.profile.id) } } : result);
+
 app.post('/api/auth/signup', signupLimit, (req, res) => {
   const result = signup(req.body ?? {});
-  res.status(result.error ? 400 : 200).json(result);
+  res.status(result.error ? 400 : 200).json(withOwner(result));
 });
 
 app.post('/api/auth/login', loginLimit, (req, res) => {
   const result = login(req.body ?? {});
-  res.status(result.error ? 401 : 200).json(result);
+  res.status(result.error ? 401 : 200).json(withOwner(result));
 });
 
 /** Resolves the bearer token into req.accountId, or 401s. */

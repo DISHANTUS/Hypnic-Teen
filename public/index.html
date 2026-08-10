@@ -75,6 +75,12 @@
     <button class="icon-btn" id="newsBtn" type="button" title="Word from the studio" aria-label="Notices" hidden>
       🔔<span class="news-badge" id="newsCount" hidden>0</span>
     </button>
+    <!-- The cage. Chips existed and could be bought from the moment the casino
+         opened, and there was no door to the place that sold them — the only
+         way in was a URL nobody had. -->
+    <button class="icon-btn" id="cageBtn" type="button" title="The cage — buy chips" aria-label="The cage" hidden>
+      🪙<span class="news-badge" id="chipCount" hidden>0</span>
+    </button>
     <button class="icon-btn" id="soundBtn" type="button" title="Sound on/off" aria-label="Sound on/off">🔊</button>
     <button class="icon-btn" id="themeBtn" type="button" title="Change skin" aria-label="Change skin">◐</button>
     <button class="profile-chip" id="profileChip" type="button" hidden>
@@ -336,6 +342,33 @@
   </div>
 </dialog>
 
+<dialog id="cageDialog" class="dlg cage-sheet">
+  <div class="cage-box" id="cageBox">
+<div class="setup-head">
+          <h3 class="section-label">The cage</h3>
+          <span class="recovery-state" id="cageState"></span>
+        </div>
+        <div class="cage-figures">
+          <span class="cage-fig"><b id="cageChips">0</b><small>chips to play with</small></span>
+          <span class="cage-fig"><b id="cagePoints">0</b><small>points you can spend</small></span>
+          <span class="cage-fig"><b id="cageBest">0</b><small>biggest win</small></span>
+        </div>
+        <p class="muted small" id="cageNote"></p>
+        <div class="cage-row">
+          <input id="cageAmount" type="number" min="1" step="10" placeholder="points to change" />
+          <button class="btn btn-primary" id="cageBuy" type="button">Get chips</button>
+        </div>
+        <p class="form-error" id="cageError" hidden></p>
+        <p class="muted small">
+          One way only. Your points stay exactly where they are &mdash; your level, your
+          rank and your titles never move, however the night goes.
+        </p>
+  </div>
+  <div class="dlg-actions">
+    <button class="btn btn-quiet" id="cageClose" type="button">Close</button>
+  </div>
+</dialog>
+
 <dialog id="newsDialog" class="dlg">
   <h3 id="newsTitle">From the studio</h3>
   <div class="news-list" id="newsList"></div>
@@ -343,6 +376,8 @@
     <button class="btn btn-primary" id="newsClose" type="button">Got it</button>
   </div>
 </dialog>
+
+
 
 <template id="view-reveal">
   <section class="reveal-screen">
@@ -595,29 +630,7 @@
         <button class="btn btn-ghost btn-sm" id="recToggle" type="button">Set it up</button>
       </section>
 
-      <!-- Chips. Points buy them; nothing turns them back, so a night at the
-           tables can never rewrite the leaderboard. -->
-      <section class="cage-box" id="cageBox" hidden>
-        <div class="setup-head">
-          <h3 class="section-label">The cage</h3>
-          <span class="recovery-state" id="cageState"></span>
-        </div>
-        <div class="cage-figures">
-          <span class="cage-fig"><b id="cageChips">0</b><small>chips to play with</small></span>
-          <span class="cage-fig"><b id="cagePoints">0</b><small>points you can spend</small></span>
-          <span class="cage-fig"><b id="cageBest">0</b><small>biggest win</small></span>
-        </div>
-        <p class="muted small" id="cageNote"></p>
-        <div class="cage-row">
-          <input id="cageAmount" type="number" min="1" step="10" placeholder="points to change" />
-          <button class="btn btn-primary" id="cageBuy" type="button">Get chips</button>
-        </div>
-        <p class="form-error" id="cageError" hidden></p>
-        <p class="muted small">
-          One way only. Your points stay exactly where they are &mdash; your level, your
-          rank and your titles never move, however the night goes.
-        </p>
-      </section>
+
 
       <!-- Owner only: say something, to the room or to one person. Until now
            the only way to post a notice was to call the API by hand. -->
