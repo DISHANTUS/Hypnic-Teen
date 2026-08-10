@@ -195,6 +195,50 @@ function gameCard(game, onPlay) {
   return card;
 }
 
+/**
+ * The shelf, in rooms.
+ *
+ * One flat grid was right at a dozen games. At thirty it stopped being a shelf
+ * and became a pile: Blackjack, Bingo and Go Fish in one undifferentiated run
+ * of cards that nobody reads to the bottom of. So the same cards come out under
+ * headings, in a fixed order, with the party games first because that is what
+ * somebody who has just arrived is looking for.
+ *
+ * A room with nothing in it prints no heading at all, which matters more than
+ * it sounds: the card room existed as an empty section for a while and an empty
+ * heading reads as something broken rather than as something coming.
+ */
+const ROOMS = [
+  { id: 'party', title: 'The party', blurb: 'Everybody at once, no cards, no chips.' },
+  { id: 'cards', title: 'The card room', blurb: 'A pack of cards and a table. Nothing is staked.' },
+  { id: 'casino', title: 'The casino floor', blurb: 'Played for chips. No house, and the pot is the only money there is.' },
+];
+
+function shelveByRoom(list, onPlay) {
+  const out = [];
+  for (const room of ROOMS) {
+    const mine = list.filter((g) => (g.room ?? 'party') === room.id);
+    if (!mine.length) continue;
+
+    const head = document.createElement('div');
+    head.className = 'shelf-room';
+    head.innerHTML = `<h3></h3><p></p><span></span>`;
+    $('h3', head).textContent = room.title;
+    $('p', head).textContent = room.blurb;
+    $('span', head).textContent = `${mine.length} game${mine.length === 1 ? '' : 's'}`;
+    out.push(head);
+
+    for (const g of mine) out.push(gameCard(g, onPlay));
+  }
+  // Anything in a room this list has never heard of still gets shown. A game
+  // that vanished from the shelf because somebody typed a new room name would
+  // be a very quiet way to lose it.
+  const known = new Set(ROOMS.map((r) => r.id));
+  const strays = list.filter((g) => !known.has(g.room ?? 'party'));
+  for (const g of strays) out.push(gameCard(g, onPlay));
+  return out;
+}
+
 /* --------------------------- the studio landing -------------------------- */
 
 // The band under the hero.
@@ -294,7 +338,7 @@ function renderLanding() {
 
   // Games are browsable before signing up; picking one starts the ID flow.
   const grid = $('#landingGames');
-  grid.replaceChildren(...games.map((g) => gameCard(g, () => go('#/signup'))));
+  grid.replaceChildren(...shelveByRoom(games, () => go('#/signup')));
   if (!games.length) grid.innerHTML = '<div class="empty-state">Games are being loaded in.</div>';
 
   fetch('/api/health')
@@ -612,7 +656,7 @@ function renderHome() {
       '<div class="empty-state">No games loaded yet.<br />Drop a module into <code>server/games/</code> and it appears here.</div>';
     return;
   }
-  grid.replaceChildren(...games.map((g) => gameCard(g, (game) => hostGame(game.id))));
+  grid.replaceChildren(...shelveByRoom(games, (game) => hostGame(game.id)));
 
   $('#feedbackBtn').addEventListener('click', openFeedback);
 

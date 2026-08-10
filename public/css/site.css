@@ -4706,3 +4706,135 @@ body.dropping::after {
   border-radius: var(--r-sm); border: 1px solid var(--border);
   background: var(--glass); color: var(--text); font-size: 0.76rem; text-align: left;
 }
+
+/* ------------------------------------------------------------ shelf rooms */
+
+/* The heading spans the whole grid so the cards under it read as a group
+   rather than as one wide card followed by narrow ones. */
+.shelf-room {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-sm);
+  flex-wrap: wrap;
+  padding-top: var(--sp-md);
+  border-top: 1px solid var(--border);
+}
+/* Except the first, which would otherwise hang a rule under the section
+   heading that is already there. */
+.shelf-room:first-child { padding-top: 0; border-top: 0; }
+.shelf-room h3 { margin: 0; font-family: var(--font-display); font-size: var(--t-h3); }
+.shelf-room p { margin: 0; font-size: 0.72rem; color: var(--text-3); flex: 1; min-width: 12ch; }
+.shelf-room span { font-size: 0.66rem; color: var(--text-3); white-space: nowrap; }
+
+/* ------------------------------------------------------------- the card room */
+
+.cd { display: grid; gap: var(--sp-md); padding: var(--sp-md); }
+.cd-table { display: grid; gap: var(--sp-sm); justify-items: center; }
+
+/* Everybody else, across the top, as counts. */
+.cd-seats { display: flex; gap: var(--sp-xs); flex-wrap: wrap; justify-content: center; width: 100%; }
+.cd-seat {
+  display: grid; justify-items: center; gap: 0;
+  padding: var(--sp-xs) var(--sp-sm); min-width: 64px;
+  border-radius: var(--r-sm); background: var(--glass);
+}
+.cd-seat.is-turn { background: color-mix(in srgb, var(--accent) 26%, var(--glass)); }
+.cd-seat.is-gone { opacity: 0.45; }
+.cd-seat b { font-size: 0.66rem; max-width: 9ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cd-seat span { font-family: var(--font-display); font-size: 1.1rem; }
+.cd-seat small { font-size: 0.56rem; color: var(--text-3); }
+
+.cd-middle { display: grid; gap: var(--sp-sm); justify-items: center; min-height: 116px; width: 100%; }
+.cd-said { text-align: center; font-size: var(--t-label); min-height: 1.2em; }
+.cd-count { font-size: 0.62rem; color: var(--text-3); }
+
+/* A card. Sized so a thumb can hit one in a row of thirteen. */
+.cd-card {
+  position: relative;
+  display: grid;
+  place-content: center;
+  width: 46px; height: 64px;
+  border-radius: var(--r-sm);
+  background: var(--surface, #fff);
+  border: 1px solid var(--border);
+  font-family: var(--font-display);
+  line-height: 1;
+  flex: none;
+}
+.cd-card.is-small { width: 32px; height: 45px; }
+.cd-card b { font-size: 1.05rem; }
+.cd-card.is-small b { font-size: 0.76rem; }
+.cd-card i { font-style: normal; font-size: 0.9rem; text-align: center; display: block; }
+.cd-card.is-small i { font-size: 0.66rem; }
+.cd-card.is-red { color: #c0392b; }
+.cd-card.is-blk { color: #2c3e50; }
+.cd-card.is-back {
+  background: repeating-linear-gradient(45deg, var(--accent) 0 4px, color-mix(in srgb, var(--accent) 60%, #000) 4px 8px);
+  border-color: transparent;
+}
+.cd-card.is-dim { opacity: 0.34; }
+.cd-card.is-picked { transform: translateY(-10px); box-shadow: 0 4px 12px rgb(0 0 0 / 0.35); }
+
+/* Your hand: one row, scrolled sideways rather than wrapped, so the cards stay
+   a usable size at thirteen of them. */
+.cd-hand {
+  display: flex; gap: 4px;
+  width: 100%; padding: var(--sp-xs) 0 var(--sp-sm);
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none;
+}
+.cd-hand::-webkit-scrollbar { display: none; }
+.cd-empty { font-size: 0.7rem; color: var(--text-3); }
+
+.cd-acts { display: flex; gap: var(--sp-xs); flex-wrap: wrap; justify-content: center; min-height: 34px; }
+.cd-select {
+  padding: var(--sp-xs) var(--sp-sm); border-radius: var(--r-sm);
+  border: 1px solid var(--border); background: var(--glass);
+  color: var(--text); font-size: 0.76rem;
+}
+.cd-call { background: var(--warning); color: #1a1a1a; border: 0; }
+.cd-snap-btn {
+  background: var(--accent); color: var(--on-accent, #fff); border: 0;
+  font-family: var(--font-display); font-size: 1.1rem;
+  padding: var(--sp-sm) var(--sp-xl); border-radius: var(--r-md);
+}
+
+/* Cheat */
+.cd-rank { display: flex; align-items: baseline; gap: var(--sp-xs); }
+.cd-rank span { font-size: 0.66rem; color: var(--text-3); }
+.cd-rank b { font-family: var(--font-display); font-size: 1.5rem; color: var(--accent); }
+.cd-pile { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; justify-content: center; }
+.cd-claim { font-size: 0.76rem; padding: var(--sp-xs) var(--sp-sm); border-radius: var(--r-sm); background: var(--glass); }
+.cd-reveal { display: grid; gap: var(--sp-xs); justify-items: center; padding: var(--sp-xs); border-radius: var(--r-sm); font-size: 0.68rem; }
+.cd-reveal.is-lie { background: color-mix(in srgb, var(--warning) 22%, var(--glass)); }
+.cd-reveal.is-true { background: color-mix(in srgb, var(--success) 22%, var(--glass)); }
+.cd-row { display: flex; gap: 3px; }
+
+/* Snap */
+.cd-snap { position: relative; display: grid; place-items: center; min-height: 76px; }
+.cd-snap .is-under { position: absolute; transform: translate(-8px, -6px) rotate(-6deg); opacity: 0.7; }
+.cd-snap.is-match { animation: cd-flash 300ms ease-out 2; }
+@keyframes cd-flash { 50% { filter: brightness(1.7); } }
+
+/* Go Fish */
+.cd-books { display: flex; gap: var(--sp-xs); flex-wrap: wrap; justify-content: center; }
+.cd-book { font-size: 0.62rem; padding: 2px 6px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--success) 20%, var(--glass)); }
+.cd-asks { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.cd-asks li { font-size: 0.62rem; color: var(--text-3); text-align: center; }
+
+/* Hearts */
+.cd-trick { display: flex; gap: var(--sp-xs); flex-wrap: wrap; justify-content: center; }
+.cd-played { display: grid; justify-items: center; gap: 2px; }
+.cd-played small { font-size: 0.56rem; color: var(--text-3); max-width: 8ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cd-took { display: flex; gap: 3px; flex-wrap: wrap; justify-content: center; }
+.cd-pts { font-size: 0.6rem; padding: 1px 6px; border-radius: var(--r-sm); background: var(--glass); }
+.cd-pts.is-queen { background: color-mix(in srgb, var(--warning) 30%, var(--glass)); }
+
+.cd-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; justify-self: stretch; }
+.cd-log li { font-size: 0.66rem; color: var(--text-3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cd-snap.is-match { animation: none; }
+  .cd-card.is-picked { transform: none; }
+}

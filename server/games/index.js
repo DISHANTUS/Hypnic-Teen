@@ -41,8 +41,9 @@ import { SHOWDOWN_GAMES } from './showdowns.js';
 import { POOL_GAMES } from './craps.js';
 import { DRAW_GAMES } from './draws.js';
 import { SPORT_GAMES } from './sports.js';
+import { CARD_GAMES } from './cards/index.js';
 
-const modules = [clash, imposter, truthDare, situations, quiz, findWord, movies, songs, poll, standoff, crossword, arena, battleship, roulette, holdem, blackjack, lottery, slots, plinko, wheel, scratch, ...SHOWDOWN_GAMES, ...POOL_GAMES, ...DRAW_GAMES, ...SPORT_GAMES];
+const modules = [clash, imposter, truthDare, situations, quiz, findWord, movies, songs, poll, standoff, crossword, arena, battleship, roulette, holdem, blackjack, lottery, slots, plinko, wheel, scratch, ...SHOWDOWN_GAMES, ...POOL_GAMES, ...DRAW_GAMES, ...SPORT_GAMES, ...CARD_GAMES];
 
 const registry = new Map(modules.map((g) => [g.id, g]));
 
@@ -87,8 +88,25 @@ export function listGames() {
      * craps dice, so the horses ran an invisible race behind two dice.
      */
     pool: g.pool ?? null,
+    /**
+     * And the same again for the card room, which shares one renderer across
+     * every game in it. Twice now a shared client has been given no way to
+     * tell its games apart and has drawn all of them as the first one, so this
+     * is added at the same time as the client rather than after the bug.
+     */
+    face: g.face ?? null,
     /** Whether this table is played for chips, so the lobby can say so. */
     stakes: g.stakes ?? null,
+    /**
+     * Which room of the studio this belongs in.
+     *
+     * One flat grid was right at a dozen games and stopped being right at
+     * thirty: a shelf where Blackjack, Bingo and Go Fish sit in the same
+     * undifferentiated pile is a shelf nobody reads to the bottom of. Anything
+     * played for chips is the casino by definition, so that one is derived
+     * rather than declared and cannot drift out of step with `stakes`.
+     */
+    room: g.stakes === 'chips' ? 'casino' : (g.room ?? 'party'),
     /**
      * How to play it, in the catalogue rather than only inside a running match.
      *

@@ -63,7 +63,8 @@
     "test:casino:ui": "node tools/test-casino-ui.mjs",
     "test:showdowns": "node tools/test-showdowns.mjs",
     "test:tables": "node tools/test-tables.mjs",
-    "test:sports": "node tools/test-sports.mjs"
+    "test:sports": "node tools/test-sports.mjs",
+    "test:cardroom": "node tools/test-cardroom.mjs"
   },
   "engines": {
     "node": ">=20"
