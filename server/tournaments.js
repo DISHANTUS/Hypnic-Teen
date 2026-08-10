@@ -276,6 +276,40 @@ function buildBracket(list) {
  * Opens the bracket. `openRoom` is injected rather than imported so this module
  * never has to know how a room is made — and so the tests can watch it.
  */
+/**
+ * Calls one off.
+ *
+ * There was no way to. A tournament, once created, sat on everybody's home
+ * screen for good — only finished ones were ever swept, so one started by
+ * mistake, or abandoned when the room lost interest, stayed there as the first
+ * thing anybody saw. The organiser can bin their own; the studio owner can bin
+ * any, because the person who started it may well have gone home.
+ *
+ * Rooms already in play are left alone. A tie that is mid-match belongs to the
+ * people playing it, and pulling the room out from under them to tidy a list
+ * would be worse than the untidy list.
+ *
+ * @param {string} id
+ * @param {string} byId    who is asking
+ * @param {boolean} isOwner whether they run the studio
+ */
+export function cancelTournament(id, byId, isOwner = false) {
+  const t = find(id);
+  if (!t) return { error: 'No such tournament.' };
+  if (t.hostId !== byId && !isOwner) {
+    return { error: 'Only the organiser can call it off.' };
+  }
+
+  store.data.list = all().filter((x) => x.id !== id);
+  // Any bracket rooms it opened are no longer part of anything.
+  for (const [code, link] of roomsInPlay) {
+    if (link.tourneyId === id) roomsInPlay.delete(code);
+  }
+  persist();
+  announce();
+  return { ok: true, name: t.name };
+}
+
 export function startTournament(id, byId) {
   const t = find(id);
   if (!t) return { error: 'No such tournament.' };

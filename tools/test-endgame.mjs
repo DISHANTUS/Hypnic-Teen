@@ -195,6 +195,19 @@ ws.on('message', (raw) => {
 await send('Runtime.enable');
 await send('Page.enable');
 
+// Attaching to the first page target catches it while it is still about:blank,
+// and localStorage on about:blank throws SecurityError rather than returning
+// nothing — so the test died before it began, with an error that reads like a
+// browser problem and is really a race.
+for (let i = 0; i < 40; i++) {
+  if (await evaluate(`return location.origin === ${JSON.stringify(base)}`).catch(() => false)) break;
+  await wait(250);
+}
+if (!check('the browser is on the site', await evaluate(`return location.origin`).then((o) => o === base).catch(() => false))) {
+  cleanup();
+  process.exit(1);
+}
+
 await evaluate(`localStorage.setItem('htfw:token', ${JSON.stringify(me.token)}); return true;`);
 await send('Page.reload');
 await wait(1200);

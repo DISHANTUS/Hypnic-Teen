@@ -59,6 +59,7 @@ import {
   withdraw as tourneyWithdraw,
   pairStrays,
   startTournament,
+  cancelTournament,
   listTournaments,
   getTournament,
   liveMatchFor,
@@ -662,7 +663,13 @@ function requireAuth(req, res, next) {
   next();
 }
 
-app.get('/api/me', requireAuth, (req, res) => res.json({ profile: publicProfile(getProfile(req.accountId)) }));
+// `isOwner` rides along so the site can show the owner their own controls.
+// It decides what a button looks like, never what is allowed — every route
+// that matters asks the server again, because a flag in a browser is a
+// suggestion.
+app.get('/api/me', requireAuth, (req, res) =>
+  res.json({ profile: { ...publicProfile(getProfile(req.accountId)), isOwner: isOwner(req.accountId) } })
+);
 
 app.get('/api/leaderboard', (req, res) => {
   const { gameId, sort, limit } = req.query;
@@ -986,6 +993,12 @@ io.on('connection', (socket) => {
 
   socket.on('tourney:start', ({ token, id } = {}, ack) =>
     withAccount(token, ack, (me) => startTournament(id, me.id)));
+
+  // The organiser can call off their own; the owner can call off any, because
+  // whoever started it may well have gone home and left it on everybody's
+  // home screen.
+  socket.on('tourney:cancel', ({ token, id } = {}, ack) =>
+    withAccount(token, ack, (me) => cancelTournament(id, me.id, isOwner(me.id))));
 
   socket.on('tourney:get', ({ id } = {}, ack) => {
     const t = getTournament(id);

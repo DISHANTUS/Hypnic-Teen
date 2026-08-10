@@ -126,6 +126,10 @@ class NetClient {
     return this.request('tourney:create', { ...spec, token: Auth.token });
   }
 
+  cancelCup(id) {
+    return this.request('tourney:cancel', { id, token: Auth.token });
+  }
+
   joinCup(id, team = '') {
     return this.request('tourney:join', { id, team, token: Auth.token });
   }

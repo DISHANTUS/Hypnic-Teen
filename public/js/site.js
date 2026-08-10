@@ -836,6 +836,21 @@ function renderCup(id) {
       }
     }
 
+    // There was no way to get rid of one. A tournament started by mistake, or
+    // abandoned when the room lost interest, stayed at the top of everybody's
+    // home screen for good — only finished ones were ever swept away.
+    if (isHost || Auth.profile?.isOwner) {
+      button('Call it off', 'btn-quiet', async () => {
+        if (!confirm(`Call off "${t.name}"? Everyone entered will lose their place.`)) return null;
+        const res = await Net.cancelCup(t.id);
+        if (res?.ok) {
+          toast(`"${res.name}" is off`);
+          go('#/');
+        }
+        return res;
+      });
+    }
+
     /* ---- who is in ---- */
     els.entrants.hidden = t.status === 'done';
     els.count.textContent = t.mode === 'teams' ? `${t.teams.length} teams` : `${t.entrants.length}`;
