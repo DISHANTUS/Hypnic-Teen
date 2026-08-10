@@ -25,6 +25,7 @@ import {
   recoveryHints,
   setRecovery,
   hasRecovery,
+  saveAccounts,
 } from './accounts.js';
 import { attachNotices, postNotice, removeNotice, noticesFor, markRead, ensureNotice } from './notices.js';
 import {
@@ -51,6 +52,16 @@ import { CLUE_DIR, clueFor, clueVocabulary, mediaStatus } from './media.js';
 import { joinAddresses } from './addresses.js';
 import { OWN_DIR, ownClues, ownCluesStatus, ownTitles, saveOwnClue } from './own-clues.js';
 import { mayUse, accessState, setAccess, isOwner } from './access.js';
+import {
+  walletFor,
+  buyChips,
+  spendablePoints,
+  historyFor,
+  chipBoard,
+  CAGE_RATE,
+  DAILY_TOP_UP,
+  TOP_UP_CEILING,
+} from './chips.js';
 import { addFeedback, addReply, feedbackList, unreadFeedback, markFeedbackRead, removeFeedback } from './feedback.js';
 import {
   attachTournaments,
@@ -617,6 +628,48 @@ app.post('/api/notices', requireAuth, (req, res) => {
   }
   const out = postNotice({ ...(req.body ?? {}), from: req.body?.from ?? 'Hypnic Teen Studio' });
   res.status(out.error ? 400 : 200).json(out);
+});
+
+/* ---------------------------------- the cage ------------------------------ */
+
+// Chips are not points, and the split is the whole point of them. Points are
+// the record of what somebody has done — the level, the leaderboard, two
+// titles — and a night at the tables must not be able to rewrite that. So the
+// cage takes points one way and hands back chips, and nothing ever comes back.
+app.get('/api/chips', requireAuth, (req, res) => {
+  const profile = getProfile(req.accountId);
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    ...walletFor(req.accountId),
+    spendablePoints: spendablePoints(profile),
+    rate: CAGE_RATE,
+    dailyTopUp: DAILY_TOP_UP,
+    topUpCeiling: TOP_UP_CEILING,
+    history: historyFor(req.accountId),
+  });
+});
+
+app.post('/api/chips/buy', requireAuth, (req, res) => {
+  const profile = getProfile(req.accountId);
+  const out = buyChips(profile, req.body?.points);
+  if (out.error) return res.status(400).json(out);
+  // buyChips marks the points as spent on the profile; the accounts store has
+  // to be told to write that down.
+  saveAccounts();
+  res.json({ ...out, spendablePoints: spendablePoints(profile) });
+});
+
+// Its own board, deliberately separate from the leaderboard. Who is holding
+// the most chips is a fact about tonight; the leaderboard is a fact about who
+// plays well, and mixing them is exactly what the two-currency split prevents.
+app.get('/api/chips/board', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    board: chipBoard(10).map((row) => ({
+      ...row,
+      name: publicCard(row.id)?.name ?? null,
+    })),
+  });
 });
 
 // Every member's ID and name, so the owner can address a notice to somebody

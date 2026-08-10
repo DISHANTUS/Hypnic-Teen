@@ -1147,6 +1147,7 @@ input::placeholder { color: var(--text-3); }
 .stage-wrap.bs-stage,
 .stage-wrap.so-stage,
 .stage-wrap.cw-stage,
+.stage-wrap.rl-stage,
 .stage-wrap.td-stage {
   overflow-y: auto;
   overflow-x: hidden;
@@ -1173,6 +1174,7 @@ input::placeholder { color: var(--text-3); }
   .stage-wrap.bs-stage,
   .stage-wrap.so-stage,
 .stage-wrap.cw-stage,
+.stage-wrap.rl-stage,
   .stage-wrap.td-stage {
     max-height: none;
     overflow: visible;
@@ -3800,4 +3802,140 @@ body.dropping::after {
 
 @media (prefers-reduced-motion: reduce) {
   .cw-cell.is-fill, .cw-flash { animation: none; }
+}
+
+/* ------------------------------------------------------------- roulette */
+
+/* A table with no house: the pot is the players' own chips, so the felt shows
+   everybody's stake and the middle shows what is up for grabs. */
+
+.rl { display: grid; gap: var(--sp-lg); padding: var(--sp-lg); }
+.rl-table { display: grid; gap: var(--sp-md); }
+
+.rl-top { display: flex; align-items: center; justify-content: center; gap: var(--sp-lg); flex-wrap: wrap; }
+.rl-wheel { width: min(56vw, 240px); height: auto; }
+.rl-pot { display: grid; justify-items: center; gap: 1px; }
+.rl-pot-label { font-size: var(--t-label); color: var(--text-3); }
+.rl-pot b { font-family: var(--font-display); font-size: clamp(1.8rem, 9vw, 2.6rem); color: var(--accent); }
+.rl-pot small { font-size: 0.62rem; color: var(--warning); }
+
+.rl-result {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: var(--sp-md);
+  border-radius: var(--r-md);
+  color: #fff;
+  text-align: center;
+  animation: rl-result-kf 420ms var(--ease-entrance);
+}
+.rl-result.is-red { background: #c8392b; }
+.rl-result.is-black { background: #22242c; }
+.rl-result.is-green { background: #1f8f5f; }
+@keyframes rl-result-kf {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+.rl-result-num { font-family: var(--font-display); font-size: clamp(2rem, 10vw, 3rem); line-height: 1; }
+.rl-result-said { font-size: var(--t-label); opacity: 0.9; }
+.rl-result-paid { display: flex; flex-wrap: wrap; gap: var(--sp-sm); justify-content: center; margin-top: 4px; }
+.rl-paid { display: inline-flex; gap: 4px; font-size: 0.68rem; opacity: 0.9; }
+.rl-paid.is-you { font-weight: 700; opacity: 1; }
+
+.rl-mine {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+  flex-wrap: wrap;
+  padding: var(--sp-sm) var(--sp-md);
+  border-radius: var(--r-sm);
+  background: var(--glass);
+  font-size: var(--t-label);
+}
+.rl-mine b { color: var(--accent); font-family: var(--font-display); }
+
+/* Which chip is loaded. Tapping the felt puts this much down. */
+.rl-stack { display: flex; gap: var(--sp-sm); justify-content: center; flex-wrap: wrap; }
+.rl-chip {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 3px dashed var(--ink);
+  background: var(--surface);
+  color: inherit;
+  font-family: var(--font-display);
+  font-size: var(--t-label);
+  cursor: pointer;
+}
+.rl-chip.is-on { background: var(--accent); color: var(--on-accent, #fff); border-style: solid; }
+.rl-chip:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* The felt. Three rows of twelve, the zero beside them, the outside bets under.
+   Sized so a thirty-seven-square board fits a phone without a sideways scroll. */
+.rl-felt { display: grid; gap: var(--sp-sm); }
+.rl-felt.is-closed { opacity: 0.75; }
+.rl-numbers { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; }
+.rl-outside { display: grid; gap: 3px; }
+.rl-outside-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+.rl-outside-row:last-child { grid-template-columns: repeat(6, 1fr); }
+
+.rl-spot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 38px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: inherit;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.rl-spot:disabled { cursor: default; }
+.rl-num.is-red, .rl-out.is-red { background: #c8392b; color: #fff; border-color: #c8392b; }
+.rl-num.is-black, .rl-out.is-black { background: #22242c; color: #fff; border-color: #22242c; }
+.rl-zero { background: #1f8f5f; color: #fff; border-color: #1f8f5f; grid-column: span 6; min-height: 30px; }
+.rl-out { font-size: 0.68rem; }
+
+/* What is riding on each spot. Everybody's chips, not just yours — watching
+   the table fill up is most of the fun of roulette. */
+.rl-onit {
+  position: absolute;
+  top: -5px;
+  right: -3px;
+  min-width: 17px;
+  padding: 0 3px;
+  border-radius: var(--r-pill);
+  background: var(--ink);
+  color: var(--base);
+  font-size: 0.56rem;
+  line-height: 1.5;
+}
+.rl-onit.is-mine { background: var(--accent); color: var(--on-accent, #fff); }
+
+.rl-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.rl-log li { font-size: 0.68rem; color: var(--text-3); }
+
+/* --------------------------------------------------------------- the cage */
+
+.cage-box {
+  display: grid;
+  gap: var(--sp-sm);
+  margin: var(--sp-lg) 0;
+  padding: var(--sp-lg);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-md);
+}
+.cage-box .setup-head { width: 100%; display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-md); }
+.cage-figures { display: flex; gap: var(--sp-lg); flex-wrap: wrap; }
+.cage-fig { display: grid; gap: 1px; }
+.cage-fig b { font-family: var(--font-display); font-size: var(--t-h3); color: var(--accent); }
+.cage-fig small { font-size: 0.62rem; color: var(--text-3); }
+.cage-row { display: flex; gap: var(--sp-sm); align-items: center; flex-wrap: wrap; }
+.cage-row input { flex: 1; min-width: 90px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rl-result { animation: none; }
 }

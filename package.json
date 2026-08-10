@@ -50,7 +50,10 @@
     "test:standoff:ui": "node tools/test-standoff-ui.mjs",
     "test:crossword:grid": "node tools/test-crossword-grid.mjs",
     "test:crossword": "node tools/test-crossword.mjs",
-    "test:crossword:ui": "node tools/test-crossword-ui.mjs"
+    "test:crossword:ui": "node tools/test-crossword-ui.mjs",
+    "test:chips": "node tools/test-chips.mjs",
+    "test:roulette": "node tools/test-roulette.mjs",
+    "test:roulette:ui": "node tools/test-roulette-ui.mjs"
   },
   "engines": {
     "node": ">=20"

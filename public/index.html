@@ -585,6 +585,30 @@
         <button class="btn btn-ghost btn-sm" id="recToggle" type="button">Set it up</button>
       </section>
 
+      <!-- Chips. Points buy them; nothing turns them back, so a night at the
+           tables can never rewrite the leaderboard. -->
+      <section class="cage-box" id="cageBox" hidden>
+        <div class="setup-head">
+          <h3 class="section-label">The cage</h3>
+          <span class="recovery-state" id="cageState"></span>
+        </div>
+        <div class="cage-figures">
+          <span class="cage-fig"><b id="cageChips">0</b><small>chips to play with</small></span>
+          <span class="cage-fig"><b id="cagePoints">0</b><small>points you can spend</small></span>
+          <span class="cage-fig"><b id="cageBest">0</b><small>biggest win</small></span>
+        </div>
+        <p class="muted small" id="cageNote"></p>
+        <div class="cage-row">
+          <input id="cageAmount" type="number" min="1" step="10" placeholder="points to change" />
+          <button class="btn btn-primary" id="cageBuy" type="button">Get chips</button>
+        </div>
+        <p class="form-error" id="cageError" hidden></p>
+        <p class="muted small">
+          One way only. Your points stay exactly where they are &mdash; your level, your
+          rank and your titles never move, however the night goes.
+        </p>
+      </section>
+
       <!-- Owner only: say something, to the room or to one person. Until now
            the only way to post a notice was to call the API by hand. -->
       <section class="say-box" id="sayBox" hidden>

@@ -1477,6 +1477,69 @@ async function renderProfile() {
   };
   paintRecovery();
 
+  /* ---- the cage: points in, chips out ---- */
+
+  /**
+   * Shown to everybody who is signed in — chips are not an owner thing.
+   *
+   * One way on purpose. Chips going back to points would let a good night at a
+   * table become a rank somebody did not play for, which is the entire reason
+   * the two are separate numbers.
+   */
+  (function setUpCage() {
+    const cage = $('#cageBox');
+    if (!cage || !Auth.token) return;
+
+    const paintCage = (w) => {
+      cage.hidden = false;
+      $('#cageChips').textContent = String(w.balance ?? 0);
+      $('#cagePoints').textContent = String(w.spendablePoints ?? 0);
+      $('#cageBest').textContent = String(w.biggestWin ?? 0);
+      $('#cageState').textContent = w.dailyClaimed ? 'daily taken' : 'daily waiting';
+      $('#cageState').classList.toggle('warn', !w.dailyClaimed);
+      $('#cageNote').textContent =
+        `${w.rate} point buys ${w.rate} chip. Everyone gets topped up to ${w.topUpCeiling} once a day, ` +
+        `so a bad night is never the end of it.`;
+      $('#cageAmount').max = String(w.spendablePoints ?? 0);
+    };
+
+    const load = () =>
+      fetch('/api/chips', { headers: { authorization: `Bearer ${Auth.token}` } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((w) => w && paintCage(w))
+        .catch(() => {});
+    load();
+
+    $('#cageBuy').addEventListener('click', async () => {
+      const err = $('#cageError');
+      err.hidden = true;
+      const points = Number($('#cageAmount').value);
+      if (!points || points < 1) {
+        err.textContent = 'How many points?';
+        err.hidden = false;
+        return;
+      }
+      const btn = $('#cageBuy');
+      btn.disabled = true;
+      const res = await fetch('/api/chips/buy', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${Auth.token}` },
+        body: JSON.stringify({ points }),
+      }).then((r) => r.json()).catch(() => null);
+      btn.disabled = false;
+
+      if (!res || res.error) {
+        err.textContent = res?.error ?? 'Could not do that.';
+        err.hidden = false;
+        return;
+      }
+      $('#cageAmount').value = '';
+      toast(`${res.chips} chips. Good luck.`);
+      Sound.play('unlock');
+      load();
+    });
+  })();
+
   box.toggle.addEventListener('click', () => {
     box.form.hidden = !box.form.hidden;
     if (!box.form.hidden) {

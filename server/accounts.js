@@ -281,6 +281,17 @@ export function getProfile(id) {
   return users.data.users[id] ?? null;
 }
 
+/**
+ * Writes the account store out.
+ *
+ * getProfile hands back the live object, so anything that changes a profile
+ * from outside this file — the cage marking points as spent, for one — has to
+ * say so or the change is lost at the next restart.
+ */
+export function saveAccounts() {
+  users.save();
+}
+
 function touch(profile) {
   profile.lastSeen = Date.now();
   const today = new Date().toISOString().slice(0, 10);
