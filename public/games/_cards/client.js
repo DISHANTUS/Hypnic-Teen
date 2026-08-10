@@ -177,6 +177,14 @@ export default {
         Sound.play('pick');
         return;
       }
+      if (face === 'rummy') {
+        // Multi-select: a meld is several cards at once, a knock or a throw is
+        // one. Which of those a tap becomes is decided by the buttons.
+        return togglePick(code, 5);
+      }
+      if (face === 'cribbage') {
+        return togglePick(code, s.stage === 'throwing' ? 2 : 1);
+      }
       if (face === 'tricks') {
         Net.action({ type: 'play', card: code });
         Sound.play('pick');
@@ -572,6 +580,124 @@ export default {
         }
         box.appendChild(bids);
       },
+      rummy(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        const pile = document.createElement('div');
+        pile.className = 'cd-discard';
+        pile.appendChild(cardEl(s.top));
+        const n = document.createElement('span');
+        n.className = 'cd-count';
+        n.textContent = `${s.pileSize} thrown · ${s.deckLeft} to draw`;
+        pile.appendChild(n);
+        box.appendChild(pile);
+
+        for (const m of s.melds ?? []) {
+          const row = document.createElement('div');
+          row.className = 'cd-meld';
+          row.classList.toggle('is-canasta', Boolean(m.canasta));
+          const who = document.createElement('small');
+          who.textContent = m.byName;
+          row.appendChild(who);
+          for (const c of m.cards) row.appendChild(cardEl(c, { small: true }));
+          box.appendChild(row);
+        }
+
+        // What the hand is worth if it stopped here — the number Gin turns on,
+        // and worked out on the server because the client would otherwise have
+        // to reimplement the whole meld search to show the same figure.
+        if (s.you?.points !== undefined) {
+          const dead = document.createElement('span');
+          dead.className = 'cd-count';
+          dead.textContent = s.knockAt !== undefined
+            ? `Deadwood ${s.you.points} — knock at ${s.knockAt} or less`
+            : `Left over: ${s.you.points}`;
+          box.appendChild(dead);
+        }
+        if (s.knock) {
+          const k = document.createElement('div');
+          k.className = 'cd-owed';
+          k.textContent = s.knock.gin
+            ? `${s.knock.byName} has gin`
+            : `${s.knock.byName} knocked on ${s.knock.points}`;
+          box.appendChild(k);
+        }
+      },
+
+      golf(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        for (const g of s.grids ?? []) {
+          const holder = document.createElement('div');
+          holder.className = 'cd-golfgrid';
+          holder.classList.toggle('is-you', g.seat === s.you?.seat);
+          const who = document.createElement('small');
+          who.textContent = g.name;
+          holder.appendChild(who);
+          const grid = document.createElement('div');
+          grid.className = 'cd-golfslots';
+          grid.style.setProperty('--cols', String(s.columns ?? 3));
+          for (const slot of g.slots) {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'cd-slot';
+            b.appendChild(cardEl(slot.card, { small: true }));
+            b.disabled = g.seat !== s.you?.seat || !s.held || s.held.by !== s.you?.seat;
+            b.addEventListener('click', () => {
+              // Throwing means turning one of your own up instead, so the
+              // button up top decides which of the two this tap is.
+              Net.action({ type: picked.has('throw') ? 'throw' : 'swap', at: slot.at });
+              picked = new Set();
+              Sound.play('pick');
+            });
+            grid.appendChild(b);
+          }
+          holder.appendChild(grid);
+          box.appendChild(holder);
+        }
+        const pile = document.createElement('div');
+        pile.className = 'cd-discard';
+        pile.appendChild(cardEl(s.top));
+        if (s.held) {
+          const h = cardEl(s.held.card);
+          h.classList.add('is-picked');
+          pile.appendChild(h);
+        }
+        box.appendChild(pile);
+      },
+
+      cribbage(s) {
+        const box = $('#cdMiddle');
+        box.replaceChildren();
+        const head = document.createElement('div');
+        head.className = 'cd-discard';
+        if (s.cut) head.appendChild(cardEl(s.cut));
+        const n = document.createElement('span');
+        n.className = 'cd-count';
+        n.textContent = s.stage === 'throwing'
+          ? `Throw two into ${s.dealerName}'s crib`
+          : `Running total ${s.total} · crib ${s.crib} · to ${s.target}`;
+        head.appendChild(n);
+        box.appendChild(head);
+
+        const run = document.createElement('div');
+        run.className = 'cd-trick';
+        for (const r of s.run ?? []) run.appendChild(cardEl(r.card, { small: true }));
+        box.appendChild(run);
+
+        // The count, spelled out. Everybody who plays this game counts along,
+        // and a total with no working shown is a total people argue with.
+        for (const c of s.counts ?? []) {
+          const row = document.createElement('div');
+          row.className = 'cd-meld';
+          const who = document.createElement('small');
+          who.textContent = `${c.name}${c.crib ? " — crib" : ''}: ${c.points}` +
+            (c.parts.length ? ` (${c.parts.join(', ')})` : '');
+          row.appendChild(who);
+          box.appendChild(row);
+        }
+      },
+
       hearts(s) {
         const box = $('#cdMiddle');
         box.replaceChildren();
@@ -675,6 +801,61 @@ export default {
         add(s.you?.mustPlay ? 'You have a card that goes' : 'Cannot go — pass',
           'btn-ghost', () => { Net.action({ type: 'pass' }); Sound.play('back'); },
           Boolean(s.you?.mustPlay));
+        return;
+      }
+
+      if (face === 'rummy') {
+        if (!s.you?.yourTurn) return;
+        if (s.you?.mustDraw) {
+          add('Draw', 'btn-primary', () => { Net.action({ type: 'draw', from: 'deck' }); Sound.play('click'); });
+          add(s.top ? 'Take the discard' : 'Nothing thrown', 'btn-ghost',
+            () => { Net.action({ type: 'draw', from: 'discard' }); Sound.play('click'); }, !s.top);
+          return;
+        }
+        if (s.knockAt !== undefined) {
+          // Gin: nothing goes down until the knock, and the knock is a discard.
+          add(picked.size === 1 ? 'Knock' : 'Pick one to knock with', 'cd-call',
+            () => { Net.action({ type: 'knock', card: [...picked][0] }); picked = new Set(); Sound.play('buzz'); },
+            picked.size !== 1 || !s.you?.canKnock);
+        } else if (picked.size >= 3) {
+          add('Meld ' + picked.size, 'btn-primary',
+            () => { Net.action({ type: 'meld', cards: [...picked] }); picked = new Set(); Sound.play('pick'); });
+        }
+        add(picked.size === 1 ? 'Throw it' : 'Pick one to throw', 'btn-ghost',
+          () => { Net.action({ type: 'discard', card: [...picked][0] }); picked = new Set(); Sound.play('back'); },
+          picked.size !== 1);
+        return;
+      }
+
+      if (face === 'golf') {
+        if (!s.you?.yourTurn) return;
+        if (!s.held) {
+          add('Draw', 'btn-primary', () => { Net.action({ type: 'take', from: 'deck' }); Sound.play('click'); });
+          add('Take the discard', 'btn-ghost',
+            () => { Net.action({ type: 'take', from: 'discard' }); Sound.play('click'); }, !s.top);
+          return;
+        }
+        add(picked.has('throw') ? 'Throwing — now pick a square' : 'Throw it instead', 'btn-ghost',
+          () => { if (picked.has('throw')) picked.delete('throw'); else picked.add('throw'); paint(last); });
+        return;
+      }
+
+      if (face === 'cribbage') {
+        if (s.stage === 'throwing') {
+          if (s.you?.thrown) return;
+          add(picked.size === 2 ? 'Into the crib' : 'Pick two', 'btn-primary',
+            () => { Net.action({ type: 'throw', cards: [...picked] }); picked = new Set(); Sound.play('pick'); },
+            picked.size !== 2);
+          return;
+        }
+        if (!s.you?.yourTurn) return;
+        if (s.you?.mustSayGo) {
+          add('Go', 'btn-ghost', () => { Net.action({ type: 'go' }); Sound.play('back'); });
+          return;
+        }
+        add(picked.size === 1 ? 'Play it' : 'Pick one', 'btn-primary',
+          () => { Net.action({ type: 'play', card: [...picked][0] }); picked = new Set(); Sound.play('pick'); },
+          picked.size !== 1);
         return;
       }
 

@@ -41,6 +41,11 @@ const { oldmaid } = await import('../server/games/cards/oldmaid.js');
 const { memory } = await import('../server/games/cards/memory.js');
 const { spoons } = await import('../server/games/cards/spoons.js');
 const { spades, whist, euchre } = await import('../server/games/cards/tricks.js');
+const { rummy, gin, bestKnockDiscard } = await import('../server/games/cards/rummy.js');
+const { canasta, legalMeld, worth } = await import('../server/games/cards/canasta.js');
+const { golf, cost, scoreGrid } = await import('../server/games/cards/golf.js');
+const { cribbage, countHand, pip } = await import('../server/games/cards/cribbage.js');
+const { bestLayout, isSet, isRun, pointsOf } = await import('../server/games/cards/melds.js');
 const { CARD_GAMES } = await import('../server/games/cards/index.js');
 const { rankOf, suitOf, RANKS } = await import('../server/cards.js');
 
@@ -96,18 +101,39 @@ console.log('\n  The card room — fifty-two cards, and nobody sees a hand\n');
     // At least two, whatever the game allows — Memory can be played alone and
     // a one-player table has nobody to leak a hand to.
     const { state, players } = open(game, Math.max(2, game.minPlayers));
-    const wire = JSON.stringify(game.serialize(state));
-    // Find a card that definitely exists and make sure the public view has
-    // never heard of it.
-    const someones = state.seats.flatMap((s) => s.hand);
-    const leaked = someones.filter((c) => wire.includes(`"${c}"`));
-    check(`${game.name}: the table state carries no hand`, leaked.length === 0, leaked.slice(0, 4).join(' '));
+    const pub = game.serialize(state);
+    const wire = JSON.stringify(pub);
+
+    // Structural first, and for every game: a seat on the wire carries a count
+    // and never an array of cards. This is the check that cannot be fooled.
+    check(`${game.name}: a seat on the wire has a count, not cards`,
+      (pub.seats ?? []).every((s) => !('hand' in s) && typeof s.cards === 'number'),
+      JSON.stringify(pub.seats?.[0] ?? {}));
+
+    // Then the text search — but only where a card code identifies one card.
+    // Canasta deals from two packs, so a nine of spades in the discard pile
+    // and a nine of spades in somebody's hand are two different cards, and
+    // searching the text for the code finds the innocent one.
+    const TWO_PACKS = ['canasta'];
+    if (TWO_PACKS.includes(game.id)) {
+      check(`${game.name}: the table state carries no hand`, true, 'two packs — checked structurally');
+    } else {
+      const someones = state.seats.flatMap((s) => s.hand);
+      const leaked = someones.filter((c) => wire.includes(`"${c}"`));
+      check(`${game.name}: the table state carries no hand`, leaked.length === 0, leaked.slice(0, 4).join(' '));
+    }
 
     const mine = game.serializeFor(state, players[0].id);
     const theirs = game.serializeFor(state, players[1].id);
     check(`${game.name}: but you can see your own`, Array.isArray(mine.you.hand));
     // And crucially, your private view carries nobody else's.
-    const others = state.seats.filter((s) => s.id !== players[0].id).flatMap((s) => s.hand);
+    // Only codes this player does not hold themselves: Canasta uses two packs,
+    // so "9s is in my view and also in your hand" is not a leak, it is a
+    // second nine of spades.
+    const others = state.seats
+      .filter((s) => s.id !== players[0].id)
+      .flatMap((s) => s.hand)
+      .filter((c) => !mine.you.hand.includes(c));
     const inMine = JSON.stringify(mine.you);
     check(`${game.name}: and only your own`,
       others.every((c) => !inMine.includes(`"${c}"`)),
@@ -1002,6 +1028,238 @@ console.log('\n  The card room — fifty-two cards, and nobody sees a hand\n');
   }
   check('spades, whist and euchre: thirty-six hands, always legal and always complete',
     broke === null, broke ?? '');
+}
+
+/* ---------------------------- melds, on their own ------------------------- */
+
+{
+  check('melds: three of a rank is a set', isSet(['7c', '7d', '7h']));
+  check('melds: two is not', !isSet(['7c', '7d']));
+  check('melds: mixed ranks is not', !isSet(['7c', '7d', '8h']));
+  check('melds: three in a row one suit is a run', isRun(['5c', '6c', '7c']));
+  check('melds: out of order still is', isRun(['7c', '5c', '6c']));
+  check('melds: across suits is not', !isRun(['5c', '6c', '7d']));
+  check('melds: with a gap is not', !isRun(['5c', '6c', '8c']));
+  check('melds: an ace is one and a face is ten',
+    pointsOf('Ac') === 1 && pointsOf('Kc') === 10 && pointsOf('7d') === 7);
+
+  // The case a greedy layout gets wrong, and the reason the search exists: the
+  // set of sevens leaves eleven behind, the run leaves fourteen.
+  const tricky = bestLayout(['5c', '6c', '7c', '7d', '7h']);
+  check('melds: the search beats a greedy pass', tricky.points === 11,
+    `${tricky.points} leaving ${tricky.deadwood.join(',')}`);
+
+  const clean = bestLayout(['2c', '3c', '4c', '9d', '9h', '9s']);
+  check('melds: two melds leave nothing', clean.points === 0 && clean.melds.length === 2,
+    `${clean.points} points, ${clean.melds.length} melds`);
+  const overlap = bestLayout(['5c', '6c', '7c', '8c', '8d', '8h']);
+  check('melds: overlapping options resolve to nothing left', overlap.points === 0, String(overlap.points));
+
+  const start = Date.now();
+  for (let i = 0; i < 200; i++) bestLayout(['Ac', '2c', '3c', '5d', '6d', '7d', '9h', '9s', '9c', 'Kd']);
+  check('melds: two hundred ten-card searches are instant', Date.now() - start < 2000, `${Date.now() - start}ms`);
+}
+
+/* --------------------------- Rummy and Gin Rummy -------------------------- */
+
+{
+  const { state } = open(rummy, 4);
+  check('rummy: ten each and one turned up',
+    state.seats.every((s) => s.hand.length === 10) && state.pile.length === 1,
+    state.seats.map((s) => s.hand.length).join(','));
+
+  // Draw before anything else.
+  const seat = state.seats[state.turn];
+  const was = seat.hand.length;
+  rummy.__spec.act(state, seat, { type: 'discard', card: seat.hand[0] });
+  check('rummy: you must draw first', seat.hand.length === was, String(seat.hand.length));
+  rummy.__spec.act(state, seat, { type: 'draw', from: 'deck' });
+  check('rummy: and then you have eleven', seat.hand.length === was + 1, String(seat.hand.length));
+
+  // Only real melds go down.
+  seat.hand = ['3c', '4c', '5c', '9d', '9h', 'Ks'];
+  rummy.__spec.act(state, seat, { type: 'meld', cards: ['9d', '9h', 'Ks'] });
+  check('rummy: nonsense does not go down', state.melds.length === 0, JSON.stringify(state.melds));
+  rummy.__spec.act(state, seat, { type: 'meld', cards: ['3c', '4c', '5c'] });
+  check('rummy: a real run does', state.melds.length === 1, JSON.stringify(state.melds[0]?.cards));
+
+  // Laying off onto somebody else's meld.
+  seat.hand.push('6c');
+  rummy.__spec.act(state, seat, { type: 'layoff', meld: 0, card: '6c' });
+  check('rummy: you can add to a meld on the table', state.melds[0].cards.length === 4,
+    state.melds[0].cards.join(','));
+  seat.hand.push('Kd');
+  rummy.__spec.act(state, seat, { type: 'layoff', meld: 0, card: 'Kd' });
+  check('rummy: but only what fits', state.melds[0].cards.length === 4, state.melds[0].cards.join(','));
+
+  // Gin: the knock is judged on the hand after the discard, and only below ten.
+  // Each of these gets its own table, because a successful knock latches and
+  // every later attempt on the same state is correctly ignored — which is what
+  // made the first version of this block report the first knock's points three
+  // times over.
+  {
+    const { state: g } = open(gin, 2);
+    const me = g.seats[g.turn];
+    g.drewThisTurn = true;
+    // Two melds and three loose cards: 8 + 10 + 10 is twenty-eight of deadwood.
+    me.hand = ['2c', '3c', '4c', '9d', '9h', '9s', 'Qc', 'Kh', '8d', '7h', '5s'];
+    gin.__spec.act(g, me, { type: 'knock', card: '5s' });
+    check('gin: a knock on twenty-eight is refused', g.knock === null, JSON.stringify(g.knock));
+  }
+  {
+    const { state: g } = open(gin, 2);
+    const me = g.seats[g.turn];
+    g.drewThisTurn = true;
+    // Three melds and a loose five. Off-suit deliberately: the five of clubs
+    // would extend the 2-3-4 run to four and leave nothing at all, which is
+    // gin rather than a knock on five — and is what the first version of this
+    // check was accidentally testing.
+    me.hand = ['2c', '3c', '4c', '9d', '9h', '9s', 'Kd', 'Kh', 'Ks', '5d', '8h'];
+    gin.__spec.act(g, me, { type: 'knock', card: '8h' });
+    check('gin: a knock on five is allowed', g.knock?.points === 5, JSON.stringify(g.knock));
+  }
+  {
+    const { state: g } = open(gin, 2);
+    const me = g.seats[g.turn];
+    g.drewThisTurn = true;
+    // Ten cards that meld completely — a run of four and two sets of three —
+    // plus one to throw away.
+    me.hand = ['2c', '3c', '4c', '5c', '9d', '9h', '9s', 'Kd', 'Kh', 'Ks', '7d'];
+    gin.__spec.act(g, me, { type: 'knock', card: '7d' });
+    check('gin: nought deadwood is gin', g.knock?.gin === true, JSON.stringify(g.knock));
+  }
+
+  check('gin: the knock helper finds a legal discard when one exists',
+    bestKnockDiscard(['2c', '3c', '4c', '9d', '9h', '9s', 'Kd', 'Kh', 'Ks', '5c', '8h']) !== null);
+  check('gin: and says so when none does',
+    bestKnockDiscard(['2c', '5d', '9h', 'Ks', 'Qc', 'Jd', 'Th', '8s', '7c', '4d', '3h']) === null);
+}
+
+/* --------------------------------- Canasta -------------------------------- */
+
+{
+  check('canasta: a meld may never be more than half wild',
+    legalMeld(['7c', '7d', '2h']) && !legalMeld(['7c', '2d', '2h']),
+    `${legalMeld(['7c', '7d', '2h'])} / ${legalMeld(['7c', '2d', '2h'])}`);
+  check('canasta: and needs two naturals at least',
+    !legalMeld(['7c', '2d', '2h', '2s']));
+  check('canasta: values are twenty, ten and five',
+    worth('Ac') === 20 && worth('2c') === 20 && worth('Kc') === 10 && worth('4c') === 5);
+
+  const { state } = open(canasta, 3);
+  check('canasta: two packs are used', state.seats.every((s) => s.hand.length === 11));
+
+  // Taking the pile needs two naturals of the top card in hand, right now.
+  const seat = state.seats[state.turn];
+  state.pile = ['9d', '9h', '5c'];
+  seat.hand = ['2c', '3d', '4h'];
+  canasta.__spec.act(state, seat, { type: 'takePile' });
+  check('canasta: no pair, no pile', state.pile.length === 3, String(state.pile.length));
+  seat.hand = ['5d', '5h', '3d'];
+  canasta.__spec.act(state, seat, { type: 'takePile' });
+  check('canasta: two naturals takes the whole thing', state.pile.length === 0, String(state.pile.length));
+  check('canasta: and the meld goes straight down',
+    (state.melds[seat.seat] ?? []).length === 1,
+    JSON.stringify(state.melds[seat.seat]));
+
+  // Going out needs a canasta.
+  const { state: out } = open(canasta, 3);
+  const s2 = out.seats[out.turn];
+  out.drewThisTurn = true;
+  out.melds[s2.seat] = [{ cards: ['7c', '7d', '7h'] }];
+  s2.hand = ['Kd'];
+  canasta.__spec.act(out, s2, { type: 'discard', card: 'Kd' });
+  check('canasta: you cannot leave without a canasta', s2.out === false, String(s2.out));
+
+  const { state: win } = open(canasta, 3);
+  const s3 = win.seats[win.turn];
+  win.drewThisTurn = true;
+  win.melds[s3.seat] = [{ cards: ['7c', '7d', '7h', '7s', '7c', '7d', '2h'] }];
+  s3.hand = ['Kd'];
+  canasta.__spec.act(win, s3, { type: 'discard', card: 'Kd' });
+  check('canasta: with one, you can', s3.out === true, String(s3.out));
+}
+
+/* ---------------------------------- Golf ---------------------------------- */
+
+{
+  check('golf: a king is worth nothing', cost('Kc') === 0);
+  check('golf: an ace is one and a queen is ten', cost('Ac') === 1 && cost('Qd') === 10);
+  // The column rule, which is the whole game.
+  check('golf: a matched column cancels to nothing',
+    scoreGrid(['9c', 'Kd', 'Kh', '9d', '2c', '3c']) === 5,
+    String(scoreGrid(['9c', 'Kd', 'Kh', '9d', '2c', '3c'])));
+  check('golf: and an unmatched one does not',
+    scoreGrid(['9c', 'Kd', 'Kh', '8d', '2c', '3c']) === 22,
+    String(scoreGrid(['9c', 'Kd', 'Kh', '8d', '2c', '3c'])));
+
+  const { state } = open(golf, 3);
+  check('golf: six each, two showing',
+    state.seats.every((s) => (state.up[s.seat] ?? []).filter(Boolean).length === 2),
+    state.seats.map((s) => (state.up[s.seat] ?? []).filter(Boolean).length).join(','));
+
+  const wire = JSON.stringify(golf.serialize(state));
+  const hidden = state.seats.flatMap((s) =>
+    (state.grids[s.seat] ?? []).filter((c, i) => !state.up[s.seat][i]));
+  check('golf: face-down squares carry no card, not even your own',
+    !hidden.some((c) => wire.includes(`"${c}"`)), wire.slice(0, 70));
+
+  // You must take before you can do anything.
+  const seat = state.seats[state.turn];
+  const grid = [...state.grids[seat.seat]];
+  golf.__spec.act(state, seat, { type: 'swap', at: 2 });
+  check('golf: nothing happens until you take one',
+    JSON.stringify(state.grids[seat.seat]) === JSON.stringify(grid));
+  golf.__spec.act(state, seat, { type: 'take', from: 'deck' });
+  check('golf: and then you are holding one', Boolean(state.held), JSON.stringify(state.held));
+  golf.__spec.act(state, seat, { type: 'swap', at: 2 });
+  check('golf: swapping turns that square up', state.up[seat.seat][2] === true);
+}
+
+/* -------------------------------- Cribbage -------------------------------- */
+
+{
+  // The best hand in the game. It only comes out right if fifteens, pairs and
+  // nobs are all counted independently of one another.
+  const best = countHand(['5s', '5h', '5d', 'Jc'], '5c');
+  check('cribbage: the twenty-nine hand', best.points === 29, `${best.points}: ${best.parts.join('; ')}`);
+  check('cribbage: a hand worth nothing', countHand(['2c', '4d', '6h', '8s'], 'Th').points === 0);
+
+  // A double run of three is two runs plus a pair — six plus two, not three.
+  const dbl = countHand(['4c', '5d', '5h', '6s'], '2c');
+  check('cribbage: a double run counts twice', dbl.points === 12, `${dbl.points}: ${dbl.parts.join('; ')}`);
+  check('cribbage: three of a kind is six',
+    countHand(['9c', '9d', '9h', '2s'], 'Kc').points === 6);
+
+  const f4 = countHand(['2c', '4c', '6c', '8c'], 'Th');
+  check('cribbage: four to a flush in hand is four', f4.parts.some((p) => p.includes('flush of four')));
+  check('cribbage: but a four-flush in the crib is nothing',
+    !countHand(['2c', '4c', '6c', '8c'], 'Th', true).parts.some((p) => p.includes('flush')));
+  check('cribbage: unless the cut matches it',
+    countHand(['2c', '4c', '6c', '8c'], 'Tc', true).parts.some((p) => p.includes('flush of five')));
+  check('cribbage: his nobs is one',
+    countHand(['Jh', '2c', '4d', '6s'], '9h').parts.some((p) => p.includes('nobs')));
+
+  const { state } = open(cribbage, 2);
+  check('cribbage: six each', state.seats.every((s) => s.hand.length === 6));
+  check('cribbage: and it starts by throwing', state.phase2 === 'throwing', state.phase2);
+  for (const s of state.seats) cribbage.__spec.act(state, s, { type: 'throw', cards: s.hand.slice(0, 2) });
+  check('cribbage: the crib has four in it', state.crib.length === 4, String(state.crib.length));
+  check('cribbage: a card is cut', Boolean(state.cut), String(state.cut));
+  check('cribbage: and then you peg', state.phase2 === 'pegging', state.phase2);
+  check('cribbage: everybody kept four', state.seats.every((s) => s.hand.length === 4));
+
+  // Never past thirty-one.
+  state.total = 30;
+  const seat = state.seats[state.turn];
+  const big = seat.hand.find((c) => pip(c) > 1);
+  if (big) {
+    const held = seat.hand.length;
+    cribbage.__spec.act(state, seat, { type: 'play', card: big });
+    check('cribbage: you cannot go past thirty-one', seat.hand.length === held, String(seat.hand.length));
+  } else {
+    check('cribbage: you cannot go past thirty-one', true, 'all aces, nothing to test');
+  }
 }
 
 /* -------------------------------- nonsense -------------------------------- */

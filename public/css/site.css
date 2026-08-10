@@ -4886,3 +4886,12 @@ body.dropping::after {
   border: 1px solid var(--border); background: var(--glass); color: var(--text);
   font-family: var(--font-display);
 }
+
+/* the rummy family, golf and cribbage */
+.cd-meld { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; padding: 2px var(--sp-xs); border-radius: var(--r-sm); background: var(--glass); }
+.cd-meld.is-canasta { background: color-mix(in srgb, var(--success) 24%, var(--glass)); }
+.cd-meld small { font-size: 0.58rem; color: var(--text-3); margin-right: var(--sp-xs); }
+.cd-golfgrid { display: grid; justify-items: center; gap: 2px; }
+.cd-golfgrid.is-you { padding: var(--sp-xs); border-radius: var(--r-sm); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.cd-golfgrid small { font-size: 0.58rem; color: var(--text-3); }
+.cd-golfslots { display: grid; grid-template-columns: repeat(var(--cols, 3), 1fr); gap: 3px; }

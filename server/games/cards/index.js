@@ -16,10 +16,15 @@ import { oldmaid } from './oldmaid.js';
 import { memory } from './memory.js';
 import { spoons } from './spoons.js';
 import { TRICK_GAMES } from './tricks.js';
+import { RUMMY_GAMES } from './rummy.js';
+import { canasta } from './canasta.js';
+import { golf } from './golf.js';
+import { cribbage } from './cribbage.js';
 
 export const CARD_GAMES = [
   cheat, snap, slapjack, gofish, hearts, war,
   crazy8s, switchGame, president, sevens, speed,
   oldmaid, memory, spoons,
   ...TRICK_GAMES,
+  ...RUMMY_GAMES, canasta, golf, cribbage,
 ];
