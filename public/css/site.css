@@ -1145,6 +1145,7 @@ input::placeholder { color: var(--text-3); }
 /* Anything that is not the raw canvas scrolls like a normal page. */
 .stage-wrap.party-stage,
 .stage-wrap.bs-stage,
+.stage-wrap.so-stage,
 .stage-wrap.td-stage {
   overflow-y: auto;
   overflow-x: hidden;
@@ -1169,6 +1170,7 @@ input::placeholder { color: var(--text-3); }
 @media (max-width: 760px), (max-height: 620px) {
   .stage-wrap.party-stage,
   .stage-wrap.bs-stage,
+  .stage-wrap.so-stage,
   .stage-wrap.td-stage {
     max-height: none;
     overflow: visible;
@@ -3434,3 +3436,211 @@ body.dropping::after {
 .add-note { color: var(--text-3); font-size: var(--t-label); margin: 0; }
 .add-done { display: grid; gap: var(--sp-lg); justify-items: start; }
 .done-acts { display: flex; gap: var(--sp-sm); flex-wrap: wrap; }
+
+/* ------------------------------------------------------------- standoff */
+
+/* Rock, paper, scissors against the whole room. The screen has one job: make
+   a single decision a round feel like something. */
+
+.so { display: grid; gap: var(--sp-lg); padding: var(--sp-lg); }
+.so-table { display: grid; gap: var(--sp-lg); position: relative; }
+
+/* The count-in. Big, because everybody in the room is reading it at once and
+   half of them are looking at a phone on a table. */
+.so-chant {
+  /* Room for exactly one line, held even when empty so the hands do not jump
+     between the count and the reveal. Two lines' worth left a band of dead
+     space above the cards, which on a phone is room the game needs. */
+  min-height: 1.2em;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 7vw, 2.6rem);
+  line-height: 1.1;
+  color: var(--accent);
+}
+.so-chant.is-beat { animation: so-chant-kf 380ms var(--ease-entrance); }
+@keyframes so-chant-kf {
+  0% { opacity: 0; transform: scale(0.72); }
+  55% { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* One card per player, in a grid that stays roughly square however many
+   people are in the room. */
+.so-hands {
+  position: relative;
+  display: grid;
+  /* Overwritten from the client once it knows how many people are in the
+     room; declared here so the grid is right before that happens and the
+     default lives with the rest of the layout. */
+  --cols: 3;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: var(--sp-md);
+}
+.so-hand {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: var(--sp-md) var(--sp-sm);
+  border: var(--bd-w) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  transition: border-color var(--m-fast) var(--ease-standard),
+              background var(--m-fast) var(--ease-standard),
+              transform var(--m-fast) var(--ease-standard);
+}
+.so-hand.is-you { border-color: var(--accent); }
+.so-hand.is-out { opacity: 0.4; }
+/* Committed, not what to. The pressure of being last is most of the round. */
+.so-hand.is-locked { background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.so-hand.is-locked::after {
+  content: 'in';
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.so-hand.is-swept { border-color: var(--success); background: color-mix(in srgb, var(--success) 14%, var(--surface)); }
+.so-hand.is-beaten { opacity: 0.72; }
+.so-hand.is-forced::after { content: 'buzzer'; color: var(--text-3); }
+
+.so-fist { font-size: clamp(2rem, 9vw, 3rem); line-height: 1; }
+/* Every hand turns over at the same instant — simultaneity is the game. */
+.so-fist.is-flip { animation: so-flip-kf 420ms var(--ease-entrance); }
+@keyframes so-flip-kf {
+  0% { transform: rotateX(0deg) scale(1); }
+  45% { transform: rotateX(90deg) scale(1.18); }
+  100% { transform: rotateX(0deg) scale(1); }
+}
+/* Three shakes while the count runs, so the wait has a pulse to it. */
+.so-hands.is-counting .so-fist { animation: so-shake-kf 520ms var(--ease-standard) infinite; }
+@keyframes so-shake-kf {
+  0%, 100% { transform: translateY(0) rotate(-6deg); }
+  50% { transform: translateY(-8px) rotate(6deg); }
+}
+
+.so-who { display: grid; justify-items: center; gap: 1px; text-align: center; }
+.so-who b { font-size: var(--t-label); max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.so-who small { font-size: 0.62rem; color: var(--text-3); }
+
+/* What everybody has left. Pips rather than numbers: you read "he has one
+   rock" at a glance, and a glance is all a twelve second round allows. */
+.so-stock { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.so-pips { display: inline-flex; align-items: center; gap: 2px; font-size: 0.6rem; }
+.so-pips i { font-style: normal; opacity: 0.75; }
+.so-pips u {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  text-decoration: none;
+}
+.so-pips.is-empty { opacity: 0.3; }
+.so-pips.is-empty i { filter: grayscale(1); }
+
+.so-gain {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-display);
+  font-size: var(--t-label);
+  pointer-events: none;
+}
+.so-gain[data-tone='up'] { color: var(--success); }
+.so-gain[data-tone='down'] { color: var(--danger); }
+.so-gain[data-tone='flat'] { color: var(--text-3); }
+.so-gain.is-pop { animation: so-gain-kf 900ms var(--ease-exit) forwards; }
+@keyframes so-gain-kf {
+  0% { opacity: 0; transform: translate(-50%, 6px) scale(0.8); }
+  30% { opacity: 1; transform: translate(-50%, -6px) scale(1.1); }
+  100% { opacity: 0; transform: translate(-50%, -22px) scale(1); }
+}
+
+/* A line from every winner to everybody they beat. Without this a sweep looks
+   exactly like an ordinary round with a bigger number on it.
+ *
+ * The beams share this box with the hands so the two agree on where a card is.
+ * They also sit under the cards: a line drawn over the top crossed people's
+ * faces and read as clutter, while the same line behind shows only in the gaps
+ * and reads as a connection. */
+.so-arena { position: relative; }
+.so-beams {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.so-hands { z-index: 1; }
+.so-beam {
+  stroke: var(--text-3);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0;
+  stroke-dasharray: 4 6;
+  animation: so-beam-kf 700ms var(--ease-entrance) forwards;
+}
+.so-beam.is-mine { stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: none; }
+@keyframes so-beam-kf {
+  0% { opacity: 0; stroke-dashoffset: 24; }
+  60% { opacity: 0.9; }
+  100% { opacity: 0.55; stroke-dashoffset: 0; }
+}
+
+.so-verdict {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  text-align: center;
+  padding: var(--sp-md);
+  border-radius: var(--r-md);
+  background: var(--glass);
+}
+.so-verdict b { font-family: var(--font-display); font-size: var(--t-title); }
+.so-verdict span { font-size: var(--t-label); color: var(--text-3); }
+.so-verdict.is-in { animation: so-verdict-kf 420ms var(--ease-entrance); }
+@keyframes so-verdict-kf {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Your own throw. Big targets — this is pressed in a hurry, on a phone, by
+   somebody who is also watching everybody else's card. */
+.so-throws { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-sm); }
+.so-throw {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: var(--sp-md) var(--sp-sm);
+  border: var(--bd-w) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: inherit;
+  cursor: pointer;
+  transition: transform var(--m-fast) var(--ease-standard), background var(--m-fast) var(--ease-standard);
+}
+.so-throw:hover:not(:disabled) { transform: translateY(-2px); }
+.so-throw.is-on { background: var(--accent); color: var(--on-accent, #fff); border-color: var(--accent); }
+.so-throw:disabled { opacity: 0.35; cursor: not-allowed; }
+.so-throw-hand { font-size: clamp(1.6rem, 7vw, 2.2rem); line-height: 1; }
+.so-throw-name { font-size: var(--t-label); font-weight: 600; }
+.so-throw-left { font-size: 0.6rem; color: var(--text-3); }
+.so-throw.is-on .so-throw-left { color: inherit; opacity: 0.85; }
+.so-pick-note { margin: var(--sp-sm) 0 0; text-align: center; font-size: var(--t-label); }
+
+.so-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.so-log li { font-size: 0.68rem; color: var(--text-3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .so-hands.is-counting .so-fist,
+  .so-fist.is-flip,
+  .so-chant.is-beat,
+  .so-beam { animation: none; }
+  .so-beam { opacity: 0.55; }
+  .so-throw:hover:not(:disabled) { transform: none; }
+}
