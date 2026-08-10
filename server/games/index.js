@@ -33,8 +33,9 @@ import battleship from './battleship.js';
 import standoff from './standoff.js';
 import crossword from './crossword.js';
 import roulette from './roulette.js';
+import holdem from './holdem.js';
 
-const modules = [clash, imposter, truthDare, situations, quiz, findWord, movies, songs, poll, standoff, crossword, arena, battleship, roulette];
+const modules = [clash, imposter, truthDare, situations, quiz, findWord, movies, songs, poll, standoff, crossword, arena, battleship, roulette, holdem];
 
 const registry = new Map(modules.map((g) => [g.id, g]));
 

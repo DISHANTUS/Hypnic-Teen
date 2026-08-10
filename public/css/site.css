@@ -1148,6 +1148,7 @@ input::placeholder { color: var(--text-3); }
 .stage-wrap.so-stage,
 .stage-wrap.cw-stage,
 .stage-wrap.rl-stage,
+.stage-wrap.he-stage,
 .stage-wrap.td-stage {
   overflow-y: auto;
   overflow-x: hidden;
@@ -1175,6 +1176,7 @@ input::placeholder { color: var(--text-3); }
   .stage-wrap.so-stage,
 .stage-wrap.cw-stage,
 .stage-wrap.rl-stage,
+.stage-wrap.he-stage,
   .stage-wrap.td-stage {
     max-height: none;
     overflow: visible;
@@ -3939,3 +3941,97 @@ body.dropping::after {
 @media (prefers-reduced-motion: reduce) {
   .rl-result { animation: none; }
 }
+
+/* ------------------------------------------------------------- hold'em */
+
+.he { display: grid; gap: var(--sp-md); padding: var(--sp-lg); }
+.he-table { display: grid; gap: var(--sp-md); }
+
+.he-middle {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-sm);
+  padding: var(--sp-lg) var(--sp-md);
+  border-radius: var(--r-lg);
+  background: color-mix(in srgb, #1f8f5f 18%, var(--surface));
+}
+.he-board { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
+.he-pot { display: flex; align-items: baseline; gap: var(--sp-sm); }
+.he-pot span { font-size: var(--t-label); color: var(--text-3); }
+.he-pot b { font-family: var(--font-display); font-size: var(--t-h3); color: var(--accent); }
+.he-said { font-size: var(--t-label); text-align: center; min-height: 1.2em; }
+
+/* A card. Small enough that nine of them fit a phone, big enough to read. */
+.he-card {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 48px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: #fdfdfb;
+  color: #1b1c22;
+  font-family: var(--font-display);
+  line-height: 1;
+}
+.he-card b { font-size: 0.9rem; }
+.he-card i { font-style: normal; font-size: 0.8rem; }
+.he-card.is-red { color: #c8392b; }
+.he-card.is-back {
+  background: repeating-linear-gradient(45deg, #2b3350, #2b3350 4px, #3a4468 4px, #3a4468 8px);
+  border-color: #1b2036;
+}
+.he-card.is-slot { background: transparent; border-style: dashed; opacity: 0.4; }
+.he-card.is-small { width: 22px; height: 31px; }
+.he-card.is-small b { font-size: 0.62rem; }
+.he-card.is-small i { font-size: 0.55rem; }
+
+.he-seats { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: var(--sp-sm); }
+.he-seat {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: var(--sp-sm);
+  border: var(--bd-w) solid var(--ink);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+.he-seat.is-you { border-color: var(--accent); }
+.he-seat.is-turn { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+.he-seat.is-out { opacity: 0.45; }
+.he-seat.is-allin { border-color: var(--warning); }
+.he-seat-cards { display: flex; gap: 2px; }
+.he-seat-who { display: grid; justify-items: center; gap: 1px; text-align: center; }
+.he-seat-who b { font-size: 0.68rem; max-width: 11ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.he-seat-who small { font-size: 0.58rem; color: var(--text-3); }
+.he-folded {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  font-size: 0.52rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+
+.he-you {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-md);
+  padding: var(--sp-md);
+  border-radius: var(--r-md);
+  background: var(--glass);
+}
+.he-hole { display: flex; gap: 4px; }
+.he-yourinfo { display: grid; gap: 1px; }
+.he-yourinfo b { font-family: var(--font-display); font-size: var(--t-title); color: var(--accent); }
+.he-yourinfo small { font-size: 0.62rem; color: var(--text-3); }
+.he-best { font-size: var(--t-label); color: var(--success); }
+
+.he-acts { display: flex; gap: var(--sp-sm); flex-wrap: wrap; align-items: center; }
+.he-raise { display: flex; gap: var(--sp-sm); align-items: center; flex-wrap: wrap; }
+.he-raise input { width: 88px; }
+
+.he-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.he-log li { font-size: 0.68rem; color: var(--text-3); }

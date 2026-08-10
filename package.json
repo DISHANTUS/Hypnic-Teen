@@ -53,7 +53,10 @@
     "test:crossword:ui": "node tools/test-crossword-ui.mjs",
     "test:chips": "node tools/test-chips.mjs",
     "test:roulette": "node tools/test-roulette.mjs",
-    "test:roulette:ui": "node tools/test-roulette-ui.mjs"
+    "test:roulette:ui": "node tools/test-roulette-ui.mjs",
+    "test:cards": "node tools/test-cards.mjs",
+    "test:holdem": "node tools/test-holdem.mjs",
+    "test:holdem:ui": "node tools/test-holdem-ui.mjs"
   },
   "engines": {
     "node": ">=20"
