@@ -27,6 +27,7 @@ const NEXT = {
   chess: 'Only legal moves light up. A pinned piece will not.',
   shogi: 'What you take goes into your hand. Drop it back as a whole move.',
   mahjong: 'A pung beats a chow and a win beats both — being fastest does not.',
+  chain: 'Corners burst at two, edges at three, the middle at four.',
 };
 
 /** Chess pieces, drawn as the pieces rather than as letters. */
@@ -609,6 +610,82 @@ export default {
       );
     }
 
+
+    /**
+     * Chain Reaction: a grid of cells, each drawn as the orbs it holds.
+     *
+     * A cell one short of bursting is drawn straining, because that is the
+     * whole read of the board — you are looking for what is about to go and
+     * what it will take with it, and counting dots on forty-eight cells is not
+     * something anybody can do at a glance.
+     */
+    function paintChain(s) {
+      const box = $('#bdBoard');
+      const shape = 'chain' + s.cols + 'x' + s.rows;
+      if (box.dataset.size !== shape) {
+        box.dataset.size = shape;
+        box.classList.remove('is-ring', 'is-chequer', 'is-ladder');
+        box.classList.add('is-chain');
+        box.style.setProperty('--n', String(s.cols));
+        box.replaceChildren(
+          ...Array.from({ length: s.cols * s.rows }, (_, i) => {
+            const cell = document.createElement('button');
+            cell.type = 'button';
+            cell.className = 'bd-cell bd-orbcell';
+            cell.dataset.cell = String(i);
+            cell.addEventListener('click', () => {
+              if (!cell.classList.contains('can-drop')) { Sound.play('back'); return; }
+              Net.action({ type: 'drop', at: i });
+              Sound.play('pick');
+            });
+            return cell;
+          })
+        );
+      }
+
+      const canDrop = new Set(s.you?.canDrop ?? []);
+      const cells = box.querySelectorAll('.bd-orbcell');
+      for (let i = 0; i < cells.length; i++) {
+        const cell = cells[i];
+        const c = (s.cells ?? [])[i];
+        if (!c) continue;
+        cell.classList.toggle('can-drop', canDrop.has(i));
+        // One short of going, which is the thing worth seeing from across a
+        // table without counting anything.
+        cell.classList.toggle('is-critical', c.n > 0 && c.n === c.cap - 1);
+        cell.style.setProperty('--tint', c.owner === null ? 'transparent' : SEAT_TINT[c.owner % 4]);
+        const want = c.n;
+        if (Number(cell.dataset.n) !== want || cell.dataset.owner !== String(c.owner)) {
+          cell.dataset.n = String(want);
+          cell.dataset.owner = String(c.owner);
+          cell.replaceChildren(
+            ...Array.from({ length: want }, () => {
+              const orb = document.createElement('i');
+              orb.className = 'bd-orb';
+              return orb;
+            })
+          );
+        }
+      }
+
+      $('#bdSeats').replaceChildren(
+        ...(s.counts ?? []).map((p) => {
+          const el = document.createElement('div');
+          el.className = 'bd-seat';
+          el.style.setProperty('--tint', SEAT_TINT[p.seat % 4]);
+          el.classList.toggle('is-turn', p.seat === s.turn);
+          el.classList.toggle('is-you', p.seat === s.you?.seat);
+          el.classList.toggle('is-gone', p.out);
+          el.innerHTML = '<i></i><b></b><small></small>';
+          el.querySelector('b').textContent = p.name;
+          el.querySelector('small').textContent = p.out
+            ? 'wiped out'
+            : p.cells + ' cells · ' + p.orbs + ' orbs';
+          return el;
+        })
+      );
+    }
+
     /* ------------------------------- the sticks --------------------------- */
 
     /**
@@ -729,6 +806,7 @@ export default {
       else if (face === 'chess') paintChess(s);
       else if (face === 'shogi') paintShogi(s);
       else if (face === 'mahjong') paintMahjong(s);
+      else if (face === 'chain') paintChain(s);
       else { layOutBoard(s); paintCoins(s); paintDice(s); }
 
       // Pairing, which only ever applies inside and is always a choice.

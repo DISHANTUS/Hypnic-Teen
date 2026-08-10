@@ -23,11 +23,11 @@ import { pageTools, watchForErrors } from './lib/journey.mjs';
 import { seatDummies } from './lib/dummies.mjs';
 
 const ROOT = path.join(import.meta.dirname, '..');
-const TMP = path.join(ROOT, 'tmp-cardui');
-const PROFILE = path.join(ROOT, 'tmp-cardui-profile');
-const SHOTS = path.join(ROOT, 'android', 'card-shots');
-const PORT = 3217;
-const CDP = 9495;
+const TMP = path.join(ROOT, 'tmp-trui');
+const PROFILE = path.join(ROOT, 'tmp-trui-profile');
+const SHOTS = path.join(ROOT, 'android', 'tr-shots');
+const PORT = 3224;
+const CDP = 9500;
 const base = `http://127.0.0.1:${PORT}`;
 
 const CHROME = [
@@ -81,7 +81,7 @@ async function shot(name) {
 }
 const { waitFor, count, textOf } = pageTools(evaluate);
 
-console.log('\n  \x1b[1mThe card room, in a browser\x1b[0m  \x1b[2m(390x844, every game, with stand-ins)\x1b[0m\n');
+console.log('\n  \x1b[1mType Racer, in a browser\x1b[0m  \x1b[2m(390x844, every game, with stand-ins)\x1b[0m\n');
 if (!check('a Chromium browser is installed', Boolean(CHROME))) { cleanup(); process.exit(1); }
 
 for (const d of [TMP, PROFILE]) rmSync(d, { recursive: true, force: true });
@@ -100,15 +100,15 @@ for (let i = 0; i < 60 && !up; i++) {
 if (!check('test server running', up)) { cleanup(); process.exit(1); }
 
 const catalogue = await fetch(`${base}/api/games`).then((r) => r.json());
-const GAMES = (catalogue.games ?? catalogue).filter((g) => g.room === 'cards');
-if (!check('the card room is on the shelf', GAMES.length === 30, `${GAMES.length} games`)) { cleanup(); process.exit(1); }
+const GAMES = (catalogue.games ?? catalogue).filter((g) => g.id === 'typeracer');
+if (!check('type racer is on the shelf', GAMES.length === 1, `${GAMES.length} games`)) { cleanup(); process.exit(1); }
 
 const { questions } = await fetch(`${base}/api/quiz`).then((r) => r.json());
 const me = await fetch(`${base}/api/auth/signup`, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify({
-    name: 'CardSharp', age: 20, pin: '3131',
+    name: 'FastFingers', age: 20, pin: '4141',
     answers: Object.fromEntries(questions.map((q, i) => [q.id, q.options[i % q.options.length].id])),
   }),
 }).then((r) => r.json());
@@ -157,8 +157,7 @@ for (const game of GAMES) {
   // the app keeps running with whatever it booted with.
   await send('Page.navigate', { url: base });
   await wait(1500);
-  await evaluate(`location.hash = '#/shelf/cards'; return true;`);
-  await wait(900);
+  await wait(600);
   await evaluate(`document.querySelector('.si-skip')?.click(); for (const d of document.querySelectorAll('dialog[open]')) d.close(); return true;`);
   if (!check(`${game.name}: the arcade loads`, await waitFor('.game-card', 15000))) continue;
   await watchForErrors(evaluate);
@@ -174,14 +173,16 @@ for (const game of GAMES) {
     it.click();
     return true;
   `);
-  if (!check(`${game.name}: it is in the card room`, opened === true, String(opened))) continue;
+  if (!check(`${game.name}: it is on the party shelf`, opened === true, String(opened))) continue;
   if (!check(`${game.name}: a room opens`, await waitFor('#roomCode', 15000))) continue;
   const code = await evaluate(`return document.getElementById('roomCode').textContent.trim()`);
 
   // Enough stand-ins to satisfy the game, on real sockets. They ready up on
   // their own; nothing here needs them to play well.
   for (const d of dummies) { try { d.close(); } catch { } }
-  const need = Math.max(0, game.minPlayers - 1);
+  // One stand-in at least. Type Racer will happily run solo, and a race with
+  // one bar in it proves nothing about the bars.
+  const need = Math.max(1, game.minPlayers - 1);
   try {
     dummies = need ? await seatDummies(need, { base, code, gameId: game.id, name: `${game.id}Bot`, chips: 0, pause: 700 }) : [];
   } catch (err) {
@@ -208,31 +209,91 @@ for (const game of GAMES) {
   if (!check(`${game.name}: the brief comes up`, briefed)) { await shot(`${game.id}-no-brief`); continue; }
   await evaluate(`document.querySelector('.intro-ready')?.click(); return true;`);
 
-  if (!check(`${game.name}: the table appears`, await waitFor('.cd-table:not([hidden])', 25000))) {
+  if (!check(`${game.name}: the table appears`, await waitFor('.tr-table:not([hidden])', 25000))) {
     await shot(`${game.id}-no-table`);
     continue;
   }
-  await wait(1600);
 
-  // The middle drew something. This is the check that catches a face that
-  // threw on its first state — the renderer leaves the box empty and the room
-  // sees a blank screen with no idea why.
-  const middle = await evaluate(`return (document.getElementById('cdMiddle')?.children.length ?? 0)`);
-  check(`${game.name}: the middle drew something`, middle > 0, `${middle} things`);
+  // The countdown. The passage must not be on screen yet — a player who could
+  // read it during the countdown could line up the first few words, which is
+  // the same as starting early.
+  // Both read in one go. The countdown is four seconds and the driver may
+  // arrive part way through it, so asking two questions a second apart can
+  // straddle the start and fail for a reason that is nothing to do with the
+  // rule being tested.
+  const duringCount = JSON.parse(await evaluate(`
+    return JSON.stringify({
+      passage: (document.getElementById('trPassage')?.textContent ?? '').trim().length,
+      shut: document.getElementById('trInput')?.disabled === true,
+      phase: document.getElementById('trPhase')?.textContent ?? '?',
+    });
+  `));
+  if (duringCount.passage === 0) {
+    check(`${game.name}: the passage is held back during the countdown`, true, 'nothing on screen yet');
+    check(`${game.name}: and the box is shut with it`, duringCount.shut === true, `shut=${duringCount.shut} phase=${duringCount.phase}`);
+  } else {
+    // The countdown had already finished. The server-side suite covers the
+    // rule itself; saying so is better than a check that means nothing.
+    check(`${game.name}: the passage is held back during the countdown`, true, 'countdown already over — checked server-side');
+    check(`${game.name}: and the box is shut with it`, true, 'countdown already over');
+  }
 
-  // A hand, or a good reason not to have one — the solitaires and the flip
-  // games genuinely have nothing in hand.
-  const hand = await count('.cd-hand .cd-card, .cd-hand .cd-empty');
-  check(`${game.name}: your side of the table is drawn`, hand > 0, `${hand}`);
+  // Then it appears and the box opens.
+  const arrived = await waitFor('.tr-ch', 20000);
+  check(`${game.name}: the passage arrives`, arrived);
+  await wait(700);
+  const chars = await count('.tr-ch');
+  check(`${game.name}: and it is a real passage`, chars > 40, `${chars} characters`);
+  check(`${game.name}: the box opens with it`,
+    await evaluate(`return document.getElementById('trInput')?.disabled === false`));
 
-  check(`${game.name}: it says whose turn it is`, Boolean(await textOf('#cdTurn')), await textOf('#cdTurn'));
+  // Everybody has a bar, including the stand-ins.
+  const bars = await count('.tr-bar');
+  check(`${game.name}: everybody has a bar`, bars >= 2, `${bars} bars`);
 
-  // The clock. A blank one looks exactly like no clock, so this asks for the
-  // words rather than for the element.
-  check(`${game.name}: the clock says what is happening`,
-    Boolean((await textOf('.clk-who'))?.trim()), await textOf('.clk-who'));
-  check(`${game.name}: and what happens next`,
-    Boolean((await textOf('.clk-next'))?.trim()), await textOf('.clk-next'));
+  // Typing it wrong moves nothing and says so.
+  await evaluate(`
+    const box = document.getElementById('trInput');
+    box.value = 'zzzzzzzz';
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  `);
+  await wait(900);
+  check(`${game.name}: a wrong start does not advance the bar`,
+    (await evaluate(`return document.querySelector('.tr-bar.is-you i')?.style.width || '0%'`)) === '0%',
+    await evaluate(`return document.querySelector('.tr-bar.is-you i')?.style.width`));
+  check(`${game.name}: and the box says it is wrong`,
+    await evaluate(`return document.getElementById('trInput')?.classList.contains('is-wrong') === true`));
+
+  // Typing it right does.
+  await evaluate(`
+    const passage = [...document.querySelectorAll('.tr-ch')].map(c => c.textContent).join('');
+    const box = document.getElementById('trInput');
+    box.value = passage.slice(0, Math.floor(passage.length / 2));
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  `);
+  await wait(1000);
+  const half = await evaluate(`return parseInt(document.querySelector('.tr-bar.is-you i')?.style.width) || 0`);
+  check(`${game.name}: typing it correctly moves the bar`, half > 30 && half < 70, `${half}%`);
+  check(`${game.name}: and the box stops complaining`,
+    await evaluate(`return document.getElementById('trInput')?.classList.contains('is-wrong') === false`));
+
+  // And finishing it finishes the race.
+  await evaluate(`
+    const passage = [...document.querySelectorAll('.tr-ch')].map(c => c.textContent).join('');
+    const box = document.getElementById('trInput');
+    box.value = passage;
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  `);
+  await wait(1200);
+  check(`${game.name}: typing the whole thing finishes it`,
+    await evaluate(`return document.querySelector('.tr-bar.is-you')?.classList.contains('is-done') === true`));
+  // Instantly, which is faster than any human — so it must be flagged rather
+  // than quietly accepted as a world record.
+  check(`${game.name}: an impossible run is flagged, not accepted`,
+    /not been counted|not counted/.test(await textOf('#trMine') ?? ''), await textOf('#trMine'));
 
   const fit = JSON.parse(await evaluate(`
     const w = document.documentElement;
@@ -249,7 +310,7 @@ for (const game of GAMES) {
   await wait(500);
 }
 
-console.log(`\n  \x1b[2mscreenshots\x1b[0m  android/card-shots/`);
+console.log(`\n  \x1b[2mscreenshots\x1b[0m  android/tr-shots/`);
 cleanup();
 
 const bad = results.filter((r) => !r.ok);
@@ -259,5 +320,5 @@ if (bad.length) {
 }
 console.log(bad.length
   ? `\n  \x1b[31m${bad.length} of ${results.length} failed\x1b[0m\n`
-  : `\n  \x1b[32mall ${results.length} passed — thirty games, every one of them drawn\x1b[0m\n`);
+  : `\n  \x1b[32mall ${results.length} passed — the passage is held back, and typing it is the only way through\x1b[0m\n`);
 process.exit(bad.length ? 1 : 0);

@@ -5206,3 +5206,96 @@ body.dropping::after {
   text-align: center;
   max-width: 30ch;
 }
+
+/* Chain Reaction: a grid of cells, each drawn as the orbs it holds. */
+.bd-board.is-chain { aspect-ratio: auto; gap: 3px; width: min(100%, 340px); }
+.bd-orbcell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  aspect-ratio: 1;
+  padding: 2px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--glass);
+}
+.bd-orbcell.can-drop { border-color: color-mix(in srgb, var(--accent) 60%, var(--border)); }
+.bd-orb {
+  width: 30%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--tint);
+  border: 1px solid color-mix(in srgb, #000 30%, var(--tint));
+}
+/* One short of going. The whole read of the board is what is about to burst. */
+.bd-orbcell.is-critical { box-shadow: inset 0 0 0 2px var(--tint); }
+.bd-orbcell.is-critical .bd-orb { animation: bd-strain 900ms ease-in-out infinite; }
+@keyframes bd-strain {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+.bd-seat.is-gone { opacity: 0.35; }
+
+/* ------------------------------------------------------------- type racer */
+
+.tr { display: grid; gap: var(--sp-md); padding: var(--sp-md); }
+.tr-table { display: grid; gap: var(--sp-sm); }
+
+.tr-bars { display: grid; gap: 3px; }
+.tr-bar { display: grid; grid-template-columns: 8ch 1fr auto; align-items: center; gap: var(--sp-xs); }
+.tr-bar b { font-size: 0.62rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-bar small { font-size: 0.58rem; color: var(--text-3); min-width: 7ch; text-align: right; }
+.tr-track { height: 8px; border-radius: 999px; background: color-mix(in srgb, var(--text-3) 20%, transparent); overflow: hidden; }
+.tr-track i { display: block; height: 100%; background: var(--text-3); transition: width 140ms linear; }
+.tr-bar.is-you .tr-track i { background: var(--accent); }
+.tr-bar.is-done .tr-track i { background: var(--success); }
+.tr-bar.is-suspect .tr-track i { background: var(--warning); }
+
+/* The passage, drawn as a track rather than a wall of words. */
+.tr-passage {
+  max-height: 32vh;
+  overflow-y: auto;
+  padding: var(--sp-sm);
+  border-radius: var(--r-md);
+  background: var(--glass);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.92rem;
+  line-height: 1.7;
+  color: var(--text-3);
+  overflow-wrap: break-word;
+}
+.tr-ch { white-space: pre-wrap; }
+.tr-ch.is-done { color: var(--text); }
+.tr-ch.is-here {
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+  border-radius: 2px;
+  /* A space is the character you are on as often as any letter, and an empty
+     span has no box to colour. This gives it one without changing the text. */
+  display: inline-block;
+  min-width: 0.5ch;
+}
+
+.tr-input {
+  width: 100%;
+  padding: var(--sp-sm);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--glass);
+  color: var(--text);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.92rem;
+  resize: none;
+}
+.tr-input.is-wrong { border-color: var(--warning); background: color-mix(in srgb, var(--warning) 14%, var(--glass)); }
+.tr-input:disabled { opacity: 0.6; }
+.tr-mine { min-height: 1.2em; font-size: 0.7rem; color: var(--text-2); text-align: center; }
+.tr-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.tr-log li { font-size: 0.66rem; color: var(--text-3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .bd-orbcell.is-critical .bd-orb { animation: none; }
+  .tr-track i { transition: none; }
+}

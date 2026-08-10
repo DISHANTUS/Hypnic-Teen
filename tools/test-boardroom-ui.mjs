@@ -208,7 +208,7 @@ for (const game of GAMES) {
   if (!check(`${game.name}: the brief comes up`, briefed)) { await shot(`${game.id}-no-brief`); continue; }
   await evaluate(`document.querySelector('.intro-ready')?.click(); return true;`);
 
-  if (!check(`${game.name}: the table appears`, await waitFor('.bd-table', 25000))) {
+  if (!check(`${game.name}: the table appears`, await waitFor('.bd-table:not([hidden])', 25000))) {
     await shot(`${game.id}-no-table`);
     continue;
   }
@@ -235,7 +235,8 @@ for (const game of GAMES) {
   const canAct = await evaluate(`
     const any = (sel) => document.querySelectorAll(sel).length > 0;
     return any('.bd-stick') || any('.bd-throw') || any('.bd-coin')
-      || any('.bd-square.can-move') || any('.bd-tile') || any('.bd-inhand');
+      || any('.bd-square.can-move') || any('.bd-tile') || any('.bd-inhand')
+      || any('.bd-orbcell.can-drop');
   `);
   check(`${game.name}: there is something to throw or move`, canAct === true, String(canAct));
 

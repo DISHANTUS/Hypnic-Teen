@@ -68,7 +68,9 @@
     "test:cardroom:ui": "node tools/test-cardroom-ui.mjs",
     "test:shelf": "node tools/test-shelf-ui.mjs",
     "test:boardroom": "node tools/test-boardroom.mjs",
-    "test:boardroom:ui": "node tools/test-boardroom-ui.mjs"
+    "test:boardroom:ui": "node tools/test-boardroom-ui.mjs",
+    "test:typeracer": "node tools/test-typeracer.mjs",
+    "test:typeracer:ui": "node tools/test-typeracer-ui.mjs"
   },
   "engines": {
     "node": ">=20"

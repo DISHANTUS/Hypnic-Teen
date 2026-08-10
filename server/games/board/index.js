@@ -11,5 +11,6 @@ import { ludo } from './ludo.js';
 import { chess } from './chess.js';
 import { shogi } from './shogi.js';
 import { mahjong } from './mahjong.js';
+import { chainreaction } from './chainreaction.js';
 
-export const BOARD_GAMES = [thayam, paramapadham, ludo, chess, shogi, mahjong];
+export const BOARD_GAMES = [thayam, paramapadham, ludo, chess, shogi, mahjong, chainreaction];
