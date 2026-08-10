@@ -170,6 +170,9 @@ export default {
       const box = $('#bdBoard');
       if (box.dataset.size === String(s.size)) return;
       box.dataset.size = String(s.size);
+      // The cells are about to be thrown away, so anything painted onto them
+      // has to be repainted. Clearing the stamp is what asks for that.
+      delete box.dataset.owned;
       box.style.setProperty('--n', String(s.size));
       const safe = new Set(s.safe ?? []);
 
@@ -189,6 +192,45 @@ export default {
           return cell;
         })
       );
+    }
+
+    /**
+     * Each player's two crosses, painted in their own colour.
+     *
+     * Taken straight off a photograph of the real board, and not decoration:
+     * the colour is the only thing that tells a player which inner corner is
+     * theirs to turn in at. Four people walk the same ring and each leaves it
+     * at a different square — grey crosses everywhere draw a board that looks
+     * perfectly right and cannot be navigated.
+     *
+     * Both squares come out of the route the server already sends, so nothing
+     * here holds an opinion about the shape of the board. Change the board and
+     * this follows it.
+     */
+    function paintOwnCrosses(s) {
+      const box = $('#bdBoard');
+      if (!s.paths?.length) return;
+      const turn = s.firstLayer ?? 24;
+      const stamp = s.paths.map((p) => `${p[0]}>${p[turn]}`).join('|') + `#${s.you?.seat}`;
+      if (box.dataset.owned === stamp) return;
+      box.dataset.owned = stamp;
+
+      for (const cell of box.querySelectorAll('.bd-cell.is-owned')) {
+        cell.classList.remove('is-owned', 'is-yours');
+        cell.style.removeProperty('--own');
+        cell.removeAttribute('title');
+      }
+      s.paths.forEach((path, seat) => {
+        const who = (s.seats ?? [])[seat];
+        for (const [key, what] of [[path[0], 'comes on'], [path[turn], 'turns inward']]) {
+          const cell = box.querySelector(`[data-cell="${key}"]`);
+          if (!cell) continue;
+          cell.classList.add('is-owned');
+          if (seat === s.you?.seat) cell.classList.add('is-yours');
+          cell.style.setProperty('--own', SEAT_TINT[seat % 4]);
+          cell.title = `${who?.name ?? SEAT_NAME[seat % 4]} ${what} here`;
+        }
+      });
     }
 
     /** Pieces on the hundred squares. */
@@ -809,7 +851,7 @@ export default {
       else if (face === 'shogi') paintShogi(s);
       else if (face === 'mahjong') paintMahjong(s);
       else if (face === 'chain') paintChain(s);
-      else { layOutBoard(s); paintCoins(s); paintDice(s); }
+      else { layOutBoard(s); paintOwnCrosses(s); paintCoins(s); paintDice(s); }
 
       // Pairing, which only ever applies inside and is always a choice.
       if (face === 'thayam' && s.you?.yourTurn) {

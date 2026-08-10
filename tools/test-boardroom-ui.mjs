@@ -255,6 +255,29 @@ for (const game of GAMES) {
   check(`${game.name}: and what happens next, in its own words`,
     (WANTS[game.face] ?? /./).test(hint), hint);
 
+  // Thayam's crosses are painted in each player's colour, and that colour is
+  // load-bearing — it is the only thing that says which inner corner you turn
+  // in at. Grey crosses everywhere would draw a perfectly plausible board that
+  // nobody could actually navigate.
+  if (game.face === 'thayam') {
+    const owned = JSON.parse(await evaluate(`
+      const cells = [...document.querySelectorAll('.bd-cell.is-owned')];
+      return JSON.stringify({
+        n: cells.length,
+        mine: document.querySelectorAll('.bd-cell.is-yours').length,
+        tints: [...new Set(cells.map((c) => c.style.getPropertyValue('--own')))].filter(Boolean),
+        titles: cells.map((c) => c.title).filter(Boolean).length,
+      });
+    `));
+    // Two players in this fixture: two crosses each.
+    check(`${game.name}: each player's crosses are painted their colour`,
+      owned.n === 4 && owned.tints.length === 2, JSON.stringify(owned));
+    check(`${game.name}: and yours are marked out from the rest`,
+      owned.mine === 2, String(owned.mine));
+    check(`${game.name}: every painted cross says whose it is`,
+      owned.titles === owned.n, `${owned.titles} of ${owned.n}`);
+  }
+
   const fit = JSON.parse(await evaluate(`
     const w = document.documentElement;
     return JSON.stringify({ pageWidth: w.clientWidth, scrollWidth: w.scrollWidth });

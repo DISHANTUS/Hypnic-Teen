@@ -7,27 +7,38 @@
 //
 //   node tools/check-ui.mjs
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 const ROOT = path.join(import.meta.dirname, '..');
-const html = readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+// Every page, not just the arcade. add.html is a second page with its own
+// script, and reading only index.html meant every id that page defines looked
+// like an id nothing defines — the same drift as the script list below, from
+// the same cause.
+const pages = readdirSync(path.join(ROOT, 'public'))
+  .filter((f) => f.endsWith('.html'))
+  .map((f) => ({ name: f, src: readFileSync(path.join(ROOT, 'public', f), 'utf8') }));
+const html = pages.map((p) => p.src).join('\n');
 // Every browser module, wherever it lives — game clients set custom properties
 // and inject markup too, so leaving them out produces phantom failures.
-const scripts = [
-  'js/site.js',
-  'js/auth.js',
-  'js/net.js',
-  'js/theme.js',
-  'js/engine.js',
-  'js/sound.js',
-  'js/fx.js',
-  'games/_party/client.js',
-  'games/orb-rush/client.js',
-].map((rel) => ({
-  name: rel,
-  src: readFileSync(path.join(ROOT, 'public', rel), 'utf8'),
-}));
+//
+// Found rather than listed. This was a hand-kept list of nine for a long time
+// while the games grew past seventy, and the drift only ever announced itself
+// as a phantom failure: a custom property set by a client the checker had never
+// heard of, reported as a property nothing declares. A checker that has to be
+// remembered is a checker that is wrong.
+function allScripts(dir, base = '') {
+  const out = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const rel = base ? `${base}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) out.push(...allScripts(path.join(dir, entry.name), rel));
+    else if (entry.name.endsWith('.js') || entry.name.endsWith('.mjs')) {
+      out.push({ name: rel, src: readFileSync(path.join(dir, entry.name), 'utf8') });
+    }
+  }
+  return out;
+}
+const scripts = allScripts(path.join(ROOT, 'public'));
 
 const problems = [];
 const note = (msg) => problems.push(msg);
@@ -42,10 +53,14 @@ for (const { src } of scripts) {
 /* ---- every id the JS looks up ---- */
 const wanted = new Map(); // id -> file
 for (const { name, src } of scripts) {
+  // Either quote style, and querySelectorAll as well as querySelector. The
+  // single-quote-only version was silently blind to a lookup written with
+  // double quotes — a hole found by planting a broken lookup and watching the
+  // checker say everything was fine.
   const hits = [
-    ...src.matchAll(/getElementById\(\s*'([^']+)'/g),
-    ...src.matchAll(/\$\(\s*'#([A-Za-z][\w-]*)'/g),
-    ...src.matchAll(/querySelector\(\s*'#([A-Za-z][\w-]*)'/g),
+    ...src.matchAll(/getElementById\(\s*['"]([^'"]+)['"]/g),
+    ...src.matchAll(/\$\(\s*['"]#([A-Za-z][\w-]*)['"]/g),
+    ...src.matchAll(/querySelector(?:All)?\(\s*['"]#([A-Za-z][\w-]*)['"]/g),
   ];
   for (const m of hits) if (!wanted.has(m[1])) wanted.set(m[1], name);
 }
@@ -59,17 +74,34 @@ for (const [id, file] of wanted) {
    again in the shell really are two elements with one name. getElementById
    then silently picks one of them — usually the wrong one, and only once the
    template happens to be on screen, which is the worst kind of bug to chase. */
+// Counted per page, because two pages are two documents. add.html and
+// index.html both having a #view is not a clash — getElementById in one never
+// sees the other. Counting them together turned a correct pair into a failure,
+// which is how a checker teaches people to ignore it.
+//
+// A page owns the scripts it loads with a <script src>. Everything else — the
+// game clients — is imported at runtime by the arcade, so it lands in
+// index.html's document and is counted there.
 {
-  const places = new Map(); // id -> the files/templates that claim it
-  const claim = (id, where) => places.set(id, [...(places.get(id) ?? []), where]);
-  for (const m of html.matchAll(/\bid="([^"]+)"/g)) claim(m[1], 'index.html');
-  for (const { name, src } of scripts) {
-    // One mention per file: a loop that stamps the same id on every row is a
-    // different mistake, and flagging it here would only hide this one.
-    for (const id of new Set([...src.matchAll(/\bid="([^"${]+)"/g)].map((m) => m[1]))) claim(id, name);
+  const owned = new Map();  // script name -> page
+  for (const page of pages) {
+    for (const m of page.src.matchAll(/<script[^>]+src="\/?([^"]+)"/g)) owned.set(m[1], page.name);
   }
-  for (const [id, where] of places) {
-    if (where.length > 1) note(`#${id} is defined ${where.length} times (${where.join(', ')}) — getElementById picks whichever is on screen`);
+  const arcade = pages.find((p) => p.name === 'index.html')?.name ?? pages[0]?.name;
+
+  for (const page of pages) {
+    const places = new Map(); // id -> the files/templates that claim it
+    const claim = (id, where) => places.set(id, [...(places.get(id) ?? []), where]);
+    for (const m of page.src.matchAll(/\bid="([^"]+)"/g)) claim(m[1], page.name);
+    for (const { name, src } of scripts) {
+      if ((owned.get(name) ?? arcade) !== page.name) continue;
+      // One mention per file: a loop that stamps the same id on every row is a
+      // different mistake, and flagging it here would only hide this one.
+      for (const id of new Set([...src.matchAll(/\bid="([^"${]+)"/g)].map((m) => m[1]))) claim(id, name);
+    }
+    for (const [id, where] of places) {
+      if (where.length > 1) note(`#${id} is defined ${where.length} times in ${page.name} (${where.join(', ')}) — getElementById picks whichever is on screen`);
+    }
   }
 }
 

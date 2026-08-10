@@ -5065,6 +5065,18 @@ body.dropping::after {
 .bd-cell.is-safe::after { transform: rotate(-45deg); }
 .bd-cell.is-centre { background: color-mix(in srgb, var(--accent) 22%, var(--glass)); }
 
+/* A player's own two crosses, painted alike.
+   On the real board this is not decoration — the colour is the only thing that
+   says which inner corner you turn in at, and four players sharing one ring
+   would otherwise have no way to tell theirs from anybody else's. */
+.bd-cell.is-owned { background: color-mix(in srgb, var(--own) 30%, var(--glass)); }
+.bd-cell.is-owned::before,
+.bd-cell.is-owned::after { background: color-mix(in srgb, var(--own) 70%, var(--text-3)); }
+.bd-cell.is-yours {
+  background: color-mix(in srgb, var(--own) 46%, var(--glass));
+  border-color: color-mix(in srgb, var(--own) 70%, var(--border));
+}
+
 .bd-coin {
   width: 62%;
   aspect-ratio: 1;
