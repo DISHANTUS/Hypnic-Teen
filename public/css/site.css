@@ -5011,3 +5011,136 @@ body.dropping::after {
   .clk-fill { transition: none; }
   .clk-nudge .clk-track { animation: none; }
 }
+
+/* ------------------------------------------------------------ the board room */
+
+.bd { display: grid; gap: var(--sp-md); padding: var(--sp-md); }
+.bd-table { display: grid; gap: var(--sp-sm); justify-items: center; }
+
+.bd-seats { display: flex; gap: var(--sp-xs); flex-wrap: wrap; justify-content: center; width: 100%; }
+.bd-seat {
+  display: grid; justify-items: center; gap: 0;
+  padding: var(--sp-xs) var(--sp-sm); min-width: 76px;
+  border-radius: var(--r-sm); background: var(--glass);
+  border-top: 3px solid var(--tint);
+}
+.bd-seat.is-turn { background: color-mix(in srgb, var(--tint) 24%, var(--glass)); }
+.bd-seat.is-you b { color: var(--tint); }
+.bd-seat b { font-size: 0.66rem; max-width: 10ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bd-seat small { font-size: 0.54rem; color: var(--text-3); }
+
+/* The board. Square, and sized to the screen rather than to a pixel count, so
+   a seven by seven fits a phone without anybody pinching. */
+.bd-board {
+  /* Declared here as well as set from JS, so the board has a sane shape even
+     if a state has not arrived yet — and so the wiring check can see it. */
+  --n: 7;
+  display: grid;
+  grid-template-columns: repeat(var(--n), 1fr);
+  gap: 2px;
+  width: min(100%, 340px);
+  aspect-ratio: 1;
+}
+.bd-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  flex-wrap: wrap;
+  border-radius: 3px;
+  background: var(--glass);
+  border: 1px solid var(--border);
+}
+/* A cross, drawn rather than written, because that is what is on the board. */
+.bd-cell.is-safe::before,
+.bd-cell.is-safe::after {
+  content: '';
+  position: absolute;
+  inset: 12% 48%;
+  background: color-mix(in srgb, var(--text-3) 45%, transparent);
+  border-radius: 1px;
+}
+.bd-cell.is-safe::before { transform: rotate(45deg); }
+.bd-cell.is-safe::after { transform: rotate(-45deg); }
+.bd-cell.is-centre { background: color-mix(in srgb, var(--accent) 22%, var(--glass)); }
+
+.bd-coin {
+  width: 62%;
+  aspect-ratio: 1;
+  max-width: 26px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, #000 35%, var(--tint));
+  background: var(--tint);
+  padding: 0;
+  z-index: 1;
+}
+.bd-coin.is-stacked { width: 44%; }
+.bd-coin.can-move { box-shadow: 0 0 0 2px var(--text), 0 0 8px var(--tint); }
+.bd-coin.is-picked { transform: scale(1.15); }
+.bd-coin:disabled { cursor: default; }
+
+.bd-said { text-align: center; font-size: var(--t-label); min-height: 1.2em; }
+.bd-none { font-size: 0.7rem; color: var(--text-3); }
+
+/* The dayakattai. Long four-sided sticks, drawn long. */
+.bd-dice { display: grid; gap: var(--sp-xs); justify-items: center; min-height: 56px; }
+.bd-sticks { display: flex; gap: var(--sp-sm); }
+.bd-stick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 22px;
+  height: 62px;
+  border-radius: 4px;
+  background: linear-gradient(100deg, #d8bd93, #b08f5f);
+  border: 1px solid #7d6134;
+  box-shadow: inset -2px 0 4px rgb(0 0 0 / 0.25);
+}
+.bd-pip { width: 6px; height: 6px; border-radius: 50%; background: #4a3618; }
+.bd-blank { width: 12px; height: 1px; background: color-mix(in srgb, #4a3618 40%, transparent); }
+.bd-stick.is-rolling { animation: bd-tumble 520ms cubic-bezier(0.2, 0.9, 0.3, 1); }
+@keyframes bd-tumble {
+  0% { transform: translateY(-26px) rotate(-160deg) scaleY(0.7); }
+  60% { transform: translateY(3px) rotate(12deg) scaleY(1.05); }
+  100% { transform: none; }
+}
+.bd-value { font-family: var(--font-display); font-size: 1.1rem; color: var(--accent); }
+.bd-throw { min-width: 120px; }
+
+.bd-acts { display: flex; gap: var(--sp-xs); flex-wrap: wrap; justify-content: center; min-height: 20px; }
+.bd-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; justify-self: stretch; }
+.bd-log li { font-size: 0.66rem; color: var(--text-3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .bd-stick.is-rolling { animation: none; }
+  .bd-coin.is-picked { transform: none; }
+}
+
+/* Paramapadham: a hundred numbered squares, and the names on them. */
+.bd-board.is-ladder { width: min(100%, 360px); gap: 1px; }
+.bd-sq {
+  flex-direction: column;
+  gap: 0;
+  padding: 1px;
+  overflow: hidden;
+  font-size: 0.5rem;
+}
+.bd-num { font-style: normal; color: var(--text-3); font-size: 0.48rem; line-height: 1; }
+.bd-virtue {
+  font-style: normal;
+  font-size: 0.36rem;
+  line-height: 1.05;
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-2);
+}
+.bd-sq.is-ladder { background: color-mix(in srgb, var(--success) 26%, var(--glass)); }
+.bd-sq.is-snake { background: color-mix(in srgb, var(--warning) 26%, var(--glass)); }
+.bd-sq .bd-coin { width: 8px; height: 8px; max-width: 8px; position: absolute; bottom: 1px; }
+.bd-sq .bd-coin:nth-of-type(2) { left: 30%; }
+.bd-sq .bd-coin:nth-of-type(3) { left: 52%; }
+.bd-sq .bd-coin:nth-of-type(4) { left: 74%; }

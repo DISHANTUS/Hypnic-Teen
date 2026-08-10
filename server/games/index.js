@@ -42,8 +42,9 @@ import { POOL_GAMES } from './craps.js';
 import { DRAW_GAMES } from './draws.js';
 import { SPORT_GAMES } from './sports.js';
 import { CARD_GAMES } from './cards/index.js';
+import { BOARD_GAMES } from './board/index.js';
 
-const modules = [clash, imposter, truthDare, situations, quiz, findWord, movies, songs, poll, standoff, crossword, arena, battleship, roulette, holdem, blackjack, lottery, slots, plinko, wheel, scratch, ...SHOWDOWN_GAMES, ...POOL_GAMES, ...DRAW_GAMES, ...SPORT_GAMES, ...CARD_GAMES];
+const modules = [clash, imposter, truthDare, situations, quiz, findWord, movies, songs, poll, standoff, crossword, arena, battleship, roulette, holdem, blackjack, lottery, slots, plinko, wheel, scratch, ...SHOWDOWN_GAMES, ...POOL_GAMES, ...DRAW_GAMES, ...SPORT_GAMES, ...CARD_GAMES, ...BOARD_GAMES];
 
 const registry = new Map(modules.map((g) => [g.id, g]));
 

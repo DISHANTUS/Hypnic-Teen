@@ -219,6 +219,10 @@ const ROOMS = [
     id: 'cards', title: 'The Card Room', emoji: '🃏', accent: '#4ba3e0',
     blurb: 'A pack of cards and a table. Nothing is staked.',
   },
+  {
+    id: 'board', title: 'The Board Room', emoji: '🎲', accent: '#7bc47f',
+    blurb: 'Boards, pieces and turns. Nothing hidden — the server just refuses an illegal move.',
+  },
 ];
 
 /**

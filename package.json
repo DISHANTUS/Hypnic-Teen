@@ -66,7 +66,9 @@
     "test:sports": "node tools/test-sports.mjs",
     "test:cardroom": "node tools/test-cardroom.mjs",
     "test:cardroom:ui": "node tools/test-cardroom-ui.mjs",
-    "test:shelf": "node tools/test-shelf-ui.mjs"
+    "test:shelf": "node tools/test-shelf-ui.mjs",
+    "test:boardroom": "node tools/test-boardroom.mjs",
+    "test:boardroom:ui": "node tools/test-boardroom-ui.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -104,6 +104,8 @@ const mk = (name, pin, skew) => fetch(`${base}/api/auth/signup`, {
   }),
 }).then((r) => r.json());
 
+const catalogue = await fetch(`${base}/api/games`).then((r) => r.json());
+
 const owner = await mk('Boss', '1111', 0);
 const friend = await mk('Mate', '2222', 1);
 if (!check('two accounts exist', !owner.error && !friend.error, owner.error ?? friend.error ?? '')) { cleanup(); process.exit(1); }
@@ -198,8 +200,12 @@ await send('Page.navigate', { url: `${base}/#/` });
 await wait(2000);
 if (!check('the arcade loads', await waitFor('.game-card, .room-tile', 15000))) { cleanup(); process.exit(1); }
 
+// Counted against the rooms the catalogue actually reports rather than a
+// number written here, so adding a room is not a test failure.
+const rooms = new Set((catalogue.games ?? catalogue).map((g) => g.room ?? 'party'));
+const behindDoors = [...rooms].filter((r) => r !== 'party').length;
 const tiles = await count('.room-tile');
-check('the casino and the card room are doors, not lists', tiles === 2, `${tiles} doors`);
+check('every room but the party is a door', tiles === behindDoors, `${tiles} doors for ${behindDoors} rooms`);
 const shelved = await evaluate(`
   const names = [...document.querySelectorAll('.game-card h3')].map(h => h.textContent.trim());
   return JSON.stringify({ total: names.length, hasRoulette: names.includes('Roulette'), hasGoFish: names.includes('Go Fish') });
@@ -222,7 +228,7 @@ check('there is a way back', (await count('.room-back')) === 1);
 
 await evaluate(`document.querySelector('.room-back')?.click(); return true;`);
 await wait(1000);
-check('and it goes back to the front', (await count('.room-tile')) === 2);
+check('and it goes back to the front', (await count('.room-tile')) === behindDoors);
 
 await evaluate(`[...document.querySelectorAll('.room-tile')].find(t => t.textContent.includes('Card'))?.click(); return true;`);
 await wait(1200);
