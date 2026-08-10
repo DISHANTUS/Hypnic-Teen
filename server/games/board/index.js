@@ -7,5 +7,9 @@
 
 import { thayam } from './thayam.js';
 import { paramapadham } from './paramapadham.js';
+import { ludo } from './ludo.js';
+import { chess } from './chess.js';
+import { shogi } from './shogi.js';
+import { mahjong } from './mahjong.js';
 
-export const BOARD_GAMES = [thayam, paramapadham];
+export const BOARD_GAMES = [thayam, paramapadham, ludo, chess, shogi, mahjong];

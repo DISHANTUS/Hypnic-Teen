@@ -5144,3 +5144,56 @@ body.dropping::after {
 .bd-sq .bd-coin:nth-of-type(2) { left: 30%; }
 .bd-sq .bd-coin:nth-of-type(3) { left: 52%; }
 .bd-sq .bd-coin:nth-of-type(4) { left: 74%; }
+
+/* Ludo: fifty-two squares round the edge of a thirteen by thirteen. */
+.bd-board.is-ring { aspect-ratio: 1; gap: 1px; }
+.bd-ringcell { border-radius: 2px; }
+.bd-ringcell.is-start { border-width: 2px; }
+
+/* Chess and shogi: a chequered grid of tappable squares. */
+.bd-board.is-chequer { gap: 0; border: 1px solid var(--border); }
+.bd-square {
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--text-3) 8%, transparent);
+  font-size: clamp(0.9rem, 4.4vw, 1.5rem);
+  line-height: 1;
+  padding: 0;
+  color: #111;
+}
+.bd-square.is-dark { background: color-mix(in srgb, var(--text-3) 26%, transparent); }
+.bd-square.is-white { color: #fff; text-shadow: 0 0 2px #000, 0 1px 2px #000; }
+.bd-square.can-move { cursor: pointer; }
+.bd-square.is-from { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+.bd-square.is-target { box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 70%, transparent); }
+.bd-inhand {
+  padding: var(--sp-xs) var(--sp-sm);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--glass);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.bd-inhand.is-armed { background: var(--accent); color: var(--on-accent, #fff); }
+.bd-inhand:disabled { opacity: 0.4; }
+
+/* Mahjong: the pond, and your own tiles along the bottom. */
+.bd-board:not(.is-ring):not(.is-chequer):not(.is-ladder) { display: grid; gap: var(--sp-sm); aspect-ratio: auto; }
+.bd-pond { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; min-height: 40px; }
+.bd-tile {
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  padding: 2px 3px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: #f6f3ea;
+  color: #1c1c1c;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.bd-tile.is-small { font-size: 1.05rem; min-width: 18px; border-bottom: 2px solid var(--tint); }
+.bd-hand { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; }
+.bd-hand .bd-tile:disabled { opacity: 0.75; }

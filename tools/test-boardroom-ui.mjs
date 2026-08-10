@@ -217,8 +217,11 @@ for (const game of GAMES) {
   // The board itself drew. This is the check that catches a face that threw on
   // its first state — the renderer leaves the box empty and the room sees
   // nothing, with no idea why.
-  const squares = await count('.bd-board .bd-cell');
-  check(`${game.name}: the board is drawn`, squares > 0, `${squares} squares`);
+  // Whatever this game calls its board — ringed squares, a chequered grid, or
+  // a pond and a hand of tiles. Counting only one of those made two of the six
+  // look broken when they were fine.
+  const squares = await count('.bd-board .bd-cell, .bd-board .bd-square, .bd-board .bd-tile');
+  check(`${game.name}: the board is drawn`, squares > 0, `${squares} pieces of board`);
 
   // Every seat is on screen. A board game with a player missing from the side
   // is a board game where somebody does not know they are in it.
@@ -227,12 +230,14 @@ for (const game of GAMES) {
 
   // The thing you throw. Either the sticks are out, or there is a button to
   // throw them — a board with neither is a board nobody can move.
-  const canThrow = await evaluate(`
-    return document.querySelectorAll('.bd-stick').length > 0
-      || document.querySelectorAll('.bd-throw').length > 0
-      || document.querySelectorAll('.bd-coin').length > 0;
+  // Something to do: sticks to throw, a button to throw them, a coin to move,
+  // a square that lights up, a tile to put down, or a piece in hand to drop.
+  const canAct = await evaluate(`
+    const any = (sel) => document.querySelectorAll(sel).length > 0;
+    return any('.bd-stick') || any('.bd-throw') || any('.bd-coin')
+      || any('.bd-square.can-move') || any('.bd-tile') || any('.bd-inhand');
   `);
-  check(`${game.name}: there is something to throw or move`, canThrow === true, String(canThrow));
+  check(`${game.name}: there is something to throw or move`, canAct === true, String(canAct));
 
   // The clock. A blank one looks exactly like no clock, so this asks for the
   // words rather than for the element.

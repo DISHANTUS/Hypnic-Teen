@@ -30,6 +30,12 @@ process.env.DATA_DIR = TMP;
 
 const { thayam, throwSticks, legalMoves, SAFE, isSafe } = await import('../server/games/board/thayam.js');
 const { paramapadham, LADDERS, SNAKES } = await import('../server/games/board/paramapadham.js');
+const { ludo, legalMoves: ludoMoves, SAFE_SQUARES, ringSquare } = await import('../server/games/board/ludo.js');
+const chessRules = await import('../server/games/board/chessrules.js');
+const { chess } = await import('../server/games/board/chess.js');
+const shogiRules = await import('../server/games/board/shogirules.js');
+const { shogi } = await import('../server/games/board/shogi.js');
+const { mahjong, isWinningHand, freshWall } = await import('../server/games/board/mahjong.js');
 const { BOARD_GAMES } = await import('../server/games/board/index.js');
 
 const results = [];
@@ -377,6 +383,274 @@ console.log('\n  The board room — the server refuses\n');
   check('a blocked move never moves you', crept === null, crept ?? '');
   check('overshooting a hundred leaves you where you are', blocked > 0, `${blocked} of 200 throws`);
   check('and an exact throw gets there', landed > 0, `${landed} of 200`);
+}
+
+
+/* ----------------------------------- Ludo --------------------------------- */
+
+{
+  const { state } = open(ludo, 4, { tokens: 4 });
+  check('ludo: sixteen tokens, all in the yard',
+    state.tokens.length === 16 && state.tokens.every((t) => t.at === -1), String(state.tokens.length));
+  check('ludo: eight stars', SAFE_SQUARES.size === 8, String(SAFE_SQUARES.size));
+  check('ludo: the four starts are a quarter turn apart',
+    [0, 13, 26, 39].every((sq) => SAFE_SQUARES.has(sq)));
+
+  const seat = state.seats[0];
+  check('ludo: nothing but a six brings a token out',
+    [1, 2, 3, 4, 5].every((v) => ludoMoves(state, seat, v).length === 0));
+  check('ludo: and a six does', ludoMoves(state, seat, 6).some((m) => m.enters));
+
+  // Each colour walks the same ring from its own corner, so the same relative
+  // step is a different square for each of them.
+  check('ludo: four colours, four different routes',
+    new Set([0, 1, 2, 3].map((s2) => ringSquare(s2, 7))).size === 4,
+    [0, 1, 2, 3].map((s2) => ringSquare(s2, 7)).join(','));
+}
+
+{
+  // Sending somebody home, and the star that prevents it.
+  const { state: st } = open(ludo, 2, { tokens: 4 });
+  const me = st.seats[0];
+  const mine = st.tokens.find((t) => t.seat === 0);
+  const theirs = st.tokens.find((t) => t.seat === 1);
+  mine.at = 0;
+  const target = ringSquare(0, 3);
+  theirs.at = (target - 13 + 52) % 52;
+  if (!SAFE_SQUARES.has(target)) {
+    const m = ludoMoves(st, me, 3).find((x) => x.token === mine.i && x.sends);
+    check('ludo: landing on somebody sends them home', Boolean(m), JSON.stringify(ludoMoves(st, me, 3)));
+    st.rolled = { sticks: null, value: 3, grace: false };
+    st.turn = 0;
+    ludo.onAction(st, { id: me.id }, { type: 'move', token: mine.i }, api);
+    check('ludo: and they go back to the yard', theirs.at === -1, String(theirs.at));
+  } else {
+    check('ludo: landing on somebody sends them home', false, 'the fixture landed on a star');
+    check('ludo: and they go back to the yard', false, 'setup failed');
+  }
+}
+
+{
+  // On a star, nobody is sent anywhere.
+  const { state: st } = open(ludo, 2, { tokens: 4 });
+  const me = st.seats[0];
+  const mine = st.tokens.find((t) => t.seat === 0);
+  const theirs = st.tokens.find((t) => t.seat === 1);
+  mine.at = 6;
+  theirs.at = (8 - 13 + 52) % 52;
+  const m = ludoMoves(st, me, 2).find((x) => x.token === mine.i);
+  check('ludo: but not on a star', Boolean(m) && !m.sends, JSON.stringify(m));
+}
+
+{
+  // Home is exact.
+  const { state: st } = open(ludo, 2, { tokens: 4 });
+  const me = st.seats[0];
+  const t0 = st.tokens.find((t) => t.seat === 0);
+  t0.at = 55;
+  check('ludo: overshooting home is not a move',
+    !ludoMoves(st, me, 4).some((m) => m.token === t0.i));
+  check('ludo: the exact roll brings it home',
+    ludoMoves(st, me, 2).some((m) => m.token === t0.i && m.to === 57));
+}
+
+{
+  // Three sixes forfeits the turn — the oldest brake in the game.
+  const { state: st } = open(ludo, 2, { tokens: 4 });
+  // Spotted from the log rather than from `rolled`. Handing the turn on clears
+  // the throw, so the first version was asking whether a six had been rolled
+  // *after* the code that erases it had run, and never saw one.
+  let sawForfeit = false;
+  for (let i = 0; i < 600 && !sawForfeit; i++) {
+    st.sixes = 2;
+    st.rolled = null;
+    st.turn = 0;
+    st.log = [];
+    ludo.onAction(st, { id: st.seats[0].id }, { type: 'throw' }, api);
+    if (st.log.some((line) => /third six/.test(line))) {
+      sawForfeit = st.turn !== 0 && st.sixes === 0;
+      if (!sawForfeit) { check('ludo: three sixes in a row forfeits the turn', false, `turn ${st.turn}, sixes ${st.sixes}`); break; }
+    }
+  }
+  check('ludo: three sixes in a row forfeits the turn', sawForfeit);
+}
+
+/* ----------------------------------- Chess -------------------------------- */
+
+{
+  const { state, players } = open(chess, 2, {});
+  check('chess: white to move first', state.pos.turn === 'w');
+  check('chess: thirty-two pieces', state.pos.board.filter(Boolean).length === 32);
+
+  const before = JSON.stringify(state.pos.board);
+  chess.onAction(state, players[1], { type: 'move', from: 12, to: 28 }, api);
+  check('chess: nobody moves on another turn', JSON.stringify(state.pos.board) === before);
+  chess.onAction(state, players[0], { type: 'move', from: 12, to: 60 }, api);
+  check('chess: an illegal move is refused', JSON.stringify(state.pos.board) === before);
+  chess.onAction(state, players[0], { type: 'move', from: 12, to: 28 }, api);
+  check('chess: a legal one goes through', JSON.stringify(state.pos.board) !== before);
+  check('chess: and the turn passes', state.pos.turn === 'b' && state.turn === 1);
+}
+
+{
+  // Perft. The only way to actually know a move generator is right: these
+  // counts are published and any error in castling, en passant, promotion or
+  // pins changes them.
+  const perft = (pos, d) => {
+    if (d === 0) return 1;
+    let n = 0;
+    for (const m of chessRules.legalMoves(pos, pos.turn)) n += perft(chessRules.applyMove(pos, m), d - 1);
+    return n;
+  };
+  check('chess: perft 1 is twenty', perft(chessRules.startPosition(), 1) === 20);
+  check('chess: perft 2 is four hundred', perft(chessRules.startPosition(), 2) === 400);
+  check('chess: perft 3 is 8902', perft(chessRules.startPosition(), 3) === 8902);
+
+  const KIWI = 'r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1';
+  check('chess: kiwipete perft 1 is forty-eight', perft(chessRules.fromFen(KIWI), 1) === 48);
+  check('chess: kiwipete perft 2 is 2039', perft(chessRules.fromFen(KIWI), 2) === 2039);
+  const EP = '8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1';
+  check('chess: the en passant position perft 3 is 2812', perft(chessRules.fromFen(EP), 3) === 2812);
+}
+
+{
+  const mate = chessRules.fromFen('rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3');
+  const how = chessRules.outcome(mate);
+  check('chess: checkmate is recognised',
+    how.over && how.why === 'checkmate' && how.result === 'black', JSON.stringify(how));
+
+  const stale = chessRules.fromFen('7k/5Q2/6K1/8/8/8/8/8 b - - 0 1');
+  const how2 = chessRules.outcome(stale);
+  check('chess: and stalemate is a draw, not a win',
+    how2.over && how2.why === 'stalemate' && how2.result === 'draw', JSON.stringify(how2));
+
+  const bare = chessRules.fromFen('7k/8/6K1/8/8/8/8/8 w - - 0 1');
+  check('chess: king against king is a draw',
+    String(chessRules.outcome(bare).why).includes('enough'), JSON.stringify(chessRules.outcome(bare)));
+}
+
+/* ----------------------------------- Shogi -------------------------------- */
+
+{
+  const { state, players } = open(shogi, 2, {});
+  check('shogi: forty pieces', state.pos.board.filter(Boolean).length === 40);
+  check('shogi: black moves first', state.pos.turn === 'b');
+  check('shogi: both hands empty', Object.keys(state.pos.hands.b).length === 0);
+
+  const before = JSON.stringify(state.pos.board);
+  shogi.onAction(state, players[1], { type: 'move', from: 60, to: 51 }, api);
+  check('shogi: nobody moves on another turn', JSON.stringify(state.pos.board) === before);
+
+  const perft = (pos, d) => {
+    if (d === 0) return 1;
+    let n = 0;
+    for (const m of shogiRules.legalMoves(pos, pos.turn)) n += perft(shogiRules.applyMove(pos, m), d - 1);
+    return n;
+  };
+  check('shogi: thirty moves in the opening',
+    shogiRules.legalMoves(shogiRules.startPosition(), 'b').length === 30);
+  check('shogi: perft 2 is nine hundred', perft(shogiRules.startPosition(), 2) === 900);
+  check('shogi: perft 3 is 25470', perft(shogiRules.startPosition(), 3) === 25470);
+}
+
+{
+  // A captured piece changes sides, unpromoted. That is the whole game.
+  const pos = shogiRules.startPosition();
+  pos.board = Array(81).fill(null);
+  pos.board[shogiRules.at(8, 4)] = 'K';
+  pos.board[shogiRules.at(0, 4)] = 'k';
+  pos.board[shogiRules.at(4, 4)] = 'R';
+  pos.board[shogiRules.at(3, 4)] = '+p';
+  pos.turn = 'b';
+  const m = shogiRules.legalMoves(pos, 'b').find((x) => x.from === shogiRules.at(4, 4) && x.to === shogiRules.at(3, 4));
+  const after = shogiRules.applyMove(pos, m);
+  check('shogi: what you take goes into your hand', (after.hands.b.P ?? 0) === 1, JSON.stringify(after.hands.b));
+  check('shogi: and it comes back unpromoted',
+    !Object.keys(after.hands.b).some((k) => k.startsWith('+')));
+}
+
+{
+  const pos = shogiRules.startPosition();
+  pos.hands.b = { P: 1 };
+  check('shogi: nifu forbids a second pawn on a file',
+    shogiRules.legalMoves(pos, 'b').filter((m) => m.drop === 'P').length === 0);
+}
+
+{
+  const pos = shogiRules.startPosition();
+  pos.board = Array(81).fill(null);
+  pos.board[shogiRules.at(8, 4)] = 'K';
+  pos.board[shogiRules.at(0, 0)] = 'k';
+  pos.hands.b = { P: 1, N: 1, L: 1 };
+  const drops = shogiRules.legalMoves(pos, 'b').filter((m) => m.drop);
+  check('shogi: nothing is dropped where it could never move again',
+    !drops.some((m) => shogiRules.rankOf(m.to) === 0 && ['P', 'L', 'N'].includes(m.drop))
+    && !drops.some((m) => shogiRules.rankOf(m.to) === 1 && m.drop === 'N'),
+    JSON.stringify(drops.filter((m) => shogiRules.rankOf(m.to) <= 1).slice(0, 3)));
+}
+
+/* ---------------------------------- Mahjong ------------------------------- */
+
+{
+  const wall = freshWall();
+  check('mahjong: a hundred and forty-four tiles', wall.length === 144, String(wall.length));
+  check('mahjong: eight of them are flowers and seasons',
+    wall.filter((t) => t[0] === 'f' || t[0] === 's').length === 8);
+  // The bug this exists for: 'd' meant both dots and dragons, so a dragon read
+  // as a dot numbered R — NaN — and counted as a suited tile eligible for a
+  // run. One letter meaning two things is the whole class of mistake.
+  const prefixes = new Map();
+  for (const t2 of wall) {
+    const kind = /^[a-z]d$/.test(t2) ? 'numbered' : 'honour or bonus';
+    if (!prefixes.has(t2[0])) prefixes.set(t2[0], new Set());
+    prefixes.get(t2[0]).add(kind);
+  }
+  const overloaded = [...prefixes].filter(([, kinds]) => kinds.size > 1).map(([p]) => p);
+  check('mahjong: no letter means two different things', overloaded.length === 0, overloaded.join(','));
+  check('mahjong: every tile parses to something real',
+    wall.every((t2) => /^[bco][1-9]$|^w[ESWN]$|^d[RGW]$|^[fs][1-4]$/.test(t2)),
+    wall.filter((t2) => !/^[bco][1-9]$|^w[ESWN]$|^d[RGW]$|^[fs][1-4]$/.test(t2)).slice(0, 3).join(' '));
+
+  check('mahjong: four of every playing tile',
+    ['b1', 'c9', 'o5', 'wE', 'dR'].every((t) => wall.filter((x) => x === t).length === 4));
+
+  check('mahjong: four pungs and a pair is a win',
+    isWinningHand(['b1','b1','b1','c2','c2','c2','o3','o3','o3','wE','wE','wE','dR','dR']));
+  check('mahjong: four chows and a pair is a win',
+    isWinningHand(['b1','b2','b3','b4','b5','b6','c1','c2','c3','o7','o8','o9','dG','dG']));
+  check('mahjong: thirteen tiles is not a win',
+    !isWinningHand(['b1','b1','b1','c2','c2','c2','o3','o3','o3','wE','wE','wE','dR']));
+  // A run may never cross a suit boundary, which is the easiest thing to let
+  // through when a chow is checked by arithmetic on the number alone.
+  check('mahjong: a chow may not run across suits',
+    !isWinningHand(['b8','b9','c1','c2','c2','c2','o3','o3','o3','wE','wE','wE','dR','dR']));
+  // The hand that can be read several ways and only some of them win — the
+  // reason this is a search rather than a pattern match.
+  check('mahjong: an ambiguous hand is read the way that wins',
+    isWinningHand(['b1','b1','b1','b2','b3','b4','b5','b6','b7','b8','b9','b9','b9','b5']),
+    'nine gates, completed on a five');
+}
+
+{
+  const { state, players } = open(mahjong, 4, {});
+  const dealt = state.hands[0].length + state.melds[0].length * 3;
+  check('mahjong: thirteen each, and fourteen for east',
+    state.hands[1].length === 13 && dealt === 14, dealt + ' / ' + state.hands[1].length);
+
+  const wire = JSON.stringify(mahjong.serialize(state));
+  const someoneElse = state.hands[1];
+  check('mahjong: nobody can see anybody else hand',
+    !someoneElse.some((t) => wire.includes('"' + t + '"')),
+    someoneElse.filter((t) => wire.includes('"' + t + '"')).slice(0, 3).join(' '));
+
+  const tile = state.hands[0][0];
+  mahjong.onAction(state, players[0], { type: 'discard', tile }, api);
+  check('mahjong: a discard opens a claim window', state.claimWindow > 0, String(state.claimWindow));
+  check('mahjong: and the tile is on the table', state.lastDiscard?.tile === tile);
+
+  const handWas = state.hands[0].length;
+  mahjong.onAction(state, players[0], { type: 'discard', tile: state.hands[0][0] }, api);
+  check('mahjong: you cannot throw twice', state.hands[0].length === handWas, String(state.hands[0].length));
 }
 
 /* -------------------------------- nonsense -------------------------------- */

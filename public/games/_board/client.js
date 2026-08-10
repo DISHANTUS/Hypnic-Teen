@@ -23,7 +23,36 @@ const SEAT_NAME = ['Red', 'Blue', 'Green', 'Yellow'];
 const NEXT = {
   thayam: 'One, five, six or twelve and you throw again.',
   paramapadham: 'A ladder is a virtue. A snake is a vice. Both have names.',
+  ludo: 'A six brings one out and earns another roll. Three sixes and you lose the turn.',
+  chess: 'Only legal moves light up. A pinned piece will not.',
+  shogi: 'What you take goes into your hand. Drop it back as a whole move.',
+  mahjong: 'A pung beats a chow and a win beats both — being fastest does not.',
 };
+
+/** Chess pieces, drawn as the pieces rather than as letters. */
+const CHESS_GLYPH = {
+  K: '\u2654', Q: '\u2655', R: '\u2656', B: '\u2657', N: '\u2658', P: '\u2659',
+  k: '\u265A', q: '\u265B', r: '\u265C', b: '\u265D', n: '\u265E', p: '\u265F',
+};
+
+/** Shogi pieces, as the kanji people actually read on a board. */
+const SHOGI_GLYPH = {
+  K: '\u7389', R: '\u98db', B: '\u89d2', G: '\u91d1', S: '\u9280', N: '\u6842', L: '\u9999', P: '\u6b69',
+  '+R': '\u9f8d', '+B': '\u99ac', '+S': '\u5168', '+N': '\u572d', '+L': '\u6210', '+P': '\u3068',
+};
+
+/** Mahjong tiles have their own block in Unicode, which is the whole answer. */
+const MJ_SUIT = { b: 0x1F010, c: 0x1F007, o: 0x1F019 };
+function tileGlyph(t) {
+  if (!t) return '?';
+  const kind = t[0];
+  if (MJ_SUIT[kind]) return String.fromCodePoint(MJ_SUIT[kind] + Number(t[1]) - 1);
+  if (kind === 'w') return { E: '\u{1F000}', S: '\u{1F001}', W: '\u{1F002}', N: '\u{1F003}' }[t[1]] ?? '?';
+  if (kind === 'd') return { R: '\u{1F004}', G: '\u{1F005}', W: '\u{1F006}' }[t[1]] ?? '?';
+  if (kind === 'f') return String.fromCodePoint(0x1F022 + Number(t[1]) - 1);
+  if (kind === 's') return String.fromCodePoint(0x1F026 + Number(t[1]) - 1);
+  return '?';
+}
 
 export default {
   mount({ canvas, wrap, hud, Net, meta }) {
@@ -68,6 +97,8 @@ export default {
 
     /** A coin picked up but not yet committed. */
     let picked = null;
+    /** A piece in hand, armed for a drop. Shogi only. */
+    let dropping = null;
     let shownThrow = null;
     let shownSaid = '';
 
@@ -259,6 +290,323 @@ export default {
       );
     }
 
+
+    /* ------------------------------ the faces ----------------------------- */
+
+    /** Ludo: the ring, laid out as a ring rather than as a grid. */
+    function paintLudo(s) {
+      const box = $('#bdBoard');
+      if (box.dataset.size !== 'ludo') {
+        box.dataset.size = 'ludo';
+        box.classList.add('is-ring');
+        box.classList.remove('is-ladder');
+        box.style.setProperty('--n', '13');
+        // Fifty-two squares round the edge of a thirteen by thirteen, which is
+        // the shape the real board has and keeps every start a quarter apart.
+        const cells = [];
+        for (let i = 0; i < 52; i++) cells.push(i);
+        box.replaceChildren(
+          ...cells.map((sq) => {
+            const cell = document.createElement('div');
+            cell.className = 'bd-cell bd-ringcell';
+            cell.dataset.cell = String(sq);
+            const side = Math.floor(sq / 13);
+            const along = sq % 13;
+            // Walk the outside of the grid, one side at a time.
+            const pos = [
+              [12, along], [12 - along, 12], [0, 12 - along], [along, 0],
+            ][side];
+            cell.style.gridRow = String(pos[0] + 1);
+            cell.style.gridColumn = String(pos[1] + 1);
+            if ((s.safe ?? []).includes(sq)) cell.classList.add('is-safe');
+            if ((s.starts ?? []).includes(sq)) cell.classList.add('is-start');
+            return cell;
+          })
+        );
+      }
+      for (const cell of box.querySelectorAll('.bd-ringcell')) cell.replaceChildren();
+
+      const movable = new Set((s.you?.moves ?? []).map((m) => m.token));
+      for (const t of s.tokens ?? []) {
+        if (t.square === null || t.home) continue;
+        const cell = box.querySelector('[data-cell="' + t.square + '"]');
+        if (!cell) continue;
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'bd-coin is-stacked';
+        el.style.setProperty('--tint', SEAT_TINT[t.seat % 4]);
+        const canMove = t.seat === s.you?.seat && movable.has(t.i);
+        el.classList.toggle('can-move', canMove);
+        el.disabled = !canMove;
+        if (canMove) {
+          el.addEventListener('click', () => { Net.action({ type: 'move', token: t.i }); Sound.play('pick'); });
+        }
+        cell.appendChild(el);
+      }
+
+      // The yard and the home column, beside the board.
+      $('#bdSeats').replaceChildren(
+        ...(s.yards ?? []).map((y) => {
+          const el = document.createElement('div');
+          el.className = 'bd-seat';
+          el.style.setProperty('--tint', SEAT_TINT[y.seat % 4]);
+          el.classList.toggle('is-turn', y.seat === s.turn);
+          el.classList.toggle('is-you', y.seat === s.you?.seat);
+          el.innerHTML = '<i></i><b></b><small></small>';
+          el.querySelector('b').textContent = y.name;
+          el.querySelector('small').textContent =
+            y.yard + ' in the yard · ' + y.home + ' home · ' + y.sent + ' sent';
+          return el;
+        })
+      );
+
+      // Tokens still waiting, so a six has something visible to bring out.
+      const waiting = (s.you?.moves ?? []).find((m) => m.enters);
+      const acts = $('#bdActs');
+      if (waiting) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn btn-primary';
+        b.textContent = 'Bring one out';
+        b.addEventListener('click', () => { Net.action({ type: 'move', token: waiting.token }); Sound.play('pick'); });
+        acts.appendChild(b);
+      }
+    }
+
+    /** Chess and shogi share a square grid; only the glyphs and drops differ. */
+    function paintGrid(s, { size, glyphs, legal, onMove }) {
+      const box = $('#bdBoard');
+      if (box.dataset.size !== 'grid' + size) {
+        box.dataset.size = 'grid' + size;
+        box.classList.remove('is-ring', 'is-ladder');
+        box.classList.add('is-chequer');
+        box.style.setProperty('--n', String(size));
+        box.replaceChildren(
+          ...Array.from({ length: size * size }, (_, i) => {
+            const cell = document.createElement('button');
+            cell.type = 'button';
+            cell.className = 'bd-cell bd-square';
+            cell.dataset.cell = String(i);
+            const r = Math.floor(i / size);
+            const c = i % size;
+            cell.classList.toggle('is-dark', (r + c) % 2 === 1);
+            cell.addEventListener('click', () => onMove(i));
+            return cell;
+          })
+        );
+      }
+
+      const from = picked;
+      const targets = new Set(from === null ? [] : legal.filter((m) => m.from === from).map((m) => m.to));
+      const movable = new Set(legal.map((m) => m.from));
+
+      for (const cell of box.querySelectorAll('.bd-square')) {
+        const i = Number(cell.dataset.cell);
+        // The board is sent from white's side; black looks at it the other way
+        // up, which is what everybody expects and nobody says out loud.
+        const at = s.you?.flip ? (size * size - 1 - i) : i;
+        const piece = s.board?.[at] ?? null;
+        cell.textContent = piece ? (glyphs[piece] ?? piece) : '';
+        cell.classList.toggle('is-from', at === from);
+        cell.classList.toggle('is-target', targets.has(at));
+        cell.classList.toggle('can-move', movable.has(at));
+        cell.classList.toggle('is-white', Boolean(piece) && piece === piece.toUpperCase());
+        cell.dataset.at = String(at);
+      }
+    }
+
+    function paintChess(s) {
+      paintGrid(s, {
+        size: 8,
+        glyphs: CHESS_GLYPH,
+        legal: s.legal ?? [],
+        onMove: (i) => {
+          const at = s.you?.flip ? (63 - i) : i;
+          const legal = s.legal ?? [];
+          if (picked !== null) {
+            const move = legal.find((m) => m.from === picked && m.to === at);
+            if (move) {
+              Net.action({ type: 'move', from: move.from, to: move.to, promote: move.promote ?? 'q' });
+              picked = null;
+              Sound.play('pick');
+              return;
+            }
+          }
+          picked = legal.some((m) => m.from === at) ? at : null;
+          Sound.play(picked === null ? 'back' : 'click');
+          paint(last);
+        },
+      });
+
+      $('#bdSeats').replaceChildren(
+        ...(s.colours ?? []).map((c) => {
+          const el = document.createElement('div');
+          el.className = 'bd-seat';
+          el.style.setProperty('--tint', c.colour === 'w' ? '#ecf0f1' : '#2c3e50');
+          el.classList.toggle('is-turn', c.colour === s.toMove);
+          el.classList.toggle('is-you', c.seat === s.you?.seat);
+          el.innerHTML = '<i></i><b></b><small></small>';
+          el.querySelector('b').textContent = c.name;
+          el.querySelector('small').textContent =
+            (c.colour === 'w' ? 'White' : 'Black') + (c.colour === s.toMove && s.check ? ' · in check' : '');
+          return el;
+        })
+      );
+    }
+
+    function paintShogi(s) {
+      paintGrid(s, {
+        size: 9,
+        glyphs: SHOGI_GLYPH,
+        legal: s.legal ?? [],
+        onMove: (i) => {
+          const at = s.you?.flip ? (80 - i) : i;
+          if (dropping) {
+            const squares = (s.drops ?? {})[dropping] ?? [];
+            if (squares.includes(at)) {
+              Net.action({ type: 'move', drop: dropping, to: at });
+              dropping = null;
+              Sound.play('pick');
+              return;
+            }
+            dropping = null;
+            paint(last);
+            return;
+          }
+          const legal = s.legal ?? [];
+          if (picked !== null) {
+            const move = legal.find((m) => m.from === picked && m.to === at);
+            if (move) {
+              const both = legal.filter((m) => m.from === picked && m.to === at);
+              // Promotion is a choice unless only one of the two is legal.
+              const promote = both.length > 1 ? confirm('Promote?') : Boolean(move.promote);
+              Net.action({ type: 'move', from: move.from, to: move.to, promote });
+              picked = null;
+              Sound.play('pick');
+              return;
+            }
+          }
+          picked = legal.some((m) => m.from === at) ? at : null;
+          Sound.play(picked === null ? 'back' : 'click');
+          paint(last);
+        },
+      });
+
+      // The hands. Tapping one arms a drop; the next tap on the board places it.
+      const acts = $('#bdActs');
+      const hand = s.you?.hand ?? {};
+      for (const kind of Object.keys(hand)) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'bd-inhand' + (dropping === kind ? ' is-armed' : '');
+        b.textContent = (SHOGI_GLYPH[kind] ?? kind) + ' ×' + hand[kind];
+        b.disabled = !((s.drops ?? {})[kind] ?? []).length;
+        b.addEventListener('click', () => {
+          dropping = dropping === kind ? null : kind;
+          picked = null;
+          Sound.play('click');
+          paint(last);
+        });
+        acts.appendChild(b);
+      }
+
+      $('#bdSeats').replaceChildren(
+        ...(s.colours ?? []).map((c) => {
+          const el = document.createElement('div');
+          el.className = 'bd-seat';
+          el.style.setProperty('--tint', c.side === 'b' ? '#2c3e50' : '#bdc3c7');
+          el.classList.toggle('is-turn', c.side === s.toMove);
+          el.classList.toggle('is-you', c.seat === s.you?.seat);
+          el.innerHTML = '<i></i><b></b><small></small>';
+          el.querySelector('b').textContent = c.name;
+          const inHand = Object.values((s.hands ?? {})[c.side] ?? {}).reduce((n, x) => n + x, 0);
+          el.querySelector('small').textContent =
+            (c.side === 'b' ? 'Black' : 'White') + ' · ' + inHand + ' in hand';
+          return el;
+        })
+      );
+    }
+
+    /** Mahjong: your hand along the bottom, the discards in the middle. */
+    function paintMahjong(s) {
+      const box = $('#bdBoard');
+      box.dataset.size = 'mahjong';
+      box.classList.remove('is-ring', 'is-chequer', 'is-ladder');
+      box.replaceChildren();
+
+      const pond = document.createElement('div');
+      pond.className = 'bd-pond';
+      for (const d of s.discards ?? []) {
+        const t = document.createElement('span');
+        t.className = 'bd-tile is-small';
+        t.style.setProperty('--tint', SEAT_TINT[d.seat % 4]);
+        t.textContent = tileGlyph(d.tile);
+        pond.appendChild(t);
+      }
+      if (!pond.children.length) {
+        const none = document.createElement('span');
+        none.className = 'bd-none';
+        none.textContent = 'Nothing thrown yet.';
+        pond.appendChild(none);
+      }
+      box.appendChild(pond);
+
+      const wall = document.createElement('span');
+      wall.className = 'bd-none';
+      wall.textContent = s.wallLeft + ' left in the wall';
+      box.appendChild(wall);
+
+      // Your own tiles, which are the only secret in this room.
+      const mine = document.createElement('div');
+      mine.className = 'bd-hand';
+      for (const t of s.you?.hand ?? []) {
+        const el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'bd-tile';
+        el.textContent = tileGlyph(t);
+        el.title = t;
+        el.disabled = !s.you?.canDiscard;
+        if (s.you?.canDiscard) {
+          el.addEventListener('click', () => { Net.action({ type: 'discard', tile: t }); Sound.play('pick'); });
+        }
+        mine.appendChild(el);
+      }
+      box.appendChild(mine);
+
+      const acts = $('#bdActs');
+      for (const kind of s.you?.claims ?? []) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn ' + (kind === 'win' ? 'btn-primary' : 'btn-ghost');
+        b.textContent = kind === 'win' ? 'Mahjong!' : kind;
+        b.addEventListener('click', () => { Net.action({ type: 'claim', kind }); Sound.play('buzz'); });
+        acts.appendChild(b);
+      }
+      if (s.you?.canWin && s.you?.canDiscard) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn btn-primary';
+        b.textContent = 'Mahjong!';
+        b.addEventListener('click', () => { Net.action({ type: 'mahjong' }); Sound.play('win'); });
+        acts.appendChild(b);
+      }
+
+      $('#bdSeats').replaceChildren(
+        ...(s.players ?? []).map((p) => {
+          const el = document.createElement('div');
+          el.className = 'bd-seat';
+          el.style.setProperty('--tint', SEAT_TINT[p.seat % 4]);
+          el.classList.toggle('is-turn', p.seat === s.turn);
+          el.classList.toggle('is-you', p.seat === s.you?.seat);
+          el.innerHTML = '<i></i><b></b><small></small>';
+          el.querySelector('b').textContent = p.name;
+          el.querySelector('small').textContent =
+            p.wind + ' · ' + p.tiles + ' tiles · ' + p.melds.length + ' sets';
+          return el;
+        })
+      );
+    }
+
     /* ------------------------------- the sticks --------------------------- */
 
     /**
@@ -371,18 +719,18 @@ export default {
             }
       );
 
-      if (face === 'paramapadham') {
-        layOutLadder(s);
-        paintPieces(s);
-      } else {
-        layOutBoard(s);
-        paintCoins(s);
-      }
-      paintDice(s);
+      // Buttons are rebuilt by the faces that use them, so clear first.
+      $('#bdActs').replaceChildren();
+
+      if (face === 'paramapadham') { layOutLadder(s); paintPieces(s); paintDice(s); }
+      else if (face === 'ludo') { paintLudo(s); paintDice(s); }
+      else if (face === 'chess') paintChess(s);
+      else if (face === 'shogi') paintShogi(s);
+      else if (face === 'mahjong') paintMahjong(s);
+      else { layOutBoard(s); paintCoins(s); paintDice(s); }
 
       // What you may do, when the board alone does not make it obvious.
       const acts = $('#bdActs');
-      acts.replaceChildren();
       if (s.you?.yourTurn && s.rolled && !(s.you.moves ?? []).length) {
         const none = document.createElement('span');
         none.className = 'bd-none';
@@ -394,7 +742,7 @@ export default {
         shownSaid = s.said;
         $('#bdSaid').textContent = s.said;
         if (/cuts/.test(s.said)) Sound.play('buzz');
-        if (/brings one home/.test(s.said) && s.said.startsWith(s.seats.find((x) => x.seat === s.you?.seat)?.name ?? ' ')) {
+        if (/brings one home/.test(s.said) && s.said.startsWith(s.seats.find((x) => x.seat === s.you?.seat)?.name ?? ' ')) {
           confetti(table, { count: 50 });
           floatText($('#bdBoard'), 'home', 'gain');
         }
