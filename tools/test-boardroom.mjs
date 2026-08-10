@@ -386,6 +386,118 @@ console.log('\n  The board room — the server refuses\n');
 }
 
 
+
+/* ---------------------------- pairing, in the inner ----------------------- */
+
+{
+  // Two of your own coins standing together inside may be joined. They then
+  // move as one thing at half speed — which is why a pair has to be safe, or
+  // pairing would be all cost and nobody would ever do it.
+  const { state } = open(thayam, 2, { coins: 4 });
+  const seat = state.seats[0];
+  seat.cuts = 1;
+  const [a, b, c] = state.coins.filter((x) => x.seat === 0);
+
+  // Outside, nothing can be paired.
+  a.at = 5;
+  b.at = 5;
+  check('thayam: coins on the outer ring cannot be paired',
+    (thayam.serializeFor(state, seat.id).you.canPair ?? []).length === 0);
+
+  // Inside and together, they can.
+  a.at = 30;
+  b.at = 30;
+  const offered = thayam.serializeFor(state, seat.id).you.canPair;
+  check('thayam: two of yours together inside can be paired',
+    offered.some((p) => p.includes(a.i) && p.includes(b.i)), JSON.stringify(offered));
+
+  // Apart, they cannot.
+  b.at = 32;
+  check('thayam: but not if they are on different squares',
+    (thayam.serializeFor(state, seat.id).you.canPair ?? []).length === 0);
+
+  // Join them.
+  b.at = 30;
+  thayam.onAction(state, { id: seat.id }, { type: 'pair', coins: [a.i, b.i] }, api);
+  check('thayam: pairing joins both coins', a.pair === b.i && b.pair === a.i, a.pair + '/' + b.pair);
+
+  // Only even throws move a pair, and they move half.
+  const odd = legalMoves(state, seat, 3).filter((m) => m.coin === a.i || m.coin === b.i);
+  check('thayam: an odd throw cannot move a pair', odd.length === 0, JSON.stringify(odd));
+  const even = legalMoves(state, seat, 4).filter((m) => m.coin === a.i || m.coin === b.i);
+  check('thayam: an even throw moves it half as far',
+    even.length === 1 && even[0].to === 32, JSON.stringify(even));
+  check('thayam: and it is offered once, not twice', even.length === 1, String(even.length));
+
+  // Moving it takes both.
+  state.rolled = { sticks: [2, 2], value: 4, grace: false };
+  state.turn = 0;
+  thayam.onAction(state, { id: seat.id }, { type: 'move', coin: even[0].coin }, api);
+  check('thayam: both coins of a pair move together', a.at === 32 && b.at === 32, a.at + '/' + b.at);
+
+  // And they can be separated again — on your own turn. The move above was not
+  // a grace throw, so it handed the turn on, and the first version of this
+  // check was refused for the right reason and read as a broken rule.
+  state.turn = 0;
+  thayam.onAction(state, { id: seat.id }, { type: 'unpair', coin: a.i }, api);
+  check('thayam: a pair can be separated', a.pair === null && b.pair === null);
+  void c;
+}
+
+{
+  // A single may not cut a pair. This is the reason to pair at all.
+  const { state } = open(thayam, 2, { coins: 4 });
+  const me = state.seats[0];
+  const them = state.seats[1];
+  me.cuts = 1;
+  them.cuts = 1;
+
+  const mine = state.coins.find((x) => x.seat === 0);
+  const [t1, t2] = state.coins.filter((x) => x.seat === 1);
+
+  // Put a paired enemy on a plain square three ahead of my coin.
+  const path0 = thayam.serialize(state).paths[0];
+  const path1 = thayam.serialize(state).paths[1];
+  mine.at = 28;
+  const cell = path0[31];
+  const theirRel = path1.indexOf(cell);
+  if (theirRel >= 0 && !SAFE.has(cell)) {
+    t1.at = theirRel;
+    t2.at = theirRel;
+    t1.pair = t2.i;
+    t2.pair = t1.i;
+    const blocked = [];
+    const moves = legalMoves(state, me, 3, blocked);
+    check('thayam: a single coin cannot cut a pair',
+      !moves.some((m) => m.coin === mine.i), JSON.stringify(moves.filter((m) => m.coin === mine.i)));
+    check('thayam: and it says why', blocked.some((x) => x.why === 'pair'), JSON.stringify(blocked));
+  } else {
+    check('thayam: a single coin cannot cut a pair', false, 'the fixture landed on a cross');
+    check('thayam: and it says why', false, 'setup failed');
+  }
+}
+
+{
+  // The gate, said out loud. A coin stuck behind it is not the same as no coin.
+  const { state } = open(thayam, 2, { coins: 4 });
+  const seat = state.seats[0];
+  seat.cuts = 0;
+  const coin = state.coins.find((x) => x.seat === 0);
+  coin.at = 22;
+  const you = thayam.serializeFor(state, seat.id);
+  void you;
+  const blocked = [];
+  legalMoves(state, seat, 4, blocked);
+  check('thayam: a coin held at the gate is reported, not silently dropped',
+    blocked.some((x) => x.coin === coin.i && x.why === 'gate'), JSON.stringify(blocked));
+
+  // And the player is told through their own view.
+  state.rolled = { sticks: [2, 2], value: 4, grace: false };
+  const view = thayam.serializeFor(state, seat.id);
+  check('thayam: and the reason reaches the player',
+    (view.you.blocked ?? []).some((x) => x.why === 'gate'), JSON.stringify(view.you.blocked));
+}
+
 /* ----------------------------------- Ludo --------------------------------- */
 
 {

@@ -5197,3 +5197,12 @@ body.dropping::after {
 .bd-tile.is-small { font-size: 1.05rem; min-width: 18px; border-bottom: 2px solid var(--tint); }
 .bd-hand { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; }
 .bd-hand .bd-tile:disabled { opacity: 0.75; }
+
+/* A pair is one thing, so it looks like one. */
+.bd-coin.is-paired { box-shadow: inset 0 0 0 2px #fff, 0 0 0 1px var(--tint); }
+.bd-blocked {
+  font-size: 0.64rem;
+  color: var(--warning);
+  text-align: center;
+  max-width: 30ch;
+}

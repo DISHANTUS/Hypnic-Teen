@@ -256,6 +256,8 @@ export default {
           el.classList.toggle('is-picked', picked === coin.i && mine);
           // Stacked coins on a cross need to be visible as more than one.
           if (coins.length > 1) el.classList.add('is-stacked');
+          // A pair is one thing, and looks like one.
+          if (coin.pair !== null && coin.pair !== undefined) el.classList.add('is-paired');
           el.disabled = !canMove;
           if (canMove) {
             el.addEventListener('click', () => {
@@ -728,6 +730,47 @@ export default {
       else if (face === 'shogi') paintShogi(s);
       else if (face === 'mahjong') paintMahjong(s);
       else { layOutBoard(s); paintCoins(s); paintDice(s); }
+
+      // Pairing, which only ever applies inside and is always a choice.
+      if (face === 'thayam' && s.you?.yourTurn) {
+        for (const [a, b] of s.you?.canPair ?? []) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn btn-ghost';
+          btn.textContent = 'Pair two coins';
+          btn.addEventListener('click', () => {
+            Net.action({ type: 'pair', coins: [a, b] });
+            Sound.play('pick');
+          });
+          $('#bdActs').appendChild(btn);
+          break;   // one offer is enough; more is a wall of identical buttons
+        }
+        for (const [a] of s.you?.pairs ?? []) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn btn-quiet';
+          btn.textContent = 'Separate the pair';
+          btn.addEventListener('click', () => {
+            Net.action({ type: 'unpair', coin: a });
+            Sound.play('back');
+          });
+          $('#bdActs').appendChild(btn);
+          break;
+        }
+      }
+
+      // Why a coin will not move. Without this a player whose only coin is
+      // stuck at the gate sees "nothing that throw can move" and reasonably
+      // concludes the game is broken.
+      const stuck = (s.you?.blocked ?? []);
+      if (stuck.length) {
+        const note = document.createElement('span');
+        note.className = 'bd-blocked';
+        note.textContent = stuck.some((x) => x.why === 'gate')
+          ? 'That would take a coin inside, and you have not cut anybody yet.'
+          : 'That would land on a pair, and a single coin cannot cut one.';
+        $('#bdActs').appendChild(note);
+      }
 
       // What you may do, when the board alone does not make it obvious.
       const acts = $('#bdActs');

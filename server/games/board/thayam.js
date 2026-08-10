@@ -130,7 +130,8 @@ export const thayam = createBoardGame({
     'One, five, six and twelve all earn you another throw.',
     'Only one coin may stand on a plain square, even your own. A cross holds as many as you like.',
     'Land on somebody else off a cross and you cut them — that coin goes back to their hand.',
-    'You cannot leave the outer ring until you have cut somebody. It is a war, not a race.',
+    'You cannot leave the outer ring until you have cut somebody. It is a war, not a race — and a coin held at the gate simply does not move that throw.',
+    'Inside, two of your coins standing together may be paired. A pair moves half as far, so only even throws move it — and a single coin cannot cut a pair.',
     'Bring all your coins to the centre. You need the exact throw to land on it.',
   ],
 
@@ -154,7 +155,8 @@ export const thayam = createBoardGame({
       seat.home = 0;
       for (let i = 0; i < n; i++) {
         // -1 is in hand. Everything starts there; dayam is the only way out.
-        state.coins.push({ seat: seat.seat, i, at: -1 });
+        // `pair` holds the other coin's index once two are joined, or null.
+        state.coins.push({ seat: seat.seat, i, at: -1, pair: null });
       }
     }
     state.turn = 0;
@@ -178,6 +180,39 @@ export const thayam = createBoardGame({
         if (out.grace) { state.rolled = null; state.turnLeft = state.settings.turnSeconds; }
         else passTurn(state);
       }
+      state.dirty = true;
+      return;
+    }
+
+    // Joining two coins in the inner circle, and separating them again.
+    //
+    // Pairing is a declaration rather than a move: it does not use the throw,
+    // because a player who paid a whole turn for it and then had to wait for an
+    // even number would effectively lose two.
+    if (action.type === 'pair') {
+      const a = state.coins.find((c) => c.seat === seat.seat && c.i === Number(action.coins?.[0]));
+      const b = state.coins.find((c) => c.seat === seat.seat && c.i === Number(action.coins?.[1]));
+      if (!a || !b || a === b) return;
+      if (a.pair !== null || b.pair !== null) return;
+      // Both have to be inside, and on the same square — you cannot pair coins
+      // that are not standing together.
+      if (a.at < FIRST_LAYER || b.at < FIRST_LAYER) return;
+      if (a.at !== b.at || a.at === HOME) return;
+      a.pair = b.i;
+      b.pair = a.i;
+      state.said = `${seat.name} pairs two coins.`;
+      state.log.push(state.said);
+      state.dirty = true;
+      return;
+    }
+
+    if (action.type === 'unpair') {
+      const a = state.coins.find((c) => c.seat === seat.seat && c.i === Number(action.coin));
+      if (!a || a.pair === null) return;
+      const b = state.coins.find((c) => c.seat === seat.seat && c.i === a.pair);
+      a.pair = null;
+      if (b) b.pair = null;
+      state.said = `${seat.name} separates a pair.`;
       state.dirty = true;
       return;
     }
@@ -234,7 +269,7 @@ export const thayam = createBoardGame({
       safe: [...SAFE],
       centre: cellKey(CENTRE),
       coins: state.coins.map((c) => ({
-        seat: c.seat, i: c.i, at: c.at,
+        seat: c.seat, i: c.i, at: c.at, pair: c.pair,
         cell: c.at < 0 ? null : cellKey(PATHS[c.seat % 4][c.at]),
         home: c.at === HOME,
       })),
@@ -251,11 +286,28 @@ export const thayam = createBoardGame({
   mine(state, seat) {
     if (!seat) return { moves: [] };
     const value = state.rolled?.value ?? null;
+    const blocked = [];
+    const moves = value === null ? [] : legalMoves(state, seat, value, blocked);
+    // Which of your coins could be joined right now: two of yours, inside, on
+    // the same square, neither already paired.
+    const inside = state.coins.filter((c) =>
+      c.seat === seat.seat && c.at >= FIRST_LAYER && c.at !== HOME && c.pair === null);
+    const canPair = [];
+    for (let a = 0; a < inside.length; a++) {
+      for (let b = a + 1; b < inside.length; b++) {
+        if (inside[a].at === inside[b].at) canPair.push([inside[a].i, inside[b].i]);
+      }
+    }
     return {
+      blocked,
+      canPair,
+      pairs: state.coins
+        .filter((c) => c.seat === seat.seat && c.pair !== null && c.pair > c.i)
+        .map((c) => [c.i, c.pair]),
       // Worked out on the server so the client highlights exactly what the
       // server would accept. Two places deciding what is legal is two places
       // to disagree, and here they would disagree about whose coin dies.
-      moves: value === null ? [] : legalMoves(state, seat, value),
+      moves,
       needsThrow: !state.rolled,
       cuts: seat.cuts ?? 0,
       canLeaveFirstLayer: (seat.cuts ?? 0) > 0,
@@ -280,7 +332,7 @@ function occupant(state, cell) {
  * One list, used by the client to light up coins, by the server to check what
  * comes back, and by the timeout to pick something. Three callers, one answer.
  */
-export function legalMoves(state, seat, value) {
+export function legalMoves(state, seat, value, blocked = []) {
   const mine = state.coins.filter((c) => c.seat === seat.seat);
   const onBoard = mine.filter((c) => c.at >= 0 && c.at !== HOME);
   const out = [];
@@ -297,41 +349,84 @@ export function legalMoves(state, seat, value) {
   }
 
   for (const coin of onBoard) {
-    const to = coin.at + value;
+    // A pair moves as one thing, so it is offered once — under the lower of the
+    // two indexes — rather than twice under each coin.
+    if (coin.pair !== null && coin.pair < coin.i) continue;
+
+    // Paired coins move at half rate: one step costs a point for each of them.
+    // So a two moves a pair one square, a four moves it two, and an odd throw
+    // cannot move a pair at all — which is the whole trade.
+    const paired = coin.pair !== null;
+    if (paired && value % 2 !== 0) continue;
+    const steps = paired ? value / 2 : value;
+
+    const to = coin.at + steps;
     // Exact throw to come home. Overshooting is simply not a move.
     if (to > HOME) continue;
     // The war rule: nothing leaves the outer ring until this player has cut
     // somebody. Written as the destination crossing the boundary rather than
     // the coin's current ring, so a big throw cannot jump the gate.
-    if (coin.at < FIRST_LAYER && to >= FIRST_LAYER && (seat.cuts ?? 0) === 0) continue;
+    //
+    // Recorded rather than silently skipped. A player whose only coin is stuck
+    // at the gate sees "nothing that throw can move" and has no idea why, which
+    // is the difference between a rule and a bug as far as they can tell.
+    if (coin.at < FIRST_LAYER && to >= FIRST_LAYER && (seat.cuts ?? 0) === 0) {
+      blocked.push({ coin: coin.i, from: coin.at, to, why: 'gate' });
+      continue;
+    }
 
     const cell = cellKey(PATHS[seat.seat % 4][to]);
     const safe = SAFE.has(cell);
     const sitting = to === HOME ? null : occupant(state, cell);
 
     if (sitting && !safe) {
-      // Your own coin blocks you — one to a plain square, even your own.
+      // Your own coin blocks you — one to a plain square, even your own. A pair
+      // of your own is the same wall.
       if (sitting.seat === seat.seat) continue;
-      out.push({ coin: coin.i, from: coin.at, to, cell, enters: false, cuts: { seat: sitting.seat, i: sitting.i } });
+      // A pair can only be cut by a pair.
+      //
+      // Inferred rather than stated: pairing as described is nothing but cost —
+      // half speed, and every odd throw wasted — so if a pair could still be cut
+      // by a single coin there would be no reason on earth to make one. Safety
+      // is what buys the slowness.
+      if (sitting.pair !== null && !paired) {
+        blocked.push({ coin: coin.i, from: coin.at, to, why: 'pair' });
+        continue;
+      }
+      out.push({
+        coin: coin.i, from: coin.at, to, cell, enters: false, paired,
+        cuts: { seat: sitting.seat, i: sitting.i, pair: sitting.pair },
+      });
       continue;
     }
     if (sitting && safe && sitting.seat === seat.seat && to !== HOME) {
       // A cross holds as many as you like, including your own.
-      out.push({ coin: coin.i, from: coin.at, to, cell, enters: false, cuts: null });
+      out.push({ coin: coin.i, from: coin.at, to, cell, enters: false, paired, cuts: null });
       continue;
     }
-    out.push({ coin: coin.i, from: coin.at, to, cell, enters: false, cuts: null });
+    out.push({ coin: coin.i, from: coin.at, to, cell, enters: false, paired, cuts: null });
   }
   return out;
 }
 
 function apply(state, seat, coin, move) {
   coin.at = move.to;
+  // A pair moves as one, so its partner goes with it.
+  if (coin.pair !== null) {
+    const mate = state.coins.find((c) => c.seat === coin.seat && c.i === coin.pair);
+    if (mate) mate.at = move.to;
+  }
 
   if (move.cuts) {
     const victim = state.coins.find((c) => c.seat === move.cuts.seat && c.i === move.cuts.i);
     if (victim) {
       victim.at = -1;
+      // Cutting a pair sends both of them back and separates them.
+      if (victim.pair !== null) {
+        const other = state.coins.find((c) => c.seat === victim.seat && c.i === victim.pair);
+        if (other) { other.at = -1; other.pair = null; }
+        victim.pair = null;
+      }
       seat.cuts = (seat.cuts ?? 0) + 1;
       const whose = state.seats.find((s) => s.seat === victim.seat);
       state.said = `${seat.name} cuts ${whose?.name ?? 'somebody'}.`;
@@ -340,6 +435,12 @@ function apply(state, seat, coin, move) {
   } else if (move.enters) {
     state.said = `${seat.name} comes on.`;
   } else if (move.to === HOME) {
+    // A pair arriving home is two coins home, and it stops being a pair.
+    if (coin.pair !== null) {
+      const mate = state.coins.find((c) => c.seat === coin.seat && c.i === coin.pair);
+      if (mate) { mate.pair = null; seat.home = (seat.home ?? 0) + 1; }
+      coin.pair = null;
+    }
     seat.home = (seat.home ?? 0) + 1;
     seat.score = seat.home * 10 + (seat.cuts ?? 0);
     state.said = `${seat.name} brings one home — ${seat.home} of ${state.settings.coins}.`;
