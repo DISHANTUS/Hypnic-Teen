@@ -40,8 +40,9 @@ import { slots, plinko, wheel, scratch } from './chance.js';
 import { SHOWDOWN_GAMES } from './showdowns.js';
 import { POOL_GAMES } from './craps.js';
 import { DRAW_GAMES } from './draws.js';
+import { SPORT_GAMES } from './sports.js';
 
-const modules = [clash, imposter, truthDare, situations, quiz, findWord, movies, songs, poll, standoff, crossword, arena, battleship, roulette, holdem, blackjack, lottery, slots, plinko, wheel, scratch, ...SHOWDOWN_GAMES, ...POOL_GAMES, ...DRAW_GAMES];
+const modules = [clash, imposter, truthDare, situations, quiz, findWord, movies, songs, poll, standoff, crossword, arena, battleship, roulette, holdem, blackjack, lottery, slots, plinko, wheel, scratch, ...SHOWDOWN_GAMES, ...POOL_GAMES, ...DRAW_GAMES, ...SPORT_GAMES];
 
 const registry = new Map(modules.map((g) => [g.id, g]));
 

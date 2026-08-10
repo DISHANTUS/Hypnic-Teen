@@ -302,6 +302,31 @@ const TABLES = [
       check('your chance is shown as a percentage', /%/.test((await textOf('#jpChance')) ?? ''), await textOf('#jpChance'));
       check('and everybody has a slice of the bar', (await count('.jp-seg')) >= 1, String(await count('.jp-seg')));
     } },
+  // The one table that settles itself from outside. With no key on this
+  // machine it follows the scripted match, which is the point: what is being
+  // checked here is that the room can bet and be paid without anybody in it
+  // deciding anything, not that a particular service returns particular JSON.
+  { id: 'sports', name: 'Sports Betting', stage: '.sp-table', furniture: '.sp-out', action: '.sp-out:not(:disabled)',
+    // A settled market, not a locked one. '.sp-ride' would appear the moment
+    // betting shut and prove only that a clock ran down — the thing worth
+    // checking is that a result came back from outside without anybody in the
+    // room touching anything.
+    resultOf: () => '.sp-result',
+    async peculiar() {
+      check('a market is asked', Boolean(await textOf('.sp-ask')), await textOf('.sp-ask'));
+      check('the outcomes are all there', (await count('.sp-out')) >= 2, String(await count('.sp-out')));
+      // The promise the whole table rests on, said on the screen rather than
+      // only in the rules.
+      check('it says the window starts after betting shuts',
+        /already seen|window starts/.test((await textOf('.sp-shuts')) ?? ''), await textOf('.sp-shuts'));
+      check('and it owns up to being a demo match',
+        /pretend|Demo/.test((await textOf('#spTrouble')) ?? ''), await textOf('#spTrouble'));
+    },
+    async afterIn() {
+      check('the bet shows as yours', (await count('.sp-out.is-yours')) === 1,
+        String(await count('.sp-out.is-yours')));
+      check('the pot has something in it', Number(await textOf('#spPot')) > 0, await textOf('#spPot'));
+    } },
   { id: 'scratch', name: 'Scratch Cards', stage: '.ch-table', furniture: '.ch-cell', action: '.ch-acts .btn', resultOf: () => '.ch-said',
     async peculiar() {
       check('six panels', (await count('.ch-panels .ch-cell')) === 6, String(await count('.ch-panels .ch-cell')));
@@ -385,21 +410,30 @@ for (const table of TABLES) {
 
   const before = await balance();
 
-  const staked = await evaluate(`
-    const b = document.querySelector(${JSON.stringify(table.action)});
-    if (!b || b.disabled) return 'no button';
-    b.click();
-    return true;
-  `);
-  check(`${table.name}: there is a way in`, staked === true, String(staked));
+  // Most tables seat everybody the same way, so "click the button and watch the
+  // balance drop" is the whole check. Sports betting does not: it hands one
+  // player the umpire's job at random and bars them from the market they are
+  // calling, so which seat this browser got is not knowable in advance. A table
+  // with a `getIn` of its own works that out and does the checking itself.
+  if (table.getIn) {
+    await table.getIn({ balance, before });
+  } else {
+    const staked = await evaluate(`
+      const b = document.querySelector(${JSON.stringify(table.action)});
+      if (!b || b.disabled) return 'no button';
+      b.click();
+      return true;
+    `);
+    check(`${table.name}: there is a way in`, staked === true, String(staked));
 
-  if (staked === true) {
-    await wait(1400);
-    const after = await balance();
-    check(`${table.name}: getting in costs chips, once`,
-      before > 0 && after < before && before - after <= 500,
-      `${before} then ${after}`);
-    await table.afterIn?.();
+    if (staked === true) {
+      await wait(1400);
+      const after = await balance();
+      check(`${table.name}: getting in costs chips, once`,
+        before > 0 && after < before && before - after <= 500,
+        `${before} then ${after}`);
+      await table.afterIn?.();
+    }
   }
   await shot(`${table.id}-in`);
 

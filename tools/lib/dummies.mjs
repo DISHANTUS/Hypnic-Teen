@@ -69,6 +69,14 @@ const BRAINS = {
 
   jackpot: (s) => (s.phase === 'bets' && !s.you?.staked ? { type: 'throw', amount: 50 } : null),
 
+  // The umpire is gone — the feed settles these now — so this is back to
+  // being an ordinary punter that backs whatever is open.
+  sports: (s) => (
+    s.open?.phase === 'betting' && !s.you?.staked
+      ? { type: 'back', outcome: s.open.outs?.[0]?.id, amount: 25 }
+      : null
+  ),
+
   // The four machines and the progressive all take the same one.
   machine: (s) => (s.phase === 'bets' && !s.you?.in ? { type: 'stake' } : null),
 };

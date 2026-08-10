@@ -4624,3 +4624,85 @@ body.dropping::after {
 .bi-log li { font-size: 0.68rem; color: var(--text-3); }
 
 @media (prefers-reduced-motion: reduce) { .bi-ball.is-new { animation: none; } }
+
+/* ---------------------------------------------------------- sports betting */
+
+.sp { display: grid; gap: var(--sp-md); padding: var(--sp-lg); }
+.sp-table { display: grid; gap: var(--sp-md); justify-items: center; }
+
+/* Where the answers come from. Always on screen, because a table that settles
+   itself off somewhere else should say where. */
+.sp-feed {
+  display: flex; gap: var(--sp-sm); align-items: baseline; flex-wrap: wrap; justify-content: center;
+  width: 100%; padding: var(--sp-xs) var(--sp-sm);
+  border-radius: var(--r-sm); background: var(--glass);
+}
+.sp-feed.is-demo { background: color-mix(in srgb, var(--warning) 18%, var(--glass)); }
+.sp-what { font-family: var(--font-display); font-size: 0.86rem; }
+.sp-score { font-size: 0.74rem; color: var(--text-2); }
+.sp-clock { font-size: 0.68rem; color: var(--text-3); margin-left: auto; }
+.sp-trouble { margin: 0; text-align: center; font-size: 0.66rem; color: var(--warning); }
+
+.sp-pick { display: flex; gap: var(--sp-xs); width: min(100%, 340px); }
+.sp-pick input {
+  flex: 1; min-width: 0;
+  padding: var(--sp-xs) var(--sp-sm);
+  border-radius: var(--r-sm); border: 1px solid var(--border);
+  background: var(--glass); color: var(--text); font-size: 0.76rem;
+}
+
+.sp-pot { display: flex; align-items: baseline; gap: var(--sp-sm); justify-content: center; flex-wrap: wrap; }
+.sp-pot span { font-size: var(--t-label); color: var(--text-3); }
+.sp-pot b { font-family: var(--font-display); font-size: var(--t-h2); color: var(--accent); }
+.sp-pot small { width: 100%; text-align: center; font-size: 0.62rem; color: var(--warning); }
+
+/* The loud part: the one you can still bet on. */
+.sp-now { display: grid; gap: var(--sp-sm); justify-items: center; width: min(100%, 360px); }
+.sp-ask { margin: 0; text-align: center; font-size: var(--t-h3); }
+.sp-shuts { margin: 0; text-align: center; }
+
+.sp-amounts { display: flex; gap: var(--sp-xs); flex-wrap: wrap; justify-content: center; }
+.sp-amount {
+  padding: var(--sp-xs) var(--sp-sm); border-radius: var(--r-sm);
+  border: 1px solid var(--border); background: var(--glass);
+  color: var(--text-2); font-size: 0.72rem;
+}
+.sp-amount.is-on { background: var(--accent); color: var(--on-accent, #fff); border-color: transparent; }
+
+/* One column: a market can have four outcomes and four across is unreadable
+   on a phone. */
+.sp-outs { display: grid; gap: var(--sp-xs); width: 100%; }
+.sp-out {
+  display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-sm);
+  padding: var(--sp-sm) var(--sp-md);
+  border-radius: var(--r-md); border: 1px solid var(--border);
+  background: var(--glass); color: var(--text); text-align: left;
+}
+.sp-out b { font-size: 0.9rem; }
+.sp-out .sp-pool { font-size: 0.6rem; color: var(--text-3); white-space: nowrap; }
+.sp-out.is-yours { border-color: var(--accent); }
+.sp-out:disabled { opacity: 0.5; }
+.sp-mine { margin: 0; min-height: 1em; text-align: center; }
+
+/* The quiet part: locked, out on the match, nothing to press. */
+.sp-riding, .sp-done { display: grid; gap: var(--sp-xs); width: min(100%, 360px); }
+.sp-ride, .sp-result {
+  display: grid; gap: 1px;
+  padding: var(--sp-xs) var(--sp-sm);
+  border-radius: var(--r-sm); background: var(--glass);
+}
+.sp-ride b, .sp-result b { font-size: 0.72rem; }
+.sp-ride small, .sp-result small { font-size: 0.6rem; color: var(--text-3); }
+.sp-ride.is-yours { border-left: 2px solid var(--accent); }
+.sp-result { background: color-mix(in srgb, var(--success) 16%, var(--glass)); }
+.sp-result.is-void { background: color-mix(in srgb, var(--warning) 16%, var(--glass)); }
+
+.sp-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; justify-self: stretch; }
+.sp-log li { font-size: 0.68rem; color: var(--text-3); }
+
+.sp-fixtures { display: grid; gap: var(--sp-xs); width: min(100%, 340px); }
+.sp-fixture {
+  padding: var(--sp-xs) var(--sp-sm);
+  border-radius: var(--r-sm); border: 1px solid var(--border);
+  background: var(--glass); color: var(--text); font-size: 0.76rem; text-align: left;
+}

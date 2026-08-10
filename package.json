@@ -62,7 +62,8 @@
     "test:chance": "node tools/test-chance.mjs",
     "test:casino:ui": "node tools/test-casino-ui.mjs",
     "test:showdowns": "node tools/test-showdowns.mjs",
-    "test:tables": "node tools/test-tables.mjs"
+    "test:tables": "node tools/test-tables.mjs",
+    "test:sports": "node tools/test-sports.mjs"
   },
   "engines": {
     "node": ">=20"
