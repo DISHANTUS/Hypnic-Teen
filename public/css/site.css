@@ -5433,3 +5433,79 @@ body.dropping::after {
   .bd-orbcell.is-critical .bd-orb { animation: none; }
   .tr-track i { transition: none; }
 }
+
+/* ------------------------------------------------ crack the code --------- */
+
+.cb { display: grid; gap: var(--sp-md); }
+.cb-table { display: grid; gap: var(--sp-md); }
+.cb-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-sm); }
+.cb-head b { font-size: 0.86rem; }
+.cb-head span { font-size: 0.66rem; color: var(--text-3); }
+
+.cb-set { display: grid; gap: var(--sp-xs); }
+.cb-setrow { display: flex; gap: var(--sp-xs); }
+.cb-play { display: flex; gap: var(--sp-xs); }
+.cb-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  letter-spacing: 0.24em;
+  text-align: center;
+  text-transform: uppercase;
+  padding: var(--sp-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Every guess anybody has made. This list is the game, so it gets the middle
+   of the screen rather than a corner. */
+.cb-guesses { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; max-height: 46dvh; overflow-y: auto; }
+.cb-guess {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr auto auto;
+  align-items: center;
+  gap: var(--sp-sm);
+  padding: var(--sp-xs) var(--sp-sm);
+  border-radius: var(--r-sm);
+  background: var(--glass);
+}
+.cb-guess.is-mine { background: color-mix(in srgb, var(--accent) 14%, var(--glass)); }
+.cb-guess.is-missed { opacity: 0.5; }
+.cb-n { font-size: 0.6rem; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.cb-code { font-family: var(--font-mono); letter-spacing: 0.18em; font-size: 0.92rem; }
+.cb-by { font-size: 0.6rem; color: var(--text-3); }
+
+/* Two clues drawn as pips rather than written as a sentence. A shape can be
+   compared down a column at a glance; "2 in place, 1 elsewhere" has to be read. */
+.cb-pips { display: inline-flex; gap: 3px; }
+.cb-pips i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--text-3) 55%, transparent);
+  background: transparent;
+}
+.cb-pips i.is-exact { background: var(--success, #3ddc97); border-color: var(--success, #3ddc97); }
+.cb-pips i.is-near { border-color: var(--warning); border-width: 2px; }
+
+.cb-said { margin: 0; font-size: 0.78rem; color: var(--text-2); text-align: center; min-height: 1.2em; }
+.cb-said.is-reveal { font-size: 0.95rem; color: var(--accent); font-weight: 600; }
+
+.cb-seats { display: flex; flex-wrap: wrap; gap: var(--sp-xs); }
+.cb-seat {
+  padding: var(--sp-xs) var(--sp-sm);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--glass);
+  display: grid;
+  gap: 1px;
+}
+.cb-seat b { font-size: 0.7rem; }
+.cb-seat small { font-size: 0.58rem; color: var(--text-3); }
+.cb-seat.is-turn { border-color: var(--accent); }
+.cb-seat.is-setter { background: color-mix(in srgb, var(--warning) 16%, var(--glass)); }
+.cb-seat.is-you b { color: var(--accent); }
+.cb-seat.is-gone { opacity: 0.45; }
