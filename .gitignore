@@ -1,5 +1,10 @@
 node_modules/
 data/
+
+# Settings for one machine, and secrets. Read by every launcher.
+.env
+.env.*
+!.env.example
 tmp-test/
 tmp-demo/
 tmp-load/

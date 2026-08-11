@@ -8,6 +8,10 @@
 // explanation rather than a failure — a studio with no local model still runs
 // a full night of games.
 
+// First, so the settings are in the environment before anything reads them and
+// before the server is spawned with a copy of it.
+import '../server/env.js';
+
 import { spawn, execFile } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';

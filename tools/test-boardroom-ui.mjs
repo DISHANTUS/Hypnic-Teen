@@ -298,6 +298,22 @@ for (const game of GAMES) {
     check(`${game.name}: an orb lands when you drop one`, after > before, `${before} → ${after}`);
   }
 
+  // The clock has to actually move.
+  //
+  // This is the check that was missing while every table in three rooms showed
+  // a frozen bar. A table broadcasts only when something happens and a clock
+  // ticking is not something happening, so there was nothing to paint from and
+  // the bar sat where the last move left it. Every server-side suite passed
+  // throughout: they all ask what the server thinks, and none of them asks what
+  // a person would see. So this one sits still, touches nothing, and reads the
+  // screen twice.
+  const tick1 = await textOf('.clk-left');
+  await wait(2500);
+  const tick2 = await textOf('.clk-left');
+  const secs = (t) => Number(String(t ?? '').replace(/[^0-9]/g, ''));
+  check(`${game.name}: the clock counts down on its own`,
+    secs(tick2) < secs(tick1), `${tick1} then ${tick2}, with nothing sent between`);
+
   // A board has to have a size.
   //
   // Counting cells proves the DOM was built and proves nothing about whether

@@ -234,6 +234,48 @@ for (const game of GAMES) {
   check(`${game.name}: and what happens next`,
     Boolean((await textOf('.clk-next'))?.trim()), await textOf('.clk-next'));
 
+  // And it has to move. A table broadcasts only when something happens, and a
+  // clock ticking is not something happening — so for a long time there was
+  // nothing to paint from and the bar sat exactly where the last move left it,
+  // full and frozen, on every table here. Every server-side suite passed
+  // throughout, because they all ask what the server thinks and none of them
+  // asks what a person would see. This sits still, touches nothing, and reads
+  // the screen twice.
+  //
+  // "Counted down" is not quite the property, and two games proved it: Slapjack
+  // and War flip on their own, so their turn — and its clock — legitimately
+  // restarts about once a second. Reading 24s twice there is the clock working.
+  // What must never happen is a clock that neither falls nor restarts, which is
+  // the frozen one. So: it moved, or the table did.
+  {
+    const before = JSON.parse(await evaluate(`
+      return JSON.stringify({
+        left: document.querySelector('.clk-left')?.textContent ?? '',
+        who: document.querySelector('.clk-who')?.textContent ?? '',
+        said: document.querySelector('#cdSaid')?.textContent ?? '',
+      });
+    `));
+    await wait(2500);
+    const after = JSON.parse(await evaluate(`
+      return JSON.stringify({
+        left: document.querySelector('.clk-left')?.textContent ?? '',
+        who: document.querySelector('.clk-who')?.textContent ?? '',
+        said: document.querySelector('#cdSaid')?.textContent ?? '',
+      });
+    `));
+    const secs = (t) => Number(String(t ?? '').replace(/[^0-9]/g, ''));
+    const ticked = secs(after.left) < secs(before.left);
+    const moved = after.who !== before.who || after.said !== before.said;
+    // No clock at all is honest for Snap, Slapjack, War, Speed, Spoons and the
+    // solitaires — nobody has a turn in those, so there is nothing to count.
+    // They used to show 25s and hold it there forever, which is the one thing
+    // that must not happen: a number that never moves and never means anything.
+    const noClock = before.left.trim() === '' && after.left.trim() === '';
+    check(`${game.name}: the clock is alive, or honestly absent`,
+      ticked || moved || noClock,
+      `${before.left || '(none)'} then ${after.left || '(none)'}, and the table did not move either`);
+  }
+
   const fit = JSON.parse(await evaluate(`
     const w = document.documentElement;
     return JSON.stringify({ pageWidth: w.clientWidth, scrollWidth: w.scrollWidth });

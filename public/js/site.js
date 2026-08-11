@@ -210,17 +210,28 @@ function gameCard(game, onPlay) {
  * it sounds: the card room existed as an empty section for a while and an empty
  * heading reads as something broken rather than as something coming.
  */
+/**
+ * The three doors.
+ *
+ * No colour of their own, deliberately. They used to carry a hardcoded gold, a
+ * blue and a green, which meant that on twenty-four of the twenty-five skins
+ * the first three cards on the shelf were the only things on the page not
+ * wearing the theme — a gold wash on a blue night, sitting directly above forty
+ * game cards that had got it right. A skin here changes exactly one colour, so
+ * anything that wants to belong has to take it from the skin. The emoji and the
+ * name are what tell the rooms apart, and they were doing that work already.
+ */
 const ROOMS = [
   {
-    id: 'casino', title: 'The Casino', emoji: '🎰', accent: '#e0a94b',
+    id: 'casino', title: 'The Casino', emoji: '🎰',
     blurb: 'Played for chips. No house, and the pot is the only money there is.',
   },
   {
-    id: 'cards', title: 'The Card Room', emoji: '🃏', accent: '#4ba3e0',
+    id: 'cards', title: 'The Card Room', emoji: '🃏',
     blurb: 'A pack of cards and a table. Nothing is staked.',
   },
   {
-    id: 'board', title: 'The Board Room', emoji: '🎲', accent: '#7bc47f',
+    id: 'board', title: 'The Board Room', emoji: '🎲',
     blurb: 'Boards, pieces and turns. Nothing hidden — the server just refuses an illegal move.',
   },
 ];
@@ -239,7 +250,6 @@ function roomTile(room, count) {
   const tile = document.createElement('button');
   tile.className = 'room-tile';
   tile.type = 'button';
-  tile.style.setProperty('--tint', room.accent);
   tile.innerHTML = `
     <span class="emoji"></span>
     <h3></h3>
@@ -2207,19 +2217,19 @@ async function refreshCage() {
   return w;
 }
 
-/** The chip count on the nav button, so the cage says something at a glance. */
-async function paintCageBadge() {
+/**
+ * Show the trolley to anybody signed in, and nothing else.
+ *
+ * It used to carry your chip balance as a red badge. A badge in that row means
+ * one thing everywhere else on the page — there is something new, go and look —
+ * and a number that is simply your balance sitting there permanently is a
+ * notification that never clears. It also fetched the balance on every render
+ * to draw a number the cage itself shows the moment you open it.
+ */
+function paintCageBadge() {
   const btn = document.getElementById('cageBtn');
-  const badge = document.getElementById('chipCount');
-  if (!btn || !badge) return;
-  if (!Auth.signedIn) { btn.hidden = true; return; }
-  btn.hidden = false;
-  const w = await fetch('/api/chips', { headers: { authorization: `Bearer ${Auth.token}` } })
-    .then((r) => (r.ok ? r.json() : null))
-    .catch(() => null);
-  if (!w) { badge.hidden = true; return; }
-  badge.hidden = false;
-  badge.textContent = w.balance > 999 ? `${Math.floor(w.balance / 1000)}k` : String(w.balance ?? 0);
+  if (!btn) return;
+  btn.hidden = !Auth.signedIn;
 }
 
 /** Buying, and the daily top-up, wired once at boot rather than per render. */

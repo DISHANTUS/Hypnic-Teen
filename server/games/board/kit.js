@@ -12,6 +12,7 @@
 // simply refuses. Every game here works the same way: the client sends what it
 // would like to do, the server decides whether that is a move.
 
+
 export const PHASES = { brief: 20, between: 8 };
 
 /** A seat is a player plus whatever the game hangs off one. */
@@ -101,6 +102,13 @@ const everyoneReady = (state) => {
 export function createBoardGame(spec) {
   const turnSeconds = spec.turnSeconds ?? 30;
 
+  // A game may widen or narrow its own clock, and if it does, the clamp has to
+  // follow the declaration. Otherwise the setup screen offers a range the
+  // server quietly refuses — a host types 600, sees 600, and gets 300.
+  const clock = spec.options?.turnSeconds;
+  const clockLo = clock?.min ?? 10;
+  const clockHi = clock?.hardMax ?? clock?.max ?? 300;
+
   return {
     __spec: spec,
     id: spec.id,
@@ -125,7 +133,7 @@ export function createBoardGame(spec) {
       const settings = ctx.settings ?? {};
       const state = {
         settings: {
-          turnSeconds: Math.max(10, Math.min(300, Number(settings.turnSeconds) || turnSeconds)),
+          turnSeconds: Math.max(clockLo, Math.min(clockHi, Number(settings.turnSeconds) || turnSeconds)),
           ...(spec.settings ? spec.settings(settings, players) : {}),
         },
         phase: 'brief',
@@ -192,6 +200,10 @@ export function createBoardGame(spec) {
       spec.tick?.(state, dt);
       if (state.phase !== 'play') return;
 
+      // Counted down here and *not* broadcast every tick. The clock on screen
+      // runs itself forward from the last state it was sent — see turnclock.mjs
+      // and the note on isDirty in party.js. Pushing a frame a second per room
+      // is bandwidth this studio decided long ago not to spend.
       if (state.turnLeft > 0) {
         state.turnLeft -= dt;
         if (state.turnLeft <= 0) {

@@ -21,23 +21,30 @@ const store = registerStore(
   })
 );
 
-/** The owner is whoever the launcher says; without one, nobody can change this. */
-const OWNER = (process.env.OWNER_ID ?? '').trim();
+/**
+ * The owner is whoever the launcher says; without one, nobody can change this.
+ *
+ * Read when asked rather than when this file is first imported. Caching it at
+ * module load made ownership depend on import order — anything that pulled this
+ * module in before the environment was filled got an owner of nobody, for the
+ * life of the process, silently.
+ */
+const owner = () => (process.env.OWNER_ID ?? '').trim();
 
-export const isOwner = (id) => Boolean(OWNER) && id === OWNER;
+export const isOwner = (id) => Boolean(owner()) && id === owner();
 
 function appState(app) {
   const apps = store.data.apps;
   if (!apps[app]) {
     // Closed the moment the feature exists, with the owner already inside —
     // otherwise turning it on locks the owner out of their own studio.
-    apps[app] = { open: false, allowed: OWNER ? [OWNER] : [] };
+    apps[app] = { open: false, allowed: owner() ? [owner()] : [] };
     store.save();
   }
   // A studio that changes hands, or an OWNER_ID set after first boot, should
   // not leave the new owner outside.
-  if (OWNER && !apps[app].allowed.includes(OWNER)) {
-    apps[app].allowed.push(OWNER);
+  if (owner() && !apps[app].allowed.includes(owner())) {
+    apps[app].allowed.push(owner());
     store.save();
   }
   return apps[app];
@@ -68,7 +75,7 @@ export function mayUse(app, id) {
 
 export function accessState(app) {
   const state = appState(app);
-  return { app, open: state.open, allowed: [...state.allowed], owner: OWNER || null };
+  return { app, open: state.open, allowed: [...state.allowed], owner: owner() || null };
 }
 
 /** Owner-only. Returns the state that actually took effect. */
@@ -85,7 +92,7 @@ export function setAccess(app, byId, { open, allow, revoke } = {}) {
   if (revoke) {
     const id = String(revoke).trim();
     // The owner cannot lock themselves out by accident.
-    if (id !== OWNER) state.allowed = state.allowed.filter((x) => x !== id);
+    if (id !== owner()) state.allowed = state.allowed.filter((x) => x !== id);
   }
 
   store.save();

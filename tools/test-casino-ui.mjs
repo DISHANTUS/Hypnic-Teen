@@ -406,6 +406,21 @@ for (const table of TABLES) {
   check(`${table.name}: and what happens next`,
     Boolean((await textOf('.clk-next'))?.trim()), await textOf('.clk-next'));
 
+  // And it has to move. A table broadcasts only when something happens, and a
+  // clock ticking is not something happening — so for a long time there was
+  // nothing to paint from and the bar sat exactly where the last event left it,
+  // full and frozen, on every table in this room. Every server-side suite
+  // passed throughout, because they all ask what the server thinks and none of
+  // them asks what a person would see.
+  {
+    const was = await textOf('.clk-left');
+    await wait(2500);
+    const now = await textOf('.clk-left');
+    const secs = (t) => Number(String(t ?? '').replace(/[^0-9]/g, ''));
+    check(`${table.name}: the clock counts down on its own`,
+      secs(now) < secs(was), `${was} then ${now}, with nothing sent between`);
+  }
+
   await table.peculiar?.();
 
   // Getting in has to cost chips, and cost them once.

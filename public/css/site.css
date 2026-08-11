@@ -1452,8 +1452,14 @@ input::placeholder { color: var(--text-3); }
 
 /* ----------------------------------------------------------- theme picker */
 
-.theme-sheet { width: min(94vw, 480px); max-height: 86dvh; overflow-y: auto; }
-.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(126px, 1fr)); gap: var(--sp-md); }
+/* Wide where there is width to be had.
+   Capped at 480px this was a tall narrow column on a desktop — twenty-five
+   skins in threes, most of them below the fold, with a monitor's worth of empty
+   room either side. The cap is now generous and the grid auto-fills into it, so
+   a pack lands on one row and the whole set is visible at once. On a phone
+   94vw still decides, and nothing changes there. */
+.theme-sheet { width: min(94vw, 1040px); max-height: 88dvh; overflow-y: auto; }
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--sp-md); }
 
 /* Each style pack gets a heading spanning the grid. */
 .theme-group {
@@ -4911,6 +4917,11 @@ body.dropping::after {
 
 /* A door rather than a card. Bigger tint, no player count, and it says what
    is behind it instead of what it is. */
+/* A door is a card. Same surface, same border, same wash on hover as the forty
+   game cards underneath it — because it used to have a colour of its own baked
+   in as hex, and on every skin but the one it was picked for it was the only
+   thing on the shelf ignoring the theme. What tells the rooms apart is the
+   emoji and the name, which is what was doing it anyway. */
 .room-tile {
   position: relative;
   display: grid;
@@ -4918,17 +4929,36 @@ body.dropping::after {
   padding: var(--sp-lg);
   text-align: left;
   border-radius: var(--r-lg);
-  border: 1px solid color-mix(in srgb, var(--tint, var(--accent)) 40%, var(--border));
-  background:
-    radial-gradient(120% 100% at 0% 0%, color-mix(in srgb, var(--tint, var(--accent)) 22%, transparent), transparent 60%),
-    var(--glass);
+  border: 1px solid var(--border);
+  background: var(--surface);
   color: var(--text);
+  overflow: hidden;
+  isolation: isolate;
+  transition: transform var(--m-base) var(--ease-standard),
+    border-color var(--m-base) var(--ease-standard),
+    box-shadow var(--m-base) var(--ease-standard);
 }
+.room-tile::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(180deg, transparent 30%, var(--accent) 220%);
+  opacity: 0;
+  transition: opacity var(--m-base) var(--ease-standard);
+}
+.room-tile:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+}
+.room-tile:hover::before { opacity: 0.14; }
+.room-tile:active { transform: translateY(-1px); }
 .room-tile .emoji { font-size: 2rem; line-height: 1; }
 .room-tile h3 { margin: 0; font-family: var(--font-display); font-size: var(--t-h3); }
 .room-tile p { margin: 0; font-size: 0.74rem; color: var(--text-3); }
 .room-tile .card-foot { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.68rem; color: var(--text-3); }
-.room-tile .go { color: color-mix(in srgb, var(--tint, var(--accent)) 80%, var(--text)); }
+.room-tile .go { color: var(--accent); font-weight: 600; }
 .room-back { margin-left: auto; }
 
 /* Removing a tournament from the card it is on, rather than from inside it. */
@@ -5282,9 +5312,25 @@ body.dropping::after {
   box-shadow: 0 0 6px color-mix(in srgb, var(--tint) 70%, transparent);
 }
 
-/* Two orbs sit apart, three make a triangle, and the group turns slowly —
-   which is how you tell a loaded cell from a quiet one out of the corner of
-   your eye. */
+/* Two orbs sit side by side; the third goes on top of them, which is the
+   arrangement everybody recognises. Left to flex-wrap it came out as three in a
+   row or two-and-one depending on how much room the cell had — the same three
+   orbs drawn differently from cell to cell, so you could not read a board at a
+   glance. Placed rather than flowed, so a full cell always looks the same. */
+.bd-orbcell { position: relative; }
+.bd-orbcell[data-orbs="3"] .bd-orb,
+.bd-orbcell[data-orbs="4"] .bd-orb { position: absolute; }
+.bd-orbcell[data-orbs="3"] .bd-orb:nth-child(1) { left: 24%; top: 46%; }
+.bd-orbcell[data-orbs="3"] .bd-orb:nth-child(2) { right: 24%; top: 46%; }
+.bd-orbcell[data-orbs="3"] .bd-orb:nth-child(3) { left: 50%; top: 16%; transform: translateX(-50%); }
+/* Four is a diamond. It only shows for the blink before the cell goes. */
+.bd-orbcell[data-orbs="4"] .bd-orb:nth-child(1) { left: 20%; top: 38%; }
+.bd-orbcell[data-orbs="4"] .bd-orb:nth-child(2) { right: 20%; top: 38%; }
+.bd-orbcell[data-orbs="4"] .bd-orb:nth-child(3) { left: 50%; top: 12%; transform: translateX(-50%); }
+.bd-orbcell[data-orbs="4"] .bd-orb:nth-child(4) { left: 50%; bottom: 12%; transform: translateX(-50%); }
+
+/* The group turns slowly, which is how you tell a loaded cell from a quiet one
+   out of the corner of your eye. */
 .bd-orbcell[data-orbs="2"], .bd-orbcell[data-orbs="3"], .bd-orbcell[data-orbs="4"] {
   animation: bd-orbit 3.2s linear infinite;
 }

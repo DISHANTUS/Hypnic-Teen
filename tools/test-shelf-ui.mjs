@@ -16,7 +16,7 @@
 // part of it was correct on the server the whole time.
 
 import { spawn } from 'node:child_process';
-import { mkdirSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { WebSocket } from 'ws';
 import { pageTools, watchForErrors } from './lib/journey.mjs';
@@ -285,6 +285,100 @@ check('the remove button can be pressed', clicked === true, String(clicked));
 await wait(2000);
 const left = await count('.cup-card');
 check('and removing it actually removes it', left === cups - 1, `${cups} then ${left}`);
+
+/* ------------------------ the trolley, and the skins ---------------------- */
+
+// The cage button is a trolley and carries no number. It used to show your chip
+// balance as a red badge, which in that row of the topbar says "there is
+// something new here" — a permanent notification that never clears, for a
+// figure the cage itself shows the moment you open it.
+const cage = JSON.parse(await evaluate(`
+  const b = document.getElementById('cageBtn');
+  if (!b) return JSON.stringify({ missing: true });
+  return JSON.stringify({
+    shown: !b.hidden,
+    svg: b.querySelectorAll('svg').length,
+    badges: b.querySelectorAll('.news-badge').length,
+    digits: /[0-9]/.test(b.textContent ?? ''),
+  });
+`));
+check('the cage button is drawn as a trolley', cage.svg === 1 && cage.shown === true,
+  JSON.stringify(cage));
+check('and carries no number', cage.badges === 0 && cage.digits === false,
+  JSON.stringify(cage));
+
+// The skin picker spreads across the screen it is given. At 480px it was a tall
+// narrow column with twenty-five skins in threes and most of them below the
+// fold, on a monitor with room to spare either side.
+//
+// Measured on both shapes, because they want opposite things and only checking
+// one is how the desktop got left as a phone in the first place. The rest of
+// this file runs at 390 by 844; the desktop pass puts it back afterwards.
+const measureSkins = async () => {
+  await evaluate(`document.getElementById('themeBtn')?.click(); return true;`);
+  await wait(700);
+  const out = JSON.parse(await evaluate(`
+    const d = document.getElementById('themeDialog');
+    const g = document.getElementById('themeGrid');
+    if (!d || !g) return JSON.stringify({ missing: true });
+    const cards = [...g.children].filter((c) => !c.classList.contains('theme-group'));
+    const tops = new Set(cards.map((c) => Math.round(c.getBoundingClientRect().top)));
+    return JSON.stringify({
+      open: d.open === true,
+      width: Math.round(d.getBoundingClientRect().width),
+      page: Math.round(document.documentElement.clientWidth),
+      cards: cards.length,
+      rows: tops.size,
+    });
+  `));
+  await evaluate(`document.getElementById('themeClose')?.click(); return true;`);
+  await wait(400);
+  return out;
+};
+
+const onPhone = await measureSkins();
+check('the skin picker opens', onPhone.open === true, JSON.stringify(onPhone));
+check('on a phone it stays inside the screen',
+  onPhone.width <= onPhone.page, JSON.stringify(onPhone));
+
+await send('Emulation.setDeviceMetricsOverride',
+  { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+await wait(500);
+// Kept as pictures too. Numbers say the dialog is a thousand pixels wide and
+// six rows tall, and that the cage button holds one svg and no badge; only a
+// screenshot says whether either looks like anything.
+const keep = async (name, clip) => {
+  try {
+    const { data } = await send('Page.captureScreenshot',
+      clip ? { format: 'png', clip: { ...clip, scale: 2 } } : { format: 'png' });
+    mkdirSync(path.join(ROOT, 'android', 'shelf-shots'), { recursive: true });
+    writeFileSync(path.join(ROOT, 'android', 'shelf-shots', `${name}.png`),
+      Buffer.from(data, 'base64'));
+  } catch { /* never the point */ }
+};
+const bar = JSON.parse(await evaluate(`
+  const r = document.querySelector('.topbar-right').getBoundingClientRect();
+  return JSON.stringify({ x: r.x - 8, y: r.y - 8, width: r.width + 16, height: r.height + 16 });
+`));
+await keep('topbar-trolley', bar);
+
+await evaluate(`document.getElementById('themeBtn')?.click(); return true;`);
+await wait(700);
+await keep('skins-desktop');
+await evaluate(`document.getElementById('themeClose')?.click(); return true;`);
+await wait(300);
+
+const onDesk = await measureSkins();
+check('on a desktop it uses the width it is given',
+  onDesk.width > 480 && onDesk.width <= onDesk.page, JSON.stringify(onDesk));
+// Twenty-five skins across five packs. In threes that was nine rows of skins
+// plus five headings; spread across it is one row per pack.
+check('so the skins lie across rather than down',
+  onDesk.rows <= 6 && onDesk.rows < onPhone.rows,
+  `${onDesk.cards} skins in ${onDesk.rows} rows on a desktop, ${onPhone.rows} on a phone`);
+await send('Emulation.setDeviceMetricsOverride',
+  { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+await wait(500);
 
 const gone = await fetch(`${base}/api/health`).then((r) => r.json()).catch(() => null);
 check('the studio is still standing', Boolean(gone?.ok));

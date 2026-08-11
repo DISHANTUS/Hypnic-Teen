@@ -231,7 +231,15 @@ export function createCardGame(spec) {
       const state = {
         settings: {
           hands: Math.max(1, Math.min(100, Number(settings.hands) || spec.hands || 3)),
-          turnSeconds: Math.max(5, Math.min(300, Number(settings.turnSeconds) || turnSeconds || 25)),
+          // Zero means this game has no turns, and it has to survive to here.
+          // The `|| 25` on the end used to swallow it, so Snap, Slapjack, War,
+          // Speed, Spoons and both Solitaires each started every hand with a
+          // 25-second turn clock that nothing ever decremented and nothing ever
+          // fired. The client already knows to say "everybody at once" and draw
+          // no bar when there is no turn — it was simply never told.
+          turnSeconds: turnSeconds === 0
+            ? 0
+            : Math.max(5, Math.min(300, Number(settings.turnSeconds) || turnSeconds)),
           ...(spec.settings ? spec.settings(settings) : {}),
         },
         phase: 'brief',
@@ -320,6 +328,10 @@ export function createCardGame(spec) {
       spec.tick?.(state, dt);
       if (state.phase !== 'play') return;
 
+      // Counted down here and *not* broadcast every tick. The clock on screen
+      // runs itself forward from the last state it was sent — see turnclock.mjs
+      // and the note on isDirty in party.js. Pushing a frame a second per room
+      // is bandwidth this studio decided long ago not to spend.
       if (turnSeconds > 0 && state.turnLeft > 0) {
         state.turnLeft -= dt;
         if (state.turnLeft <= 0) {

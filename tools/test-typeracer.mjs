@@ -307,6 +307,53 @@ function openChain(n, settings = {}) {
 }
 
 {
+  // The host sets the board and the clock. What the setup screen offers, the
+  // server has to actually accept — an option that says "type up to 600" and
+  // then quietly gives you 300 is worse than not offering it.
+  const opts = chainreaction.options;
+  const tiny = openChain(2, { cols: opts.cols.min, rows: opts.rows.min }).state;
+  check('the smallest board the setup offers is allowed',
+    tiny.settings.cols === opts.cols.min && tiny.settings.rows === opts.rows.min,
+    `${tiny.settings.cols}x${tiny.settings.rows}`);
+
+  const huge = openChain(2, { cols: opts.cols.hardMax, rows: opts.rows.hardMax }).state;
+  check('and so is the largest',
+    huge.settings.cols === opts.cols.hardMax && huge.settings.rows === opts.rows.hardMax,
+    `${huge.settings.cols}x${huge.settings.rows}`);
+  check('a huge board still lays out every cell',
+    huge.cells.length === opts.cols.hardMax * opts.rows.hardMax, String(huge.cells.length));
+
+  // The clock, which the shared kit used to pin to 10–300 whatever the game
+  // said. A game that widens its own range now gets the range it declared.
+  const quick = openChain(2, { turnSeconds: opts.turnSeconds.min }).state;
+  check('a short turn is honoured',
+    quick.settings.turnSeconds === opts.turnSeconds.min, String(quick.settings.turnSeconds));
+  const slow = openChain(2, { turnSeconds: opts.turnSeconds.hardMax }).state;
+  check('and a long one is too',
+    slow.settings.turnSeconds === opts.turnSeconds.hardMax, String(slow.settings.turnSeconds));
+  // Still clamped — "however you like" is not "anything at all".
+  const silly = openChain(2, { turnSeconds: 99999 }).state;
+  check('nonsense is still clamped',
+    silly.settings.turnSeconds === opts.turnSeconds.hardMax, String(silly.settings.turnSeconds));
+
+  // And the film shrinks so a huge board does not post a video down the wire.
+  const seat = huge.seats[0];
+  huge.played = [0, 1];
+  huge.turn = 0;
+  for (let i = 0; i < huge.cells.length; i++) {
+    const cap = capacityOf(huge.settings.cols, huge.settings.rows,
+      i % huge.settings.cols, Math.floor(i / huge.settings.cols));
+    huge.cells[i] = { n: cap - 1, owner: 0 };
+  }
+  huge.cells[huge.cells.length - 1] = { n: 1, owner: 1 };
+  chainreaction.__spec.act(huge, seat, { type: 'drop', at: 0 });
+  const frames = huge.bursting?.film.length ?? 0;
+  check('a huge board films fewer frames',
+    frames > 0 && frames * huge.cells.length <= 2000,
+    `${frames} frames x ${huge.cells.length} cells`);
+}
+
+{
   // The cascade that never settles. A board owned by one colour feeds itself
   // forever — and that is the game being over, not a runaway.
   const { state, players } = openChain(2, { cols: 4, rows: 4 });

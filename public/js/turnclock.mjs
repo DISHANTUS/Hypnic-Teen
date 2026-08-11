@@ -21,10 +21,28 @@
 // phase has no way to know a wheel is about to spin unless the table tells
 // them. Every game supplies its own line for this.
 //
-// The bar is driven off state pushes, not off a local timer. A local countdown
-// looks smoother and lies: it drifts from the server, and on a slow connection
-// it can hit zero while the turn is still open, which is worse than no clock
-// at all because it teaches people the clock cannot be trusted.
+// The countdown runs here, forward from the last state the server sent.
+//
+// This started the other way round — painted only when a state arrived, on the
+// reasoning that a local timer drifts and could hit zero while the turn was
+// still open, which would teach people the clock cannot be trusted.
+//
+// That reasoning was sound and the conclusion was wrong, because of a fact
+// about the other end: a table only broadcasts when something happens, and a
+// clock ticking down is not something happening. So there were no pushes to
+// paint from. The bar sat exactly where the last move left it — full, frozen,
+// on every table in the casino, the card room and the board room — and then the
+// turn ended out of nowhere. A clock that never moves does not merely fail to
+// be trusted, it fails to be a clock.
+//
+// The party games have counted forward from the last frame for as long as they
+// have existed, for the same reason, and the alternative is worse than the
+// drift: broadcasting a frame a second per room is about five megabytes per
+// player per hour, which is real money on somebody's mobile data.
+//
+// So: count locally, never below zero, and let the next push correct it. The
+// worst drift can do is show zero a moment early on a bad connection — and the
+// turn actually ending always arrives as its own state.
 
 const CLASS = 'clk';
 
@@ -50,6 +68,53 @@ export function mountClock(parent) {
   const next = root.querySelector('.clk-next');
 
   let lastUrgent = false;
+  /** The last thing the server said, and when it said it. */
+  let shown = null;
+  let at = 0;
+
+  /** Seconds left now, counted forward from the frame we were given. */
+  function remaining() {
+    if (!shown) return 0;
+    const gone = (performance.now() - at) / 1000;
+    // Never below zero. A clock that runs negative is worse than one that
+    // stops, and the turn actually ending arrives as its own state anyway.
+    return Math.max(0, Number(shown.left ?? 0) - gone);
+  }
+
+  function draw() {
+    if (!shown) return;
+    const total = Number(shown.total) || 0;
+    const idle = shown.idle || total <= 0;
+
+    who.textContent = shown.label ?? '';
+    who.classList.toggle('is-you', Boolean(shown.yours));
+    next.textContent = shown.hint ?? '';
+    next.hidden = !shown.hint;
+
+    root.classList.toggle('is-idle', idle);
+    root.classList.toggle('is-you', Boolean(shown.yours));
+
+    if (idle) {
+      left.textContent = '';
+      fill.style.width = '0%';
+      root.classList.remove('is-urgent');
+      lastUrgent = false;
+      return;
+    }
+
+    const secs = remaining();
+    left.textContent = `${Math.ceil(secs)}s`;
+    fill.style.width = `${Math.max(0, Math.min(100, (secs / total) * 100))}%`;
+
+    // Urgent is about the clock being nearly out, not about the bar being
+    // short — a five second turn is not an emergency for its whole length.
+    const urgent = secs <= 5 && total > 6;
+    root.classList.toggle('is-urgent', urgent);
+    // Only when it becomes urgent, and only when it is actually your problem.
+    if (urgent && !lastUrgent && shown.yours) root.classList.add('clk-nudge');
+    if (!urgent) root.classList.remove('clk-nudge');
+    lastUrgent = urgent;
+  }
 
   /**
    * @param {object} o
@@ -62,42 +127,19 @@ export function mountClock(parent) {
    *                           showing a full one, which reads as "loads of time"
    */
   function paint(o = {}) {
-    const total = Number(o.total) || 0;
-    const secs = Math.max(0, Number(o.left) || 0);
-    const idle = o.idle || total <= 0;
-
-    who.textContent = o.label ?? '';
-    who.classList.toggle('is-you', Boolean(o.yours));
-    next.textContent = o.hint ?? '';
-    next.hidden = !o.hint;
-
-    root.classList.toggle('is-idle', idle);
-    root.classList.toggle('is-you', Boolean(o.yours));
-
-    if (idle) {
-      left.textContent = '';
-      fill.style.width = '0%';
-      root.classList.remove('is-urgent');
-      lastUrgent = false;
-      return;
-    }
-
-    left.textContent = `${Math.ceil(secs)}s`;
-    fill.style.width = `${Math.max(0, Math.min(100, (secs / total) * 100))}%`;
-
-    // Urgent is about the clock being nearly out, not about the bar being
-    // short — a five second turn is not an emergency for its whole length.
-    const urgent = secs <= 5 && total > 6;
-    root.classList.toggle('is-urgent', urgent);
-    // Only when it becomes urgent, and only when it is actually your problem.
-    if (urgent && !lastUrgent && o.yours) root.classList.add('clk-nudge');
-    if (!urgent) root.classList.remove('clk-nudge');
-    lastUrgent = urgent;
+    shown = o;
+    at = performance.now();
+    draw();
   }
+
+  // Four times a second, which is smooth enough to look alive and cheap enough
+  // to be beneath noticing. It runs whether or not the server says anything,
+  // because the server saying nothing is the normal case.
+  const timer = setInterval(draw, 250);
 
   return {
     paint,
-    destroy() { root.remove(); },
+    destroy() { clearInterval(timer); root.remove(); },
   };
 }
 

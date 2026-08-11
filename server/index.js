@@ -1,3 +1,7 @@
+// First, and on purpose. Everything below may read process.env while it is
+// being imported, so the .env has to be in place before any of it evaluates.
+import './env.js';
+
 import { createServer, request as httpRequest } from 'node:http';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, statSync } from 'node:fs';

@@ -65,13 +65,18 @@ export const chainreaction = createBoardGame({
     'Lose every orb on the board and you are out. Last colour standing wins.',
   ],
 
+  // The host sets the size of their own board and the length of their own turn.
+  // The sliders cover what people actually want; the typed box goes further,
+  // because "however you like" is the point of a house rule and three-by-three
+  // is a perfectly good ninety-second game.
   options: {
-    cols: { label: 'Columns', kind: 'number', min: 4, max: 9, hardMax: 12, step: 1, default: 6 },
-    rows: { label: 'Rows', kind: 'number', min: 4, max: 12, hardMax: 14, step: 1, default: 8 },
+    cols: { label: 'Columns', kind: 'number', min: 3, max: 12, hardMax: 24, step: 1, default: 6 },
+    rows: { label: 'Rows', kind: 'number', min: 3, max: 16, hardMax: 30, step: 1, default: 8 },
+    turnSeconds: { label: 'Seconds a turn', kind: 'number', min: 3, max: 120, hardMax: 600, step: 1, default: 20 },
   },
   settings: (s) => ({
-    cols: Math.max(4, Math.min(12, Number(s.cols) || 6)),
-    rows: Math.max(4, Math.min(14, Number(s.rows) || 8)),
+    cols: Math.max(3, Math.min(24, Number(s.cols) || 6)),
+    rows: Math.max(3, Math.min(30, Number(s.rows) || 8)),
   }),
 
   init(state) {
@@ -245,8 +250,25 @@ export const chainreaction = createBoardGame({
  */
 const FILMED = 24;
 
+/**
+ * How many frames this board can afford.
+ *
+ * The whole board rides in every frame and the state is serialised once per
+ * player, so frames × cells × players is what actually goes down the wire. A
+ * six-by-eight board can have all twenty-four; a twenty-four-by-thirty one —
+ * which a host may now ask for — gets two, because 720 cells times 24 frames
+ * times eight people is a video, not a game state.
+ *
+ * Two is the floor rather than something more generous on purpose: a short film
+ * is not a broken one. The client plays what it is given and then lands on the
+ * board the server actually settled on, so the worst a tight budget costs is
+ * some of the middle of the explosion — never the outcome.
+ */
+const framesFor = (cells) => Math.max(2, Math.min(FILMED, Math.floor(1500 / Math.max(1, cells))));
+
 function settle(state, owner) {
   const { cols, rows } = state.settings;
+  const budget = framesFor(cols * rows);
   const film = [];
   let waves = 0;
   let cut = 0;
@@ -276,7 +298,7 @@ function settle(state, owner) {
     // The board after this wave, so the client can play the cascade rather than
     // cut to the end of it. Watching the chain propagate is the entire game —
     // sending only the final board is like reporting a firework as a noise.
-    if (film.length < FILMED) {
+    if (film.length < budget) {
       film.push({ burst: bursting, cells: state.cells.map((c) => ({ n: c.n, owner: c.owner })) });
     } else {
       cut += 1;
