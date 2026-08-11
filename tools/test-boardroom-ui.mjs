@@ -300,6 +300,24 @@ for (const game of GAMES) {
       owned.mine === 2, String(owned.mine));
     check(`${game.name}: every painted cross says whose it is`,
       owned.titles === owned.n, `${owned.titles} of ${owned.n}`);
+
+    // The mat. Computed style rather than pixels, because a screenshot depends
+    // on where the page happens to be scrolled and this does not.
+    const paintjob = JSON.parse(await evaluate(`
+      const cell = document.querySelector('.bd-cell:not(.is-safe):not(.is-centre)');
+      const centre = document.querySelector('.bd-cell.is-centre');
+      const board = document.querySelector('.bd-board');
+      return JSON.stringify({
+        cell: getComputedStyle(cell).backgroundColor,
+        centre: getComputedStyle(centre).backgroundImage.slice(0, 15),
+        board: getComputedStyle(board).borderColor,
+      });
+    `));
+    check(`${game.name}: the board is dressed as a board`,
+      paintjob.cell === 'rgb(251, 243, 226)'
+      && paintjob.centre.startsWith('radial-gradient')
+      && paintjob.board === 'rgb(58, 47, 38)',
+      JSON.stringify(paintjob));
   }
 
   // Chain Reaction is the one game here whose whole appeal is what happens

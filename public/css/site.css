@@ -5077,6 +5077,10 @@ body.dropping::after {
   --n: 7;
   display: grid;
   grid-template-columns: repeat(var(--n), 1fr);
+  /* Rows share the height the way columns share the width, or a square board
+     collapses into a stack of content-tall lines — which is exactly how the
+     first Thayam shipped. */
+  grid-auto-rows: 1fr;
   gap: 2px;
   width: min(100%, 340px);
   aspect-ratio: 1;
@@ -5454,6 +5458,64 @@ body.dropping::after {
   color: var(--warning);
   text-align: center;
   max-width: 30ch;
+}
+
+/* Thayam, dressed as the thing it is: a board drawn on a woven mat, played
+   with shells. The same warm fixed palette as the ludo and chess boards, and
+   for the same reason — the board is an object on the table, not part of the
+   page, and it should not change colour because somebody likes a blue skin. */
+.bd.is-thayam .bd-board {
+  gap: 3px;
+  padding: 5px;
+  width: min(100%, 380px);
+  border-radius: var(--r-md);
+  border: 2px solid #3a2f26;
+  background:
+    repeating-linear-gradient(45deg, rgba(58, 47, 38, 0.05) 0 6px, transparent 6px 12px),
+    #e8d5b5;
+  box-shadow: inset 0 0 0 4px rgba(58, 47, 38, 0.1), 0 10px 26px rgba(20, 14, 8, 0.28);
+}
+.bd.is-thayam .bd-cell {
+  background: #fbf3e2;
+  border: 1px solid rgba(58, 47, 38, 0.45);
+  border-radius: 10%;
+}
+/* The crosses, cut deeper into the wood. */
+.bd.is-thayam .bd-cell.is-safe::before,
+.bd.is-thayam .bd-cell.is-safe::after {
+  background: rgba(58, 47, 38, 0.55);
+  inset: 10% 46%;
+  border-radius: 2px;
+}
+/* A player's own crosses stay painted — the tint does the navigating. */
+.bd.is-thayam .bd-cell.is-owned { background: color-mix(in srgb, var(--own) 36%, #fbf3e2); }
+.bd.is-thayam .bd-cell.is-owned::before,
+.bd.is-thayam .bd-cell.is-owned::after { background: color-mix(in srgb, var(--own) 75%, #3a2f26); }
+.bd.is-thayam .bd-cell.is-yours {
+  background: color-mix(in srgb, var(--own) 55%, #fbf3e2);
+  border-color: color-mix(in srgb, var(--own) 60%, #3a2f26);
+}
+/* Pazham. The middle is the point of the whole walk, so it looks like a prize:
+   a brass medallion, not another square. */
+.bd.is-thayam .bd-cell.is-centre {
+  background: radial-gradient(circle at 35% 30%, #f7e3a1, #d4a944 60%, #a97a1f);
+  border-color: #7a5a15;
+  box-shadow: inset 0 0 0 2px rgba(255, 248, 220, 0.6), 0 1px 4px rgba(20, 14, 8, 0.3);
+}
+.bd.is-thayam .bd-cell.is-centre::before,
+.bd.is-thayam .bd-cell.is-centre::after { background: rgba(122, 90, 21, 0.65); }
+/* The coins are shells: glossy domes, like every other piece in the studio
+   that you can pick up. */
+.bd.is-thayam .bd-coin {
+  border: 0;
+  background: radial-gradient(circle at 32% 28%,
+    color-mix(in srgb, #fff 62%, var(--tint)) 0%,
+    var(--tint) 55%,
+    color-mix(in srgb, #000 36%, var(--tint)) 100%);
+  box-shadow: 0 1.5px 3px rgba(0, 0, 0, 0.4), inset 0 -2px 3px rgba(0, 0, 0, 0.22);
+}
+.bd.is-thayam .bd-coin.can-move {
+  box-shadow: 0 0 0 2px #fff, 0 0 12px var(--tint), 0 1.5px 3px rgba(0, 0, 0, 0.4);
 }
 
 /* Shut out of the middle for good. Louder than "blocked for now", because it
