@@ -169,13 +169,17 @@ app.use(
   express.static(PUBLIC_DIR, {
     extensions: ['html'],
     setHeaders(res, filePath) {
-      // The shell must always revalidate or a deploy never reaches anyone;
-      // fingerprint-free assets get a short cache instead of a long one.
       // Code must always revalidate. These filenames carry no fingerprint, so
       // a max-age here means a friend who refreshes still runs last week's
       // build and there is no way to tell from either side. On a LAN a
       // revalidation is a 304 and costs nothing.
-      if (/\.(html|js|css|webmanifest)$/.test(filePath) || filePath.endsWith('sw.js')) {
+      //
+      // `mjs` is in the list because it once was not, and the cost of that was
+      // out of all proportion: the turn clock lived in a .mjs file, fell into
+      // the day-long cache below, and a fix to it never reached anybody for up
+      // to a day — while every .js file around it updated on refresh. A stale
+      // cache does not look stale; it looks like the fix was never written.
+      if (/\.(html|js|mjs|css|webmanifest)$/.test(filePath) || filePath.endsWith('sw.js')) {
         res.setHeader('Cache-Control', 'no-cache');
       } else {
         res.setHeader('Cache-Control', 'public, max-age=86400');

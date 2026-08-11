@@ -12,7 +12,7 @@
 
 import { Sound } from '/js/sound.js';
 import { confetti, floatText, pulse, motionReduced } from '/js/fx.js';
-import { mountClock } from '/js/turnclock.mjs';
+import { mountClock } from '/js/turnclock.js';
 
 const SUIT = { s: '♠', h: '♥', d: '♦', c: '♣' };
 const REDS = new Set(['h', 'd']);

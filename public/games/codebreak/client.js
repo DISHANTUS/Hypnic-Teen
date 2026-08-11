@@ -16,7 +16,7 @@
 
 import { Sound } from '/js/sound.js';
 import { confetti, floatText, motionReduced } from '/js/fx.js';
-import { mountClock } from '/js/turnclock.mjs';
+import { mountClock } from '/js/turnclock.js';
 
 const PHASES = {
   brief: { label: 'Everybody is reading the rules', hint: 'Then somebody picks a code.' },

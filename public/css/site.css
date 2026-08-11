@@ -5198,28 +5198,220 @@ body.dropping::after {
 .bd-sq .bd-coin:nth-of-type(4) { left: 74%; }
 
 /* Ludo: fifty-two squares round the edge of a thirteen by thirteen. */
-.bd-board.is-ring { aspect-ratio: 1; gap: 1px; }
-.bd-ringcell { border-radius: 2px; }
-.bd-ringcell.is-start { border-width: 2px; }
+/* Ludo, the board people actually own. Everything is positioned by the
+   geometry in the client — cells carry their own size and place as inline
+   custom properties, so the same CSS draws the four-armed cross and the
+   six-armed star without knowing which it is looking at. */
+.bd-board.is-ludo {
+  display: block;
+  position: relative;
+  aspect-ratio: 1;
+  width: min(100%, 420px);
+  border-radius: var(--r-md);
+  background:
+    radial-gradient(120% 120% at 30% 20%, rgba(255, 255, 255, 0.05), transparent 55%),
+    #f4ead8;
+  border: 2px solid #3a2f26;
+  box-shadow: inset 0 0 0 4px rgba(58, 47, 38, 0.12), 0 10px 26px rgba(20, 14, 8, 0.28);
+  overflow: hidden;
+}
+.bd-board.is-ludo > * {
+  position: absolute;
+  width: var(--sz);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%) rotate(var(--rot, 0deg));
+}
+
+.ld-cell {
+  background: #fffdf7;
+  border: 1px solid rgba(58, 47, 38, 0.5);
+  border-radius: 12%;
+}
+.ld-cell.is-start { background: var(--tint); border-color: color-mix(in srgb, #000 30%, var(--tint)); }
+.ld-cell.is-column { background: color-mix(in srgb, var(--tint) 78%, #fff); border-color: color-mix(in srgb, #000 25%, var(--tint)); }
+/* The stars, drawn as stars — this is the one cell a player needs to be able
+   to recognise from across the table, because it is the one that keeps a
+   token alive. */
+.ld-cell.is-star::before {
+  content: '★';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: calc(var(--sz) * 4.2);
+  color: rgba(58, 47, 38, 0.5);
+}
+.ld-cell.is-start.is-star::before { color: rgba(255, 255, 255, 0.75); }
+/* Where this roll could land you. */
+.ld-cell.is-dest {
+  box-shadow: 0 0 0 2.5px var(--accent), 0 0 12px color-mix(in srgb, var(--accent) 65%, transparent);
+  z-index: 2;
+}
+
+.ld-yard {
+  background: color-mix(in srgb, var(--tint) 82%, #1c150f);
+  border: 2px solid color-mix(in srgb, #000 32%, var(--tint));
+  border-radius: 14%;
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.35);
+}
+.ld-pad {
+  background: rgba(255, 253, 247, 0.92);
+  border-radius: 50%;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+.ld-centre {
+  border-radius: 50%;
+  border: 3px solid #3a2f26;
+  box-shadow: 0 2px 10px rgba(20, 14, 8, 0.35), inset 0 0 0 3px rgba(255, 255, 255, 0.4);
+  z-index: 1;
+}
+
+/* A token is a piece, not a dot: a glossy dome with a base rim. */
+.ld-token {
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%,
+    color-mix(in srgb, #fff 65%, var(--tint)) 0%,
+    var(--tint) 55%,
+    color-mix(in srgb, #000 38%, var(--tint)) 100%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4), inset 0 -2px 3px rgba(0, 0, 0, 0.25);
+  z-index: 3;
+  transition: left 300ms ease, top 300ms ease;
+}
+.ld-token:disabled { cursor: default; }
+.ld-token.can-move {
+  cursor: pointer;
+  animation: ld-ready 900ms ease-in-out infinite;
+  box-shadow: 0 0 0 2.5px #fff, 0 0 14px var(--tint), 0 2px 4px rgba(0, 0, 0, 0.4);
+  z-index: 4;
+}
+@keyframes ld-ready {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -54%) scale(1.12); }
+}
+
+/* The die. Faces are laid out as the real thing: a 3×3 of pip slots, filled by
+   how many pips the face holds. */
+.ld-die {
+  width: 52px;
+  aspect-ratio: 1;
+  margin: 0 auto;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #fffdf7, #e8e0d0);
+  border: 2px solid #3a2f26;
+  box-shadow: 0 4px 10px rgba(20, 14, 8, 0.35), inset 0 -3px 6px rgba(0, 0, 0, 0.12);
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  place-items: center;
+  padding: 7px;
+}
+.ld-die i {
+  width: 9px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #26211c;
+  box-shadow: inset 0 1.5px 2px rgba(0, 0, 0, 0.6);
+}
+/* Where each count's pips sit on a real die. */
+.ld-die[data-pips="1"] i { grid-area: 2 / 2; }
+.ld-die[data-pips="2"] i:nth-child(1) { grid-area: 1 / 1; }
+.ld-die[data-pips="2"] i:nth-child(2) { grid-area: 3 / 3; }
+.ld-die[data-pips="3"] i:nth-child(1) { grid-area: 1 / 1; }
+.ld-die[data-pips="3"] i:nth-child(2) { grid-area: 2 / 2; }
+.ld-die[data-pips="3"] i:nth-child(3) { grid-area: 3 / 3; }
+.ld-die[data-pips="4"] i:nth-child(1) { grid-area: 1 / 1; }
+.ld-die[data-pips="4"] i:nth-child(2) { grid-area: 1 / 3; }
+.ld-die[data-pips="4"] i:nth-child(3) { grid-area: 3 / 1; }
+.ld-die[data-pips="4"] i:nth-child(4) { grid-area: 3 / 3; }
+.ld-die[data-pips="5"] i:nth-child(1) { grid-area: 1 / 1; }
+.ld-die[data-pips="5"] i:nth-child(2) { grid-area: 1 / 3; }
+.ld-die[data-pips="5"] i:nth-child(3) { grid-area: 2 / 2; }
+.ld-die[data-pips="5"] i:nth-child(4) { grid-area: 3 / 1; }
+.ld-die[data-pips="5"] i:nth-child(5) { grid-area: 3 / 3; }
+.ld-die[data-pips="6"] i:nth-child(1) { grid-area: 1 / 1; }
+.ld-die[data-pips="6"] i:nth-child(2) { grid-area: 1 / 3; }
+.ld-die[data-pips="6"] i:nth-child(3) { grid-area: 2 / 1; }
+.ld-die[data-pips="6"] i:nth-child(4) { grid-area: 2 / 3; }
+.ld-die[data-pips="6"] i:nth-child(5) { grid-area: 3 / 1; }
+.ld-die[data-pips="6"] i:nth-child(6) { grid-area: 3 / 3; }
+
+.ld-die.is-rolling { animation: ld-tumble 550ms ease-in-out; }
+@keyframes ld-tumble {
+  0% { transform: rotate(0) translateY(0); }
+  30% { transform: rotate(160deg) translateY(-14px); }
+  60% { transform: rotate(280deg) translateY(-4px); }
+  100% { transform: rotate(360deg) translateY(0); }
+}
+.ld-die.is-six { box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgba(20, 14, 8, 0.35); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ld-token.can-move { animation: none; }
+  .ld-die.is-rolling { animation: none; }
+  .ld-token { transition: none; }
+}
 
 /* Chess and shogi: a chequered grid of tappable squares. */
-.bd-board.is-chequer { gap: 0; border: 1px solid var(--border); }
+/* Chess and shogi.
+   The squares are fixed colours rather than theme-mixed, because the pieces
+   are. A board has two square colours and two piece colours and all four have
+   to stay apart on all twenty-five skins — that is a contract between four
+   values, and mixing any of them from a theme token hands one corner of the
+   contract to whichever skin is loaded. Black pieces vanished on the dark
+   skins for exactly this reason: dark glyphs on a square mixed from dark text.
+
+   `grid-auto-rows: 1fr` is what makes the squares square. The board is forced
+   square by its aspect ratio and the columns are 1fr each, but rows without
+   this size to their content — so the grid was 8 content-tall rows in a square
+   box, and every square was a slightly wrong rectangle. */
+.bd-board.is-chequer {
+  gap: 0;
+  grid-auto-rows: 1fr;
+  border: 2px solid #4a4038;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
 .bd-square {
   display: grid;
   place-items: center;
   border: 0;
   border-radius: 0;
-  background: color-mix(in srgb, var(--text-3) 8%, transparent);
-  font-size: clamp(0.9rem, 4.4vw, 1.5rem);
+  background: #ecdab9;   /* light square — fixed, on every skin */
+  font-size: clamp(1.15rem, 5.4vw, 1.9rem);
   line-height: 1;
   padding: 0;
-  color: #111;
 }
-.bd-square.is-dark { background: color-mix(in srgb, var(--text-3) 26%, transparent); }
-.bd-square.is-white { color: #fff; text-shadow: 0 0 2px #000, 0 1px 2px #000; }
+.bd-square.is-dark { background: #a97a4f; }
+
+/* The pieces: light fill with a dark edge, dark fill with a light edge. Each
+   readable on both square colours, and neither borrowed from the theme. */
+.bd-square { color: #26211c; text-shadow: 0 1px 1px rgba(255, 245, 230, 0.55); }
+.bd-square.is-white { color: #fdfaf4; text-shadow: 0 0 2px #26211c, 0 1.5px 2px rgba(0, 0, 0, 0.65); }
+
 .bd-square.can-move { cursor: pointer; }
-.bd-square.is-from { background: color-mix(in srgb, var(--accent) 45%, transparent); }
-.bd-square.is-target { box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 70%, transparent); }
+.bd-square.is-from { background: color-mix(in srgb, #f5c518 55%, #ecdab9); }
+.bd-square.is-dark.is-from { background: color-mix(in srgb, #f5c518 45%, #a97a4f); }
+
+/* Where the picked piece may go. A dot on an empty square and a ring around a
+   capture — the marking chess players already know from every chess site, and
+   the thing that was missing while "is it my move or is it broken" was the
+   question. Drawn with ::after so it sits over the square whether or not a
+   glyph is on it. */
+.bd-square { position: relative; }
+.bd-square.is-target::after {
+  content: '';
+  position: absolute;
+  inset: 34%;
+  border-radius: 50%;
+  background: rgba(38, 90, 55, 0.55);
+  pointer-events: none;
+}
+.bd-square.is-target:not(:empty)::after {
+  inset: 4%;
+  background: transparent;
+  border: 3px solid rgba(38, 90, 55, 0.65);
+}
 .bd-inhand {
   padding: var(--sp-xs) var(--sp-sm);
   border-radius: var(--r-sm);

@@ -14,7 +14,7 @@
 
 import { Sound } from '/js/sound.js';
 import { confetti, floatText, pulse, motionReduced } from '/js/fx.js';
-import { mountClock } from '/js/turnclock.mjs';
+import { mountClock } from '/js/turnclock.js';
 
 // Four for the boards that seat four, eight for Chain Reaction. The extra four
 // are only ever reached by `% 8`, so nothing that indexes `% 4` sees them.
@@ -349,69 +349,257 @@ export default {
 
     /* ------------------------------ the faces ----------------------------- */
 
-    /** Ludo: the ring, laid out as a ring rather than as a grid. */
+    /**
+     * Ludo, drawn as the board people own.
+     *
+     * The last version walked fifty-two squares around the edge of an empty
+     * grid — a ring, geometrically true and recognisable to nobody. This is
+     * the real thing: yards in the corners, the cross of arms, each colour's
+     * start and home column painted, the centre shared.
+     *
+     * One geometry draws both boards. Every arm of a ludo board is the same
+     * thing — six squares out on one side, the tip, six back on the other,
+     * with the home column up the middle — so the whole board is that shape
+     * stamped A times round a circle. For four arms the numbers land exactly
+     * on the classic fifteen-by-fifteen grid; for six they make the star
+     * board. Nothing below knows which board it is drawing.
+     */
+    function ludoGeometry(arms) {
+      const s = arms === 4 ? 100 / 15 : 5.1;
+      const r0 = arms === 4 ? 1.5 * (100 / 15) : 15.6;
+      const step = 360 / arms;
+
+      const place = (phi, d, off) => {
+        const rad = (phi * Math.PI) / 180;
+        return {
+          x: 50 + Math.sin(rad) * d + Math.cos(rad) * off,
+          y: 50 - Math.cos(rad) * d + Math.sin(rad) * off,
+          rot: phi,
+        };
+      };
+
+      // The ring: per arm, out along one side, the tip, back along the other.
+      // Rotated by eight so index zero is seat zero's start square — the same
+      // rotation that puts the server's STARTS a quarter or a sixth of the way
+      // round, because both are thirteen cells to an arm.
+      const seq = [];
+      for (let k = 0; k < arms; k++) {
+        const phi = -90 + k * step;
+        for (let m = 0; m < 6; m++) seq.push(place(phi, r0 + (m + 0.5) * s, -s));
+        seq.push(place(phi, r0 + 5.5 * s, 0));
+        for (let m = 5; m >= 0; m--) seq.push(place(phi, r0 + (m + 0.5) * s, +s));
+      }
+      const ring = Array.from({ length: seq.length }, (_, i) => seq[(i + 8) % seq.length]);
+
+      // Each seat's home column runs up the middle of its own arm, tip first.
+      const columns = Array.from({ length: arms }, (_, k) => {
+        const phi = -90 + k * step;
+        const cells = [];
+        for (let j = 1; j <= 5; j++) cells.push(place(phi, r0 + (5 - j + 0.5) * s, 0));
+        cells.push(place(phi, r0 - 0.55 * s, 0));   // the doorstep, on the centre's edge
+        return cells;
+      });
+
+      // Yards sit between the arms.
+      const yards = Array.from({ length: arms }, (_, k) => {
+        const phi = -90 + k * step + step / 2;
+        const d = arms === 4 ? Math.hypot(50 - 3 * s, 50 - 3 * s) : r0 + 3.4 * s;
+        const c = place(phi, d, 0);
+        const slotAt = arms === 4 ? 1.1 * s : 0.95 * s;
+        return {
+          x: c.x, y: c.y,
+          size: arms === 4 ? 5.6 * s : 4.6 * s,
+          slots: [[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([a, b]) => ({
+            x: c.x + a * slotAt, y: c.y + b * slotAt,
+          })),
+        };
+      });
+
+      return { s, r0, ring, columns, yards };
+    }
+
+    /** The die, tumbling. The value was decided on the server before this ran. */
+    function paintLudoDie(s) {
+      const dice = $('#bdDice');
+      const stamp = s.rolled ? `${s.turn}:${s.rolled.value}:${s.sixes}` : '';
+      if (dice.dataset.throw === stamp) return;
+      dice.dataset.throw = stamp;
+      dice.replaceChildren();
+      if (!s.rolled) return;
+
+      const die = document.createElement('div');
+      die.className = 'ld-die';
+      const face = (n) => {
+        die.dataset.pips = String(n);
+        die.replaceChildren(...Array.from({ length: n }, () => document.createElement('i')));
+      };
+      dice.appendChild(die);
+
+      if (motionReduced) { face(s.rolled.value); return; }
+      // A short tumble through junk faces, then the truth. Theatre only — the
+      // server rolled before anybody saw anything.
+      die.classList.add('is-rolling');
+      let flicks = 0;
+      const tumble = setInterval(() => {
+        face(1 + Math.floor(Math.random() * 6));
+        if (++flicks >= 6) {
+          clearInterval(tumble);
+          die.classList.remove('is-rolling');
+          face(s.rolled.value);
+          if (s.rolled.value === 6) die.classList.add('is-six');
+        }
+      }, 90);
+      Sound.play('spin');
+    }
+
     function paintLudo(s) {
       const box = $('#bdBoard');
-      if (box.dataset.size !== 'ludo') {
-        box.dataset.size = 'ludo';
-        box.classList.add('is-ring');
-        box.classList.remove('is-ladder');
-        box.style.setProperty('--n', '13');
-        // Fifty-two squares round the edge of a thirteen by thirteen, which is
-        // the shape the real board has and keeps every start a quarter apart.
-        const cells = [];
-        for (let i = 0; i < 52; i++) cells.push(i);
-        box.replaceChildren(
-          ...cells.map((sq) => {
-            const cell = document.createElement('div');
-            cell.className = 'bd-cell bd-ringcell';
-            cell.dataset.cell = String(sq);
-            const side = Math.floor(sq / 13);
-            const along = sq % 13;
-            // Walk the outside of the grid, one side at a time.
-            const pos = [
-              [12, along], [12 - along, 12], [0, 12 - along], [along, 0],
-            ][side];
-            cell.style.gridRow = String(pos[0] + 1);
-            cell.style.gridColumn = String(pos[1] + 1);
-            if ((s.safe ?? []).includes(sq)) cell.classList.add('is-safe');
-            if ((s.starts ?? []).includes(sq)) cell.classList.add('is-start');
-            return cell;
-          })
-        );
-      }
-      for (const cell of box.querySelectorAll('.bd-ringcell')) cell.replaceChildren();
+      const arms = s.arms ?? 4;
+      const shape = 'ludo' + arms;
+      if (box.dataset.size !== shape) {
+        box.dataset.size = shape;
+        box.classList.remove('is-ring', 'is-ladder', 'is-chequer', 'is-chain');
+        box.classList.add('is-ludo');
+        const g = ludoGeometry(arms);
+        box.__geo = g;
 
-      const movable = new Set((s.you?.moves ?? []).map((m) => m.token));
+        const bits = [];
+        const at = (el, p, size) => {
+          el.style.left = p.x + '%';
+          el.style.top = p.y + '%';
+          if (size) el.style.setProperty('--sz', size + '%');
+          if (p.rot) el.style.setProperty('--rot', p.rot + 'deg');
+          return el;
+        };
+
+        // Yards first so everything else draws over them.
+        g.yards.forEach((y, k) => {
+          const el = document.createElement('div');
+          el.className = 'ld-yard';
+          el.style.setProperty('--tint', SEAT_TINT[k % 8]);
+          at(el, y, y.size);
+          bits.push(el);
+          for (const slot of y.slots) {
+            const pad = document.createElement('i');
+            pad.className = 'ld-pad';
+            pad.dataset.yard = String(k);
+            at(pad, slot, g.s * 0.92);
+            bits.push(pad);
+          }
+        });
+
+        // The ring.
+        g.ring.forEach((p, i) => {
+          const el = document.createElement('div');
+          el.className = 'ld-cell';
+          el.dataset.cell = String(i);
+          if ((s.safe ?? []).includes(i)) el.classList.add('is-star');
+          const startOf = (s.starts ?? []).indexOf(i);
+          if (startOf >= 0) {
+            el.classList.add('is-start');
+            el.style.setProperty('--tint', SEAT_TINT[startOf % 8]);
+          }
+          at(el, p, g.s * 0.96);
+          bits.push(el);
+        });
+
+        // Home columns, painted in their owners' colours.
+        g.columns.forEach((cells, k) => {
+          cells.slice(0, 5).forEach((p, j) => {
+            const el = document.createElement('div');
+            el.className = 'ld-cell is-column';
+            el.dataset.column = k + ':' + (j + 1);
+            el.style.setProperty('--tint', SEAT_TINT[k % 8]);
+            at(el, p, g.s * 0.96);
+            bits.push(el);
+          });
+        });
+
+        // The centre everybody is walking towards.
+        const centre = document.createElement('div');
+        centre.className = 'ld-centre';
+        const wedge = 360 / arms;
+        centre.style.background = 'conic-gradient(from ' + (-90 - wedge / 2) + 'deg, ' +
+          Array.from({ length: arms }, (_, k) =>
+            SEAT_TINT[k % 8] + ' ' + (k * wedge) + 'deg ' + ((k + 1) * wedge) + 'deg').join(', ') + ')';
+        at(centre, { x: 50, y: 50 }, arms === 4 ? 2.6 * g.s : 2.9 * g.s);
+        bits.push(centre);
+
+        box.replaceChildren(...bits);
+      }
+
+      const g = box.__geo;
+      for (const t of box.querySelectorAll('.ld-token')) t.remove();
+
+      const movable = new Map((s.you?.moves ?? []).map((m) => [m.token, m]));
+
+      // Destinations, so a roll shows where it would land before you commit.
+      for (const cell of box.querySelectorAll('.ld-cell.is-dest')) cell.classList.remove('is-dest');
+      if (s.you?.yourTurn) {
+        for (const m of movable.values()) {
+          if (m.square === null) continue;
+          box.querySelector('.ld-cell[data-cell="' + m.square + '"]')?.classList.add('is-dest');
+        }
+      }
+
+      // Group ring tokens by square so a shared star fans out instead of hiding.
+      const bySquare = new Map();
+      const placed = [];
       for (const t of s.tokens ?? []) {
-        if (t.square === null || t.home) continue;
-        const cell = box.querySelector('[data-cell="' + t.square + '"]');
-        if (!cell) continue;
+        if (t.home) continue;
+        if (t.at === -1) {
+          const slot = g.yards[t.seat % g.yards.length]?.slots[t.i % 4];
+          if (slot) placed.push({ t, x: slot.x, y: slot.y });
+        } else if (t.column !== null) {
+          const p = g.columns[t.seat % g.columns.length]?.[t.column - 1];
+          if (p) placed.push({ t, x: p.x, y: p.y });
+        } else if (t.square !== null) {
+          if (!bySquare.has(t.square)) bySquare.set(t.square, []);
+          bySquare.get(t.square).push(t);
+        }
+      }
+      for (const [sq, group] of bySquare) {
+        const p = g.ring[sq];
+        group.forEach((t, i) => {
+          const fan = group.length > 1 ? (i - (group.length - 1) / 2) * 0.45 * g.s : 0;
+          placed.push({ t, x: p.x + fan, y: p.y - Math.abs(fan) * 0.4 });
+        });
+      }
+
+      for (const { t, x, y } of placed) {
         const el = document.createElement('button');
         el.type = 'button';
-        el.className = 'bd-coin is-stacked';
-        el.style.setProperty('--tint', SEAT_TINT[t.seat % 4]);
-        const canMove = t.seat === s.you?.seat && movable.has(t.i);
-        el.classList.toggle('can-move', canMove);
-        el.disabled = !canMove;
-        if (canMove) {
-          el.addEventListener('click', () => { Net.action({ type: 'move', token: t.i }); Sound.play('pick'); });
+        el.className = 'ld-token';
+        el.style.setProperty('--tint', SEAT_TINT[t.seat % 8]);
+        el.style.left = x + '%';
+        el.style.top = y + '%';
+        el.style.setProperty('--sz', (g.s * 0.88) + '%');
+        const move = t.seat === s.you?.seat ? movable.get(t.i) : null;
+        el.classList.toggle('can-move', Boolean(move));
+        el.disabled = !move;
+        if (move) {
+          el.addEventListener('click', () => {
+            Net.action({ type: 'move', token: t.i });
+            Sound.play('pick');
+          });
         }
-        cell.appendChild(el);
+        box.appendChild(el);
       }
 
-      // The yard and the home column, beside the board.
+      paintLudoDie(s);
+
       $('#bdSeats').replaceChildren(
         ...(s.yards ?? []).map((y) => {
           const el = document.createElement('div');
           el.className = 'bd-seat';
-          el.style.setProperty('--tint', SEAT_TINT[y.seat % 4]);
+          el.style.setProperty('--tint', SEAT_TINT[y.seat % 8]);
           el.classList.toggle('is-turn', y.seat === s.turn);
           el.classList.toggle('is-you', y.seat === s.you?.seat);
           el.innerHTML = '<i></i><b></b><small></small>';
           el.querySelector('b').textContent = y.name;
+          const team = s.mode === 'teams' ? ' · team ' + ((y.team ?? 0) + 1) : '';
           el.querySelector('small').textContent =
-            y.yard + ' in the yard · ' + y.home + ' home · ' + y.sent + ' sent';
+            y.yard + ' in the yard · ' + y.home + ' home · ' + y.sent + ' sent' + team;
           return el;
         })
       );

@@ -11,7 +11,7 @@
 
 import { Sound } from '/js/sound.js';
 import { confetti, floatText, pulse, motionReduced } from '/js/fx.js';
-import { mountClock, clockFrom } from '/js/turnclock.mjs';
+import { mountClock, clockFrom } from '/js/turnclock.js';
 
 /**
  * What each phase is called, and what happens after it.

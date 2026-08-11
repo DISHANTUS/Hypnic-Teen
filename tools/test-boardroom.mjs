@@ -30,7 +30,10 @@ process.env.DATA_DIR = TMP;
 
 const { thayam, throwSticks, legalMoves, SAFE, isSafe } = await import('../server/games/board/thayam.js');
 const { paramapadham, LADDERS, SNAKES } = await import('../server/games/board/paramapadham.js');
-const { ludo, legalMoves: ludoMoves, SAFE_SQUARES, ringSquare } = await import('../server/games/board/ludo.js');
+const { ludo, legalMoves: ludoMoves, SAFE_SQUARES, ringSquare: ringSquareOf, boardOf, partnerOf } = await import('../server/games/board/ludo.js');
+// Most of these checks speak the classic four-arm board.
+const CLASSIC_BOARD = boardOf(4);
+const ringSquare = (seatNo, rel) => ringSquareOf(CLASSIC_BOARD, seatNo, rel);
 const chessRules = await import('../server/games/board/chessrules.js');
 const { chess } = await import('../server/games/board/chess.js');
 const shogiRules = await import('../server/games/board/shogirules.js');
@@ -656,6 +659,86 @@ console.log('\n  The board room — the server refuses\n');
   check('ludo: four colours, four different routes',
     new Set([0, 1, 2, 3].map((s2) => ringSquare(s2, 7))).size === 4,
     [0, 1, 2, 3].map((s2) => ringSquare(s2, 7)).join(','));
+}
+
+{
+  // Five or six players get the six-armed board: a longer lap, same rules.
+  // Every arm contributes thirteen squares whichever board it is, so every
+  // number is a function of the arm count and none of them is written twice.
+  const six = boardOf(6);
+  check('ludo: six players, six arms, seventy-eight squares',
+    six.ring === 78 && six.starts.join(',') === '0,13,26,39,52,65',
+    `${six.ring} · ${six.starts.join(',')}`);
+  check('ludo: twelve stars on the big board', six.safe.size === 12, String(six.safe.size));
+  check('ludo: and the lap is longer to match',
+    six.lastRingStep === 76 && six.home === 83, `${six.lastRingStep} → ${six.home}`);
+
+  const { state } = open(ludo, 6, { tokens: 4 });
+  check('ludo: six seats actually sit down', state.seats.length === 6, String(state.seats.length));
+  check('ludo: and the state knows which board it is on',
+    state.settings.arms === 6, String(state.settings.arms));
+  check('ludo: twenty-four tokens, all in the yard',
+    state.tokens.length === 24 && state.tokens.every((t) => t.at === -1), String(state.tokens.length));
+  check('ludo: six colours, six different routes',
+    new Set([0, 1, 2, 3, 4, 5].map((s2) => ringSquareOf(six, s2, 7))).size === 6);
+
+  const { state: four } = open(ludo, 4, { tokens: 4 });
+  check('ludo: while four seats stay on the classic cross',
+    four.settings.arms === 4, String(four.settings.arms));
+}
+
+{
+  // Teams. Partners sit opposite, cannot cut each other, and win together.
+  const { state } = open(ludo, 4, { tokens: 2, mode: 'teams' });
+  check('ludo: teams pair the seats opposite',
+    partnerOf(state, 0) === 2 && partnerOf(state, 1) === 3 && partnerOf(state, 2) === 0,
+    [0, 1, 2, 3].map((s2) => `${s2}+${partnerOf(state, s2)}`).join(' '));
+  check('ludo: and both halves know their team',
+    state.seats[0].team === state.seats[2].team && state.seats[1].team === state.seats[3].team
+    && state.seats[0].team !== state.seats[1].team);
+
+  // Landing on your partner is not a move at all — not a cut, not a swap.
+  const me = state.seats[0];
+  const mine = state.tokens.find((t) => t.seat === 0);
+  const partners = state.tokens.find((t) => t.seat === 2);
+  mine.at = 1;
+  // Put the partner's token three ahead of mine on the ring, off any star.
+  const targetSq = ringSquare(0, 4);
+  partners.at = ((targetSq - 26 + 52) % 52);
+  if (!SAFE_SQUARES.has(targetSq)) {
+    const moves = ludoMoves(state, me, 3).filter((m) => m.token === mine.i);
+    check('ludo: a partner blocks like your own token', moves.length === 0, JSON.stringify(moves));
+  } else {
+    check('ludo: a partner blocks like your own token', false, 'fixture landed on a star');
+  }
+
+  // An enemy on the same square is still dinner.
+  const { state: st2 } = open(ludo, 4, { tokens: 2, mode: 'teams' });
+  const m2 = st2.seats[0];
+  const t2 = st2.tokens.find((t) => t.seat === 0);
+  const enemy = st2.tokens.find((t) => t.seat === 1);
+  t2.at = 1;
+  const sq2 = ringSquare(0, 4);
+  enemy.at = ((sq2 - 13 + 52) % 52);
+  if (!SAFE_SQUARES.has(sq2)) {
+    check('ludo: an opponent is still cut in teams',
+      ludoMoves(st2, m2, 3).some((m) => m.token === t2.i && m.sends), JSON.stringify(ludoMoves(st2, m2, 3)));
+  } else {
+    check('ludo: an opponent is still cut in teams', false, 'fixture landed on a star');
+  }
+
+  // The team wins together: one colour all home is not enough.
+  const { state: st3 } = open(ludo, 4, { tokens: 1, mode: 'teams' });
+  st3.seats[0].home = 1;
+  check('ludo: one colour home does not end a team game', !ludo.__spec.isDone(st3));
+  st3.seats[2].home = 1;
+  check('ludo: both colours home does', ludo.__spec.isDone(st3));
+
+  // Three people asking for teams quietly play solo — an odd table has no
+  // partner to give anybody.
+  const { state: st4 } = open(ludo, 3, { mode: 'teams' });
+  check('ludo: an odd table quietly plays solo',
+    st4.settings.mode === 'solo' && partnerOf(st4, 0) === -1, st4.settings.mode);
 }
 
 {

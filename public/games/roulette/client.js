@@ -12,7 +12,7 @@
 
 import { Sound } from '/js/sound.js';
 import { confetti, floatText, motionReduced } from '/js/fx.js';
-import { mountClock, clockFrom } from '/js/turnclock.mjs';
+import { mountClock, clockFrom } from '/js/turnclock.js';
 
 const TAU = Math.PI * 2;
 const RED = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);

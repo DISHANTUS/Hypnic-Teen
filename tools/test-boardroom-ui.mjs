@@ -220,8 +220,32 @@ for (const game of GAMES) {
   // Whatever this game calls its board — ringed squares, a chequered grid, or
   // a pond and a hand of tiles. Counting only one of those made two of the six
   // look broken when they were fine.
-  const squares = await count('.bd-board .bd-cell, .bd-board .bd-square, .bd-board .bd-tile');
+  const squares = await count('.bd-board .bd-cell, .bd-board .bd-square, .bd-board .bd-tile, .bd-board .ld-cell');
   check(`${game.name}: the board is drawn`, squares > 0, `${squares} pieces of board`);
+
+  // Ludo's board is the one that shipped as an empty ring, so it gets its own
+  // anatomy check: the yards, the painted home columns, the stars and the
+  // centre all have to actually be there, and the whole thing has to be more
+  // than a ring — the old drawing had 52 cells and nothing else.
+  if (game.face === 'ludo') {
+    const anatomy = JSON.parse(await evaluate(`
+      return JSON.stringify({
+        ring: document.querySelectorAll('.ld-cell:not(.is-column)').length,
+        columns: document.querySelectorAll('.ld-cell.is-column').length,
+        yards: document.querySelectorAll('.ld-yard').length,
+        pads: document.querySelectorAll('.ld-pad').length,
+        stars: document.querySelectorAll('.ld-cell.is-star').length,
+        centre: document.querySelectorAll('.ld-centre').length,
+        tokens: document.querySelectorAll('.ld-token').length,
+      });
+    `));
+    check(`${game.name}: the whole board is there, not just the ring`,
+      anatomy.ring === 52 && anatomy.columns === 20 && anatomy.yards === 4
+      && anatomy.pads === 16 && anatomy.stars === 8 && anatomy.centre === 1,
+      JSON.stringify(anatomy));
+    check(`${game.name}: every token is on the board`,
+      anatomy.tokens === 8, `${anatomy.tokens} tokens for 2 seats`);
+  }
 
   // Every seat is on screen. A board game with a player missing from the side
   // is a board game where somebody does not know they are in it.

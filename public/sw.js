@@ -1,7 +1,7 @@
 ﻿// Offline shell only. Network-first so you never fight a stale cache while
 // developing; the cache is purely a fallback when the WiFi drops.
 
-const CACHE = 'htfw-v16';
+const CACHE = 'htfw-v17';
 const SHELL = [
   '/',
   '/index.html',

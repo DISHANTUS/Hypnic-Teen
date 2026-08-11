@@ -7,7 +7,7 @@ import { Theme } from './theme.js';
 import { Sound } from './sound.js';
 import { confetti } from './fx.js';
 import { playIntro, maybePlayIntro } from './intro.js';
-import { runTutorial, hasSeen as hasSeenTutorial } from './tutorial.mjs';
+import { runTutorial, hasSeen as hasSeenTutorial } from './tutorial.js';
 
 const view = document.getElementById('view');
 const connDot = document.getElementById('conn');

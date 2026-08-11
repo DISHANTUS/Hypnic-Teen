@@ -12,7 +12,7 @@
 
 import { Sound } from '/js/sound.js';
 import { confetti, floatText, pulse } from '/js/fx.js';
-import { mountClock, clockFrom } from '/js/turnclock.mjs';
+import { mountClock, clockFrom } from '/js/turnclock.js';
 
 const AMOUNTS = [10, 25, 50, 100];
 

@@ -1,9 +1,9 @@
 // Ludo.
 //
-// Four tokens each, a fifty-two square circuit, and a six to get out of the
-// yard. Everybody runs the same ring but each from their own corner, so a
-// token's position is held as *how far it has come*, not as where it is on the
-// board — the absolute square is worked out from that when it is needed.
+// Tokens run a shared circuit, each colour from its own corner, and a six gets
+// one out of the yard. A token's position is held as *how far it has come*, not
+// as where it is on the board — the absolute square is worked out from that
+// when it is needed.
 //
 // That is the one decision here worth writing down. Holding the absolute square
 // instead would mean every rule needing to know how far the owner still has to
@@ -12,36 +12,59 @@
 // the honest model: a token has come fifty-seven steps, and only the drawing
 // cares which square that is.
 //
-// The safe squares are the eight starred ones — the four the players come out
-// on and the four a quarter of the way past each — and a token on one cannot be
-// sent home. Everything else is fair game, which is what stops a game of Ludo
-// being a race nobody interferes with.
+// The board grows with the table. Four seats or fewer play the classic cross —
+// four arms, a fifty-two square ring. Five or six play the six-armed board,
+// which is the same game with a longer lap: every arm contributes thirteen
+// squares whichever board it is, so the ring is arms × 13 and every other
+// number falls out of that. Nothing else about the rules changes, which is the
+// reason this is one game and not two.
+//
+// Teams are the other option. Partners sit opposite — seat k and seat k + half
+// the table — and the pair wins together: every token of both colours home.
+// You cannot send your own partner back to the yard, and your partner's token
+// blocks you the way your own does. Everything else stays cut-throat.
 
 import { createBoardGame, inPlay, passTurn } from './kit.js';
 
-/** The shared circuit. */
-const RING = 52;
-/** Where each colour comes out, a quarter turn apart. */
-const STARTS = [0, 13, 26, 39];
-/** How far along the ring before turning into your own column. */
-const LAST_RING_STEP = 50;
-/** Six squares of home column, and then home. */
-const HOME = 57;
+/** Thirteen ring squares per arm, on either board. */
+const PER_ARM = 13;
+/** Six steps of home column (five squares and the doorstep), then home. */
+const COLUMN = 6;
 
-/**
- * The eight stars.
- *
- * The four starts, and the four eight squares along from each — which is where
- * the star sits on every board that has one. A token here cannot be sent home,
- * so these are the only places two colours can rest together.
- */
-export const SAFE_SQUARES = new Set([...STARTS, ...STARTS.map((s) => (s + 8) % RING)]);
+/** Everything the geometry of one board follows from. */
+export function boardOf(arms) {
+  const ring = arms * PER_ARM;
+  const starts = Array.from({ length: arms }, (_, k) => k * PER_ARM);
+  return {
+    arms,
+    ring,
+    starts,
+    /** How far along the ring before turning into your own column. */
+    lastRingStep: ring - 2,
+    /** Rel-position that means "home". */
+    home: ring - 2 + COLUMN + 1,
+    /** The stars: each start, and the square eight past it. */
+    safe: new Set([...starts, ...starts.map((s) => (s + 8) % ring)]),
+  };
+}
+
+const geo = (state) => boardOf(state.settings.arms);
 
 /** Which square of the ring a token is standing on, or null if it has turned in. */
-export function ringSquare(seatNo, rel) {
-  if (rel < 0 || rel > LAST_RING_STEP) return null;
-  return (STARTS[seatNo % 4] + rel) % RING;
+export function ringSquare(board, seatNo, rel) {
+  if (rel < 0 || rel > board.lastRingStep) return null;
+  return (board.starts[seatNo % board.arms] + rel) % board.ring;
 }
+
+/** Your partner's seat, or -1 when playing solo. */
+export function partnerOf(state, seatNo) {
+  if (state.settings.mode !== 'teams') return -1;
+  const n = state.seats.length;
+  if (n < 4 || n % 2 !== 0) return -1;
+  return (seatNo + n / 2) % n;
+}
+
+const sameSide = (state, a, b) => a === b || partnerOf(state, a) === b;
 
 export const ludo = createBoardGame({
   id: 'ludo',
@@ -51,22 +74,43 @@ export const ludo = createBoardGame({
   accent: '#e67e22',
   face: 'ludo',
   minPlayers: 2,
-  maxPlayers: 4,
+  maxPlayers: 6,
   turnSeconds: 25,
 
   howToPlay: [
     'Four tokens each, all starting in your yard. Roll a six to bring one out.',
     'A six earns another roll — but three sixes in a row and the turn is forfeit.',
     'Land on somebody else and they go back to their yard. Not on a star, though.',
-    'The eight starred squares are safe. Two colours can rest on one.',
+    'The starred squares are safe. Two colours can rest on one.',
     'Turn into your own home column at the end of the lap, and reach home on an exact roll.',
-    'First to bring all four home wins.',
+    'Five or six players get the six-armed board — a longer lap, same rules.',
+    'In teams, partners sit opposite and win together. You cannot cut your partner.',
+    'First to bring all four home wins — or in teams, all eight.',
   ],
 
   options: {
     tokens: { label: 'Tokens each', kind: 'number', min: 1, max: 4, hardMax: 4, step: 1, default: 4 },
+    mode: {
+      label: 'Playing',
+      kind: 'choice',
+      default: 'solo',
+      choices: [
+        { id: 'solo', label: 'Everyone for themselves' },
+        { id: 'teams', label: 'Teams', note: 'partners opposite — needs 4 or 6 players' },
+      ],
+    },
   },
-  settings: (s) => ({ tokens: Math.max(1, Math.min(4, Number(s.tokens) || 4)) }),
+  settings: (s, players) => ({
+    tokens: Math.max(1, Math.min(4, Number(s.tokens) || 4)),
+    // The board is decided by the table, not by a knob: the classic cross up
+    // to four, the six-armed board past that. A knob would allow four people
+    // on a six-arm board, which is a lap and a half of empty road.
+    arms: (players?.length ?? 4) > 4 ? 6 : 4,
+    // Teams need an even table of at least four; anything else quietly plays
+    // solo rather than refusing to start over a dropdown.
+    mode: s.mode === 'teams' && (players?.length ?? 0) >= 4 && (players?.length ?? 0) % 2 === 0
+      ? 'teams' : 'solo',
+  }),
 
   init(state) {
     state.tokens = [];
@@ -78,6 +122,8 @@ export const ludo = createBoardGame({
     for (const seat of state.seats) {
       seat.home = 0;
       seat.sent = 0;
+      seat.team = partnerOf(state, seat.seat) >= 0
+        ? Math.min(seat.seat, partnerOf(state, seat.seat)) : seat.seat;
       for (let i = 0; i < state.settings.tokens; i++) {
         state.tokens.push({ seat: seat.seat, i, at: -1 });
       }
@@ -85,7 +131,9 @@ export const ludo = createBoardGame({
     state.turn = 0;
     state.sixes = 0;
     state.rolled = null;
-    state.said = 'Roll a six to come out.';
+    state.said = state.settings.mode === 'teams'
+      ? 'Teams: you and the seat opposite. Roll a six to come out.'
+      : 'Roll a six to come out.';
   },
 
   act(state, seat, action) {
@@ -152,24 +200,39 @@ export const ludo = createBoardGame({
     ludo.__spec.act(state, seat, { type: 'move', token: pick.token });
   },
 
-  isDone: (state) => state.seats.some((s) => (s.home ?? 0) >= state.settings.tokens)
-    || inPlay(state).length <= 1,
+  isDone(state) {
+    if (inPlay(state).length <= 1) return true;
+    const need = state.settings.tokens;
+    if (state.settings.mode === 'teams') {
+      // A team is home when every token of both colours is.
+      const byTeam = new Map();
+      for (const s of state.seats) {
+        byTeam.set(s.team, (byTeam.get(s.team) ?? 0) + (s.home ?? 0));
+      }
+      const teamSize = state.seats.length / (new Set(state.seats.map((s) => s.team)).size || 1);
+      return [...byTeam.values()].some((n) => n >= need * teamSize);
+    }
+    return state.seats.some((s) => (s.home ?? 0) >= need);
+  },
 
   table(state) {
+    const board = geo(state);
     return {
-      ring: RING,
-      starts: STARTS,
-      safe: [...SAFE_SQUARES],
-      homeAt: HOME,
-      lastRingStep: LAST_RING_STEP,
+      arms: board.arms,
+      ring: board.ring,
+      starts: board.starts,
+      safe: [...board.safe],
+      homeAt: board.home,
+      lastRingStep: board.lastRingStep,
+      mode: state.settings.mode,
       tokens: state.tokens.map((t) => ({
         seat: t.seat, i: t.i, at: t.at,
-        square: ringSquare(t.seat, t.at),
-        column: t.at > LAST_RING_STEP && t.at < HOME ? t.at - LAST_RING_STEP : null,
-        home: t.at === HOME,
+        square: ringSquare(board, t.seat, t.at),
+        column: t.at > board.lastRingStep && t.at < board.home ? t.at - board.lastRingStep : null,
+        home: t.at === board.home,
       })),
       yards: state.seats.map((s) => ({
-        seat: s.seat, name: s.name,
+        seat: s.seat, name: s.name, team: s.team,
         yard: state.tokens.filter((t) => t.seat === s.seat && t.at === -1).length,
         home: s.home ?? 0,
         sent: s.sent ?? 0,
@@ -187,6 +250,7 @@ export const ludo = createBoardGame({
       needsThrow: !state.rolled,
       yard: state.tokens.filter((t) => t.seat === seat.seat && t.at === -1).length,
       home: seat.home ?? 0,
+      partner: partnerOf(state, seat.seat),
     };
   },
 
@@ -194,43 +258,46 @@ export const ludo = createBoardGame({
 });
 
 /** Whoever is standing on a ring square, whatever colour. */
-function standingOn(state, square) {
+function standingOn(state, board, square) {
   if (square === null) return [];
-  return state.tokens.filter((t) => ringSquare(t.seat, t.at) === square);
+  return state.tokens.filter((t) => ringSquare(board, t.seat, t.at) === square);
 }
 
 export function legalMoves(state, seat, value) {
+  const board = geo(state);
   const mine = state.tokens.filter((t) => t.seat === seat.seat);
   const out = [];
 
   // Out of the yard. Only ever on a six, and only if your own start is not
-  // already blocked by your own token.
+  // already blocked by your own side.
   if (value === 6) {
-    const start = ringSquare(seat.seat, 0);
-    const there = standingOn(state, start);
-    const blockedByMe = there.some((t) => t.seat === seat.seat);
+    const start = ringSquare(board, seat.seat, 0);
+    const there = standingOn(state, board, start);
+    const blocked = there.some((t) => sameSide(state, seat.seat, t.seat));
     const waiting = mine.find((t) => t.at === -1);
-    if (waiting && !blockedByMe) {
-      const enemy = there.find((t) => t.seat !== seat.seat);
+    if (waiting && !blocked) {
       // The start is a star, so coming out never sends anybody home.
       out.push({ token: waiting.i, from: -1, to: 0, square: start, enters: true, sends: null });
     }
   }
 
   for (const token of mine) {
-    if (token.at < 0 || token.at === HOME) continue;
+    if (token.at < 0 || token.at === board.home) continue;
     const to = token.at + value;
     // Home is reached exactly. Overshooting is not a move.
-    if (to > HOME) continue;
+    if (to > board.home) continue;
 
-    const square = ringSquare(seat.seat, to);
-    const there = standingOn(state, square);
+    const square = ringSquare(board, seat.seat, to);
+    const there = standingOn(state, board, square);
 
-    // Your own token blocks you, except on a star where colours may share.
-    if (square !== null && !SAFE_SQUARES.has(square) && there.some((t) => t.seat === seat.seat)) continue;
+    // Your own side blocks you, except on a star where colours may share.
+    if (square !== null && !board.safe.has(square)
+      && there.some((t) => sameSide(state, seat.seat, t.seat))) continue;
 
-    const victim = square !== null && !SAFE_SQUARES.has(square)
-      ? there.find((t) => t.seat !== seat.seat) ?? null
+    // Only ever a stranger. A partner can never be cut, which the block above
+    // already guarantees — landing on them is not a move at all.
+    const victim = square !== null && !board.safe.has(square)
+      ? there.find((t) => !sameSide(state, seat.seat, t.seat)) ?? null
       : null;
 
     out.push({
@@ -246,6 +313,7 @@ export function legalMoves(state, seat, value) {
 }
 
 function apply(state, seat, move) {
+  const board = geo(state);
   const token = state.tokens.find((t) => t.seat === seat.seat && t.i === move.token);
   if (!token) return;
   token.at = move.to;
@@ -261,7 +329,7 @@ function apply(state, seat, move) {
     }
   } else if (move.enters) {
     state.said = `${seat.name} comes out.`;
-  } else if (move.to === HOME) {
+  } else if (move.to === board.home) {
     seat.home = (seat.home ?? 0) + 1;
     state.said = `${seat.name} gets one home — ${seat.home} of ${state.settings.tokens}.`;
     state.log.push(state.said);
@@ -270,5 +338,9 @@ function apply(state, seat, move) {
   seat.score = (seat.home ?? 0) * 10 + (seat.sent ?? 0);
   state.dirty = true;
 }
+
+/** The classic four-arm constants, kept for every test that speaks them. */
+const CLASSIC = boardOf(4);
+export const SAFE_SQUARES = CLASSIC.safe;
 
 export default ludo;
