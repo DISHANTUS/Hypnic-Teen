@@ -1533,18 +1533,46 @@ async function renderLeaderboard() {
   const sortSel = $('#boardSort');
   const list = $('#boardList');
 
-  for (const g of games) {
-    const opt = document.createElement('option');
-    opt.value = g.id;
-    opt.textContent = `${g.emoji} ${g.name}`;
-    gameSel.appendChild(opt);
+  // Seventy games in one flat list is a scroll, not a choice — and the thing
+  // most people want is not one game at all, it is "who is doing best in the
+  // casino". So each room gets a board of its own at the top of its group, and
+  // the games sit underneath it.
+  const ROOM_BOARDS = [
+    { key: 'casino', label: '🎰 The Casino — every table' },
+    { key: 'cards', label: '🃏 The Card Room — every game' },
+    { key: 'board', label: '🎲 The Board Room — every game' },
+    { key: 'party', label: '🎈 Party games — all of them' },
+  ];
+  gameSel.replaceChildren(gameSel.querySelector('option[value=""]') ?? new Option('All games · studio points', ''));
+  for (const { key, label } of ROOM_BOARDS) {
+    const inRoom = games.filter((g) => (g.room ?? 'party') === key);
+    if (!inRoom.length) continue;
+    const group = document.createElement('optgroup');
+    group.label = label.replace(/^\S+\s/, '');
+    const whole = document.createElement('option');
+    whole.value = `@${key}`;
+    whole.textContent = label;
+    group.appendChild(whole);
+    for (const g of inRoom) {
+      const opt = document.createElement('option');
+      opt.value = g.id;
+      opt.textContent = `${g.emoji} ${g.name}`;
+      group.appendChild(opt);
+    }
+    gameSel.appendChild(group);
   }
 
   async function load() {
+    // A room board can be sorted by best night, same as a single game.
     sortSel.querySelector('option[value="best"]').disabled = !gameSel.value;
     if (!gameSel.value && sortSel.value === 'best') sortSel.value = 'points';
 
-    const rows = await Auth.leaderboard({ gameId: gameSel.value, sort: sortSel.value });
+    const pick = gameSel.value;
+    const rows = await Auth.leaderboard(
+      pick.startsWith('@')
+        ? { room: pick.slice(1), sort: sortSel.value }
+        : { gameId: pick, sort: sortSel.value }
+    );
     if (rows.error || !rows.length) {
       list.innerHTML = '<li class="empty-state">Nobody on this board yet. Go play something.</li>';
       return;
@@ -2034,11 +2062,34 @@ function titleBadge(title, earned) {
 
 async function renderTitles() {
   render('view-titles');
-  const all = await Auth.titles();
+  const got = await Auth.titles();
+  // The endpoint used to hand back a bare array and now hands back the shape
+  // with the secret count on it. Both are accepted so a page held open across
+  // a restart does not go blank.
+  const list = Array.isArray(got) ? got : (got?.titles ?? []);
   const owned = new Map((Auth.profile?.titles ?? []).map((t) => [t.id, t]));
   $('#allTitles').replaceChildren(
-    ...(Array.isArray(all) ? all : []).map((t) => titleBadge(t, owned.get(t.id)))
+    ...list.map((t) => titleBadge(t, owned.get(t.id)))
   );
+
+  // What is left, as a number and nothing more.
+  //
+  // Naming them would make a checklist, and a checklist is not a secret — the
+  // whole value of these is that whoever is wearing one did something rather
+  // than followed instructions. The count is the invitation; the silence is the
+  // prize. So this says how many are out there and refuses to say another word.
+  const left = Number(got?.secretsLeft ?? 0);
+  const total = Number(got?.secretsTotal ?? 0);
+  const note = $('#titlesSecret');
+  if (note) {
+    const found = total - left;
+    note.hidden = total === 0;
+    note.textContent = left === 0
+      ? `You have found all ${total} secret titles. There is nothing left to look for.`
+      : found === 0
+        ? `There are also ${left} secret titles. Nobody is going to tell you what they are.`
+        : `You have found ${found} of ${total} secret titles. ${left} still out there.`;
+  }
 }
 
 /* ----------------------------- game mounting ----------------------------- */

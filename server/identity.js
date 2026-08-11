@@ -23,70 +23,183 @@ const SUFFIX_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 
 /**
  * The onboarding quiz. Each answer carries:
- *   prefix   - words that can start the keyword
- *   creature - words that can end it
- *   trait    - feeds the "spirit" label on the profile
- *   accent   - profile colour (only the colour question sets this)
+ *   prefix     - words that can start the keyword
+ *   creature   - words that can end it
+ *   trait      - the one-word character of this answer, kept for reading
+ *   adjectives - the first half of the spirit line
+ *   nouns      - the second half
+ *   accent     - profile colour (only the colour question sets this)
+ *
+ * Why both a trait and a pile of words
+ * ------------------------------------
+ * The spirit line used to be `traits[1] + ' ' + traits[last]` — the power
+ * answer next to the winning answer. Four options each, so the entire studio
+ * shared **sixteen** possible titles, and with twenty-odd members the room was
+ * full of Sneaky Snipers looking at other Sneaky Snipers. A title nobody else
+ * has is the whole point of the thing; sixteen of them is a uniform.
+ *
+ * So every answer now carries six adjectives or six nouns of its own flavour.
+ * The first three questions supply adjectives and the last three supply nouns,
+ * which makes the studio-wide space 72 × 72 — a little over five thousand — and
+ * gives any one player 18 × 18 = 324 titles their own answers could have
+ * produced, with the seed choosing one. Two people who answered identically
+ * still differ, because the seed includes their name and age.
+ *
+ * The trait is kept because it reads as a summary and because the quiz is worth
+ * being able to explain: it is what that answer *means*, and the six words are
+ * six ways of saying it.
  */
 export const QUIZ = [
   {
     id: 'night',
     q: "It's 3AM and you're wide awake. What are you doing?",
     options: [
-      { id: 'gaming', label: '🎮 One more match, I swear', prefix: ['Insomnia', 'Neon', 'Turbo', 'Pixel', 'Static', 'Arcade'], trait: 'Restless' },
-      { id: 'music', label: '🎧 Headphones on, staring at the ceiling', prefix: ['Echo', 'Lunar', 'Velvet', 'Dream', 'Haze', 'Aria'], trait: 'Dreamer' },
-      { id: 'snack', label: '🍜 Raiding the kitchen', prefix: ['Midnight', 'Hungry', 'Feral', 'Crumb', 'Nomad', 'Raider'], trait: 'Opportunist' },
-      { id: 'study', label: '📚 Panicking about tomorrow', prefix: ['Wired', 'Frantic', 'Panic', 'Caffeine', 'Scramble', 'Jitter'], trait: 'Overthinker' },
+      {
+        id: 'gaming', label: '🎮 One more match, I swear', trait: 'Restless',
+        prefix: ['Insomnia', 'Neon', 'Turbo', 'Pixel', 'Static', 'Arcade'],
+        adjectives: ['Sleepless', 'Wired', 'Nocturnal', 'Unblinking', 'Relentless', 'Caffeinated'],
+      },
+      {
+        id: 'music', label: '🎧 Headphones on, staring at the ceiling', trait: 'Dreamer',
+        prefix: ['Echo', 'Lunar', 'Velvet', 'Dream', 'Haze', 'Aria'],
+        adjectives: ['Dreaming', 'Faraway', 'Velvet', 'Wistful', 'Drifting', 'Half-Awake'],
+      },
+      {
+        id: 'snack', label: '🍜 Raiding the kitchen', trait: 'Opportunist',
+        prefix: ['Midnight', 'Hungry', 'Feral', 'Crumb', 'Nomad', 'Raider'],
+        adjectives: ['Ravenous', 'Shameless', 'Prowling', 'Midnight', 'Unrepentant', 'Foraging'],
+      },
+      {
+        id: 'study', label: '📚 Panicking about tomorrow', trait: 'Overthinker',
+        prefix: ['Wired', 'Frantic', 'Panic', 'Caffeine', 'Scramble', 'Jitter'],
+        adjectives: ['Frantic', 'Overthinking', 'Jittery', 'Second-Guessing', 'Underslept', 'Cramming'],
+      },
     ],
   },
   {
     id: 'power',
     q: 'A shady figure offers you one power. You pick:',
     options: [
-      { id: 'speed', label: '⚡ Impossible speed', prefix: ['Flash', 'Comet', 'Rapid', 'Bolt', 'Dash', 'Blitz'], trait: 'Reckless' },
-      { id: 'invis', label: '👻 Turn invisible', prefix: ['Shadow', 'Phantom', 'Silent', 'Ghost', 'Veil', 'Mist'], trait: 'Sneaky' },
-      { id: 'mind', label: '🧠 Read minds', prefix: ['Oracle', 'Psy', 'Cipher', 'Rune', 'Augur', 'Sage'], trait: 'Calculating' },
-      { id: 'time', label: '⏳ Rewind 10 seconds', prefix: ['Chrono', 'Loop', 'Rewind', 'Epoch', 'Tempo', 'Warp'], trait: 'Perfectionist' },
+      {
+        id: 'speed', label: '⚡ Impossible speed', trait: 'Reckless',
+        prefix: ['Flash', 'Comet', 'Rapid', 'Bolt', 'Dash', 'Blitz'],
+        adjectives: ['Reckless', 'Headlong', 'Impatient', 'Breakneck', 'Impulsive', 'Hurtling'],
+      },
+      {
+        id: 'invis', label: '👻 Turn invisible', trait: 'Sneaky',
+        prefix: ['Shadow', 'Phantom', 'Silent', 'Ghost', 'Veil', 'Mist'],
+        adjectives: ['Sneaky', 'Unseen', 'Slippery', 'Shadowed', 'Uninvited', 'Quiet'],
+      },
+      {
+        id: 'mind', label: '🧠 Read minds', trait: 'Calculating',
+        prefix: ['Oracle', 'Psy', 'Cipher', 'Rune', 'Augur', 'Sage'],
+        adjectives: ['Calculating', 'Knowing', 'Shrewd', 'Watchful', 'Unsurprised', 'Three-Moves-Ahead'],
+      },
+      {
+        id: 'time', label: '⏳ Rewind 10 seconds', trait: 'Perfectionist',
+        prefix: ['Chrono', 'Loop', 'Rewind', 'Epoch', 'Tempo', 'Warp'],
+        adjectives: ['Precise', 'Exacting', 'Methodical', 'Immaculate', 'Rehearsed', 'Unhurried'],
+      },
     ],
   },
   {
     id: 'squad',
     q: 'Your squad is losing badly. You:',
     options: [
-      { id: 'carry', label: '🔥 Go in alone and try to carry', creature: ['Tiger', 'Dragon', 'Wolf', 'Lion', 'Rhino', 'Falcon'], trait: 'Fearless' },
-      { id: 'plan', label: '🗺️ Start calling shots', creature: ['Fox', 'Raven', 'Owl', 'Magpie', 'Lynx', 'Hawk'], trait: 'Tactician' },
-      { id: 'chill', label: '😌 Laugh and keep playing', creature: ['Panda', 'Otter', 'Cat', 'Sloth', 'Koala', 'Seal'], trait: 'Chill' },
-      { id: 'tilt', label: '💀 Full tilt, blame the WiFi', creature: ['Goblin', 'Gremlin', 'Hydra', 'Imp', 'Wraith', 'Basilisk'], trait: 'Chaotic' },
+      {
+        id: 'carry', label: '🔥 Go in alone and try to carry', trait: 'Fearless',
+        creature: ['Tiger', 'Dragon', 'Wolf', 'Lion', 'Rhino', 'Falcon'],
+        adjectives: ['Fearless', 'Stubborn', 'Immovable', 'Defiant', 'Unbothered', 'One-Man-Army'],
+      },
+      {
+        id: 'plan', label: '🗺️ Start calling shots', trait: 'Tactician',
+        creature: ['Fox', 'Raven', 'Owl', 'Magpie', 'Lynx', 'Hawk'],
+        adjectives: ['Tactical', 'Deliberate', 'Scheming', 'Composed', 'Measured', 'Cold-Blooded'],
+      },
+      {
+        id: 'chill', label: '😌 Laugh and keep playing', trait: 'Chill',
+        creature: ['Panda', 'Otter', 'Cat', 'Sloth', 'Koala', 'Seal'],
+        adjectives: ['Easygoing', 'Cheerful', 'Unshakeable', 'Serene', 'Amused', 'Unbothered'],
+      },
+      {
+        id: 'tilt', label: '💀 Full tilt, blame the WiFi', trait: 'Chaotic',
+        creature: ['Goblin', 'Gremlin', 'Hydra', 'Imp', 'Wraith', 'Basilisk'],
+        adjectives: ['Chaotic', 'Feral', 'Unhinged', 'Volatile', 'Cursed', 'Doomed'],
+      },
     ],
   },
   {
     id: 'canteen',
     q: 'Canteen run. Your order:',
     options: [
-      { id: 'spicy', label: '🌶️ The spiciest thing they have', creature: ['Phoenix', 'Viper', 'Blaze', 'Cobra', 'Ember', 'Scorpion'], trait: 'Bold' },
-      { id: 'sweet', label: '🍫 Something sweet, obviously', creature: ['Bunny', 'Moth', 'Robin', 'Cub', 'Finch', 'Fawn'], trait: 'Softie' },
-      { id: 'chai', label: '☕ Just chai, thanks', creature: ['Crane', 'Monk', 'Ibis', 'Turtle', 'Egret', 'Heron'], trait: 'Calm' },
-      { id: 'all', label: '🍕 Everything. All of it.', creature: ['Bear', 'Kraken', 'Titan', 'Mammoth', 'Bison', 'Colossus'], trait: 'Unstoppable' },
+      {
+        id: 'spicy', label: '🌶️ The spiciest thing they have', trait: 'Bold',
+        creature: ['Phoenix', 'Viper', 'Blaze', 'Cobra', 'Ember', 'Scorpion'],
+        nouns: ['Firebrand', 'Menace', 'Furnace', 'Wildfire', 'Spark', 'Dare'],
+      },
+      {
+        id: 'sweet', label: '🍫 Something sweet, obviously', trait: 'Softie',
+        creature: ['Bunny', 'Moth', 'Robin', 'Cub', 'Finch', 'Fawn'],
+        nouns: ['Softie', 'Sweetheart', 'Marshmallow', 'Daydream', 'Cub', 'Sugarcube'],
+      },
+      {
+        id: 'chai', label: '☕ Just chai, thanks', trait: 'Calm',
+        creature: ['Crane', 'Monk', 'Ibis', 'Turtle', 'Egret', 'Heron'],
+        nouns: ['Monk', 'Sage', 'Regular', 'Philosopher', 'Kettle', 'Elder'],
+      },
+      {
+        id: 'all', label: '🍕 Everything. All of it.', trait: 'Unstoppable',
+        creature: ['Bear', 'Kraken', 'Titan', 'Mammoth', 'Bison', 'Colossus'],
+        nouns: ['Colossus', 'Appetite', 'Machine', 'Titan', 'Vortex', 'Landslide'],
+      },
     ],
   },
   {
     id: 'colour',
     q: 'Pick the colour that feels like you:',
     options: [
-      { id: 'violet', label: '🟣 Violet', accent: '#7c5cff', prefix: ['Nova', 'Astral', 'Amethyst', 'Iris', 'Cosmo', 'Vega'], trait: 'Mysterious' },
-      { id: 'cyan', label: '🔵 Electric blue', accent: '#2de2e6', prefix: ['Frost', 'Volt', 'Glacier', 'Azure', 'Krypto', 'Tide'], trait: 'Sharp' },
-      { id: 'pink', label: '🩷 Hot pink', accent: '#ff3d6e', prefix: ['Nitro', 'Rose', 'Blush', 'Flare', 'Candy', 'Siren'], trait: 'Loud' },
-      { id: 'green', label: '🟢 Toxic green', accent: '#3ddc97', prefix: ['Venom', 'Jade', 'Fern', 'Toxin', 'Clover', 'Moss'], trait: 'Unpredictable' },
+      {
+        id: 'violet', label: '🟣 Violet', accent: '#7c5cff', trait: 'Mysterious',
+        prefix: ['Nova', 'Astral', 'Amethyst', 'Iris', 'Cosmo', 'Vega'],
+        nouns: ['Enigma', 'Oracle', 'Riddle', 'Mirage', 'Secret', 'Omen'],
+      },
+      {
+        id: 'cyan', label: '🔵 Electric blue', accent: '#2de2e6', trait: 'Sharp',
+        prefix: ['Frost', 'Volt', 'Glacier', 'Azure', 'Krypto', 'Tide'],
+        nouns: ['Blade', 'Circuit', 'Frost', 'Signal', 'Scalpel', 'Prism'],
+      },
+      {
+        id: 'pink', label: '🩷 Hot pink', accent: '#ff3d6e', trait: 'Loud',
+        prefix: ['Nitro', 'Rose', 'Blush', 'Flare', 'Candy', 'Siren'],
+        nouns: ['Siren', 'Firework', 'Anthem', 'Riot', 'Megaphone', 'Headline'],
+      },
+      {
+        id: 'green', label: '🟢 Toxic green', accent: '#3ddc97', trait: 'Unpredictable',
+        prefix: ['Venom', 'Jade', 'Fern', 'Toxin', 'Clover', 'Moss'],
+        nouns: ['Wildcard', 'Glitch', 'Gremlin', 'Weathervane', 'Coin-Flip', 'Rumour'],
+      },
     ],
   },
   {
     id: 'win',
     q: 'Best way to win?',
     options: [
-      { id: 'skill', label: '🎯 Out-skill everyone', trait: 'Sniper' },
-      { id: 'trick', label: '🃏 Out-trick everyone', trait: 'Trickster' },
-      { id: 'grind', label: '🪨 Out-last everyone', trait: 'Wall' },
-      { id: 'luck', label: '🍀 Pure, undeserved luck', trait: 'Lucky' },
+      {
+        id: 'skill', label: '🎯 Out-skill everyone', trait: 'Sniper',
+        nouns: ['Sniper', 'Marksman', 'Specialist', 'Surgeon', 'Craftsman', 'Ace'],
+      },
+      {
+        id: 'trick', label: '🃏 Out-trick everyone', trait: 'Trickster',
+        nouns: ['Trickster', 'Magician', 'Bluff', 'Fox', 'Illusionist', 'Pickpocket'],
+      },
+      {
+        id: 'grind', label: '🪨 Out-last everyone', trait: 'Wall',
+        nouns: ['Wall', 'Anchor', 'Fortress', 'Mountain', 'Marathon', 'Bulwark'],
+      },
+      {
+        id: 'luck', label: '🍀 Pure, undeserved luck', trait: 'Lucky',
+        nouns: ['Charm', 'Fluke', 'Horseshoe', 'Longshot', 'Miracle', 'Coincidence'],
+      },
     ],
   },
 ];
@@ -102,6 +215,41 @@ export function publicQuiz() {
 
 const FALLBACK_PREFIX = ['Hyper', 'Pixel', 'Zero', 'Lumen'];
 const FALLBACK_CREATURE = ['Comet', 'Specter', 'Falcon', 'Rhino'];
+const FALLBACK_ADJECTIVE = ['Unlabelled', 'Unusual', 'Unwritten', 'Offbeat'];
+const FALLBACK_NOUN = ['Wildcard', 'Unknown', 'Stranger', 'Newcomer'];
+
+/**
+ * The spirit line: one adjective and one noun, out of everything the answers
+ * put on the table.
+ *
+ * A half-finished quiz still has to produce something — somebody who answered
+ * two questions is not getting an error where their title should be — so each
+ * half falls back to its own small pool rather than to the other half.
+ */
+export function spiritFrom(chosen, seeds) {
+  const adjectives = chosen.flatMap((o) => o.adjectives ?? []);
+  const nouns = chosen.flatMap((o) => o.nouns ?? []);
+  const adjective = pick(adjectives.length ? adjectives : FALLBACK_ADJECTIVE, seeds.adjective);
+  const noun = pick(nouns.length ? nouns : FALLBACK_NOUN, seeds.noun);
+  return `${adjective} ${noun}`;
+}
+
+/** How many distinct spirit lines the studio can hand out, for reporting. */
+export function spiritSpace() {
+  const adjectives = new Set();
+  const nouns = new Set();
+  for (const question of QUIZ) {
+    for (const option of question.options) {
+      for (const a of option.adjectives ?? []) adjectives.add(a);
+      for (const n of option.nouns ?? []) nouns.add(n);
+    }
+  }
+  return {
+    adjectives: adjectives.size,
+    nouns: nouns.size,
+    total: adjectives.size * nouns.size,
+  };
+}
 
 /** Every distinct word available, for capacity reporting. */
 export function keywordSpace() {
@@ -131,6 +279,11 @@ function seedsFrom(name, age, answers) {
     prefix: parseInt(hex.slice(0, 8), 16),
     creature: parseInt(hex.slice(8, 16), 16),
     suffix: parseInt(hex.slice(16, 24), 16),
+    // The spirit needs two of its own, for the same reason the keyword does:
+    // reusing a slice with an offset walks the two picks in lockstep and
+    // collapses the grid to a diagonal.
+    adjective: parseInt(hex.slice(24, 32), 16),
+    noun: parseInt(hex.slice(32, 40), 16),
   };
 }
 
@@ -169,8 +322,7 @@ export function deriveIdentity({ name, age, answers }, isTaken = () => false) {
   const prefix = pick(prefixes.length ? prefixes : FALLBACK_PREFIX, seeds.prefix);
   const creature = pick(creatures.length ? creatures : FALLBACK_CREATURE, seeds.creature);
 
-  // Two traits become the spirit line, e.g. "Sneaky Tactician".
-  const spirit = traits.length >= 2 ? `${traits[1]} ${traits[traits.length - 1]}` : traits[0] || 'Wildcard';
+  const spirit = spiritFrom(chosen, seeds);
 
   const base = `${prefix}${creature}`;
   const keyword = claim(base, seeds.suffix, isTaken);

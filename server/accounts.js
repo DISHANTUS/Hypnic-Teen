@@ -5,7 +5,7 @@ import { randomBytes, scryptSync, timingSafeEqual, createHmac } from 'node:crypt
 
 import { JsonStore, registerStore } from './store.js';
 import { deriveIdentity, normaliseId, keywordOf } from './identity.js';
-import { evaluateTitles } from './titles.js';
+import { evaluateTitles, CASINO, CARDS, BOARD, PARTY } from './titles.js';
 
 const SESSION_DAYS = 60;
 const MAX_FAILED_LOGINS = 8;
@@ -28,6 +28,47 @@ if (!secrets.data.tokenSecret) {
   secrets.flush();
 }
 const TOKEN_SECRET = secrets.data.tokenSecret;
+
+/* --------------------------- the spirit rewrite --------------------------- */
+
+/**
+ * Give everybody who joined under the old scheme their real title.
+ *
+ * The spirit line was two of the six quiz traits, so the whole studio shared
+ * sixteen possible titles and a room of twenty was mostly Sneaky Snipers. The
+ * words behind it are much wider now — around five thousand — but a spirit is
+ * *stored* on the profile at signup, so widening the vocabulary does nothing
+ * for anybody already here. They keep the uniform.
+ *
+ * Their answers are on the profile too, so the new line can simply be derived
+ * for them. Run once, marked with a version so it never runs again, and it
+ * touches nothing else: the keyword, the ID, the accent and the member number
+ * are who somebody *is* and must never be rewritten under them. Only the label
+ * changes, and only to the one those same answers would produce today.
+ */
+const SPIRIT_VERSION = 2;
+
+function rewriteSpirits() {
+  const people = Object.values(users.data.users);
+  let done = 0;
+  for (const p of people) {
+    if (p.spiritVersion === SPIRIT_VERSION) continue;
+    p.spiritVersion = SPIRIT_VERSION;
+    if (!p.answers || typeof p.answers !== 'object') continue;
+    try {
+      // isTaken says everything is free: this must not touch the keyword, and
+      // asking the real one would make it fight with the name already stored.
+      const fresh = deriveIdentity({ name: p.name, age: p.age, answers: p.answers }, () => false);
+      if (fresh.spirit && fresh.spirit !== p.spirit) { p.spirit = fresh.spirit; done += 1; }
+    } catch { /* a profile from a shape that no longer exists keeps its line */ }
+  }
+  if (done) {
+    users.save();
+    invalidateBoards();
+    console.log(`[accounts] ${done} member${done === 1 ? '' : 's'} given a title of their own`);
+  }
+}
+rewriteSpirits();
 
 /** @type {Map<string, {count:number, until:number}>} */
 const failedLogins = new Map();
@@ -365,8 +406,14 @@ export function recordMatch({ gameId, hostId, results, totalGames = 1 }) {
       profile.wins += 1;
       profile.streak += 1;
       profile.bestStreak = Math.max(profile.bestStreak, profile.streak);
+      profile.lossRun = 0;
     } else {
       profile.streak = 0;
+      // The other streak. Kept because coming back from a bad run is worth a
+      // title, and you cannot ask "did they just end a losing run" after the
+      // fact unless somebody wrote down how long it was.
+      profile.lossRun = (profile.lossRun ?? 0) + 1;
+      profile.worstLossRun = Math.max(profile.worstLossRun ?? 0, profile.lossRun);
     }
     if (profile.id === hostId) profile.hosted += 1;
 
@@ -384,6 +431,13 @@ export function recordMatch({ gameId, hostId, results, totalGames = 1 }) {
 
     const today = at.toISOString().slice(0, 10);
     if (!profile.activeDays.includes(today)) profile.activeDays.push(today);
+
+    // Which hours of the day this person has ever played in. Twenty-four
+    // numbers at most, and it makes a whole family of odd-hour titles possible
+    // without any of them needing their own counter.
+    const hour = at.getHours();
+    profile.hoursPlayed ??= [];
+    if (!profile.hoursPlayed.includes(hour)) profile.hoursPlayed.push(hour);
 
     const newTitles = evaluateTitles(
       profile,
@@ -422,8 +476,42 @@ export function noteAbandon(id) {
 /**
  * @param {{ gameId?: string, sort?: 'points'|'wins'|'best', limit?: number }} opts
  */
-export function leaderboard({ gameId, sort = 'points', limit = 50 } = {}) {
-  const cacheKey = `${gameId ?? '*'}:${sort}:${limit}`;
+const ROOM_GAMES = { casino: CASINO, cards: CARDS, board: BOARD, party: PARTY };
+
+/**
+ * One player's record across a whole room, added up.
+ *
+ * A board per game is right for chess, where beating people at chess is the
+ * thing being measured. It is wrong for the casino, where nobody thinks of
+ * themselves as a Sic Bo player — nineteen tables, each with its own thin
+ * board, and no answer at all to "who is doing best down there". So a room can
+ * be asked for as a whole and its tables add up: plays and wins and score
+ * summed, best kept as the single best night anywhere in the room.
+ */
+function roomStat(profile, room) {
+  const ids = ROOM_GAMES[room] ?? [];
+  const out = { plays: 0, wins: 0, bestScore: 0, totalScore: 0 };
+  for (const id of ids) {
+    const s = profile.stats?.[id];
+    if (!s) continue;
+    out.plays += s.plays ?? 0;
+    out.wins += s.wins ?? 0;
+    out.totalScore += s.totalScore ?? 0;
+    out.bestScore = Math.max(out.bestScore, s.bestScore ?? 0);
+  }
+  return out;
+}
+
+/**
+ * @param {{ gameId?: string, room?: string, sort?: 'points'|'wins'|'best', limit?: number }} opts
+ */
+export function leaderboard({ gameId, room, sort = 'points', limit = 50 } = {}) {
+  // A room and a game together is a contradiction; the game is the narrower of
+  // the two, so it wins and the room is ignored rather than silently blended.
+  if (gameId) room = undefined;
+  if (room && !ROOM_GAMES[room]) room = undefined;
+
+  const cacheKey = `${gameId ?? (room ? `@${room}` : '*')}:${sort}:${limit}`;
   const hit = boardCache.get(cacheKey);
   if (hit && Date.now() - hit.at < BOARD_TTL_MS) return hit.rows;
 
@@ -431,11 +519,17 @@ export function leaderboard({ gameId, sort = 'points', limit = 50 } = {}) {
 
   if (gameId) {
     rows = rows.filter((p) => p.stats[gameId]?.plays > 0);
+  } else if (room) {
+    rows = rows.filter((p) => roomStat(p, room).plays > 0);
   }
 
   const value = (p) => {
     if (gameId) {
       const s = p.stats[gameId];
+      return sort === 'wins' ? s.wins : sort === 'best' ? s.bestScore : s.totalScore;
+    }
+    if (room) {
+      const s = roomStat(p, room);
       return sort === 'wins' ? s.wins : sort === 'best' ? s.bestScore : s.totalScore;
     }
     return sort === 'wins' ? p.wins : p.points;

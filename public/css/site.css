@@ -1334,6 +1334,16 @@ input::placeholder { color: var(--text-3); }
 }
 
 .title-wall { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: var(--sp-md); }
+
+/* How many secrets are left, and not one word about what they are. */
+.titles-secret {
+  margin-top: var(--sp-xl);
+  padding-top: var(--sp-lg);
+  border-top: 1px dashed color-mix(in srgb, var(--text-3) 45%, transparent);
+  font-size: 0.78rem;
+  color: var(--text-3);
+  text-align: center;
+}
 .badge {
   padding: var(--sp-lg);
   border: 1px solid var(--border);

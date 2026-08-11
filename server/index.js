@@ -732,7 +732,19 @@ app.delete('/api/notices/:id', requireAuth, (req, res) => {
 });
 
 app.get('/api/quiz', (_req, res) => res.json({ questions: publicQuiz() }));
-app.get('/api/titles', (_req, res) => res.json(titleCatalogue()));
+
+// The titles page is personal, because half of it is.
+//
+// Open titles are the same for everybody. Secret ones appear only for whoever
+// has actually earned them, so this has to know who is asking — and it must not
+// insist, because the page is readable signed out. A bad or missing token means
+// the open half and a count of the secrets, which is exactly what a stranger
+// should see.
+app.get('/api/titles', (req, res) => {
+  const token = (req.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
+  const id = verifyToken(token);
+  res.json(titleCatalogue(id ? getProfile(id) : null));
+});
 
 /**
  * Signing in hands back the same `isOwner` that /api/me does.
@@ -775,10 +787,11 @@ app.get('/api/me', requireAuth, (req, res) =>
 );
 
 app.get('/api/leaderboard', (req, res) => {
-  const { gameId, sort, limit } = req.query;
+  const { gameId, room, sort, limit } = req.query;
   res.json(
     leaderboard({
       gameId: gameId || undefined,
+      room: room || undefined,
       sort: ['points', 'wins', 'best'].includes(sort) ? sort : 'points',
       limit: Math.min(Number(limit) || 50, 100),
     })
