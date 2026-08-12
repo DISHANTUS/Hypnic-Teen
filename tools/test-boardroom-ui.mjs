@@ -247,6 +247,19 @@ for (const game of GAMES) {
       anatomy.tokens === 8, `${anatomy.tokens} tokens for 2 seats`);
   }
 
+  // Chess: picking a piece must light its destinations *before* the server
+  // says anything — the repaint this needs once read a variable that did not
+  // exist, threw on the first real tap, and no suite noticed because no suite
+  // ever picked without completing a move.
+  if (game.face === 'chess') {
+    await evaluate(`document.querySelector('.bd-square.can-move')?.click(); return true;`);
+    await wait(500);
+    const lit = await count('.bd-square.is-target');
+    check(`${game.name}: picking a piece lights where it may go`, lit >= 1, `${lit} destinations`);
+    const errs = await evaluate(`return window.__journeyErrors ?? []`);
+    check(`${game.name}: and the pick itself threw nothing`, errs.length === 0, errs.slice(0, 1).join(''));
+  }
+
   // Every seat is on screen. A board game with a player missing from the side
   // is a board game where somebody does not know they are in it.
   const seats = await count('.bd-seat');
@@ -355,6 +368,30 @@ for (const game of GAMES) {
   const secs = (t) => Number(String(t ?? '').replace(/[^0-9]/g, ''));
   check(`${game.name}: the clock counts down on its own`,
     secs(tick2) < secs(tick1), `${tick1} then ${tick2}, with nothing sent between`);
+
+  // Ludo last, after every passive check: rolling hands the turn to the
+  // stand-in when nothing can move, so anything that runs after this sees
+  // somebody else's turn and an honestly restarted clock.
+  if (game.face === 'ludo') {
+    // Roll, and watch the die land. The rewrite once shipped without the Roll
+    // button at all, and "there is something to throw or move" was satisfied
+    // by an unrelated button — so this presses the actual thing and demands
+    // the actual die.
+    const rolled = await evaluate(`
+      const b = [...document.querySelectorAll('#bdDice button, .bd-throw')]
+        .find((x) => /roll|throw/i.test(x.textContent));
+      if (!b) return 'no roll button';
+      b.click();
+      return true;
+    `);
+    check(`${game.name}: there is a button to roll with`, rolled === true, String(rolled));
+    // Inside the linger window: the tumble is done by 550ms and a wasted roll
+    // hands the turn on at 1.4s, at which point the die is cleared.
+    await wait(800);
+    const pips = await evaluate(`return document.querySelector('.ld-die')?.dataset.pips ?? null`);
+    check(`${game.name}: and the die lands on a real face`,
+      ['1', '2', '3', '4', '5', '6'].includes(pips), String(pips));
+  }
 
   // A board has to have a size.
   //

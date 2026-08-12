@@ -222,6 +222,8 @@ export const thayam = createBoardGame({
   settings: (s) => ({ coins: Math.max(2, Math.min(6, Number(s.coins) || 6)) }),
 
   init(state) {
+    state.linger = 0;
+    state.lingerThen = null;
     state.coins = [];
     state.rolled = null;
     state.graceLeft = 0;
@@ -247,9 +249,28 @@ export const thayam = createBoardGame({
     state.said = 'Throw a one to come on.';
   },
 
-  // Checked on the clock rather than after a move, because the thing that shuts
-  // the last door is somebody *else's* coin going inside, not your own.
-  tick(state) {
+  tick(state, dt) {
+    // The pause after a wasted throw, so the sticks are seen before the turn
+    // moves on. In tick rather than a timer so an unwatched room still runs.
+    if (state.linger > 0) {
+      if (!state.rolled) { state.linger = 0; }
+      else {
+        state.linger -= dt;
+        if (state.linger <= 0) {
+          state.linger = 0;
+          if (state.lingerThen === 'again') {
+            state.rolled = null;
+            state.turnLeft = state.settings.turnSeconds;
+            state.dirty = true;
+          } else {
+            passTurn(state);
+          }
+        }
+      }
+    }
+
+    // Checked on the clock rather than after a move, because the thing that
+    // shuts the last door is somebody *else's* coin going inside, not your own.
     if (state.blockade !== null) return;
     const win = blockadeWinner(state);
     if (!win) return;
@@ -272,9 +293,14 @@ export const thayam = createBoardGame({
       if (!moves.length) {
         // Nothing to do with it. A grace throw still earns another, which is
         // the difference between a bad throw and a wasted turn.
+        //
+        // Either way the sticks stay on screen for a beat first. Clearing them
+        // in the same action as the throw meant no client ever received a
+        // state in which they existed — you threw, and the turn moved on
+        // without the sticks ever landing.
         state.log.push(`${state.said} Nothing to move.`);
-        if (out.grace) { state.rolled = null; state.turnLeft = state.settings.turnSeconds; }
-        else passTurn(state);
+        state.linger = 1.4;
+        state.lingerThen = out.grace ? 'again' : 'pass';
       }
       state.dirty = true;
       return;
@@ -349,6 +375,7 @@ export const thayam = createBoardGame({
   timedOut(state) {
     const seat = state.seats[state.turn];
     if (!seat) return;
+    if (state.linger > 0) return;   // the wasted throw is still being shown
     if (!state.rolled) {
       // Throw for them rather than skipping — a skipped throw is a turn nobody
       // can get back, and being away should cost tempo, not the game.

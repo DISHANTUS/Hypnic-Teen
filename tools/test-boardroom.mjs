@@ -331,13 +331,18 @@ console.log('\n  The board room — the server refuses\n');
     const { state, players } = open(thayam, 3, { coins: 3 });
     let guard = 0;
     while (!thayam.__spec.isDone(state) && guard++ < 4000) {
+      // A real room ticks between actions, and now the game depends on it: a
+      // wasted throw holds the sticks on screen for a beat before the turn
+      // moves on, and only the clock resolves that. A fuzzer that never ticks
+      // stalls exactly there — which is how this line got here.
+      thayam.__spec.tick(state, 2, api);
       const seat = state.seats[state.turn];
       if (!state.rolled) {
         thayam.onAction(state, { id: seat.id }, { type: 'throw' }, api);
         if (!state.rolled) continue;   // the throw ended the turn by itself
       }
       const moves = legalMoves(state, seat, state.rolled.value);
-      if (!moves.length) { thayam.onAction(state, { id: seat.id }, { type: 'throw' }, api); continue; }
+      if (!moves.length) { continue; }   // the linger will hand the turn on
       // Prefer a cut, so the war rule gets exercised rather than stalling.
       const pick = moves.find((m) => m.cuts) ?? moves[moves.length - 1];
       const wasCuts = seat.cuts ?? 0;

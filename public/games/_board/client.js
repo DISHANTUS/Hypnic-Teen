@@ -104,6 +104,17 @@ export default {
     const brief = $('.bd-brief');
     const table = $('.bd-table');
 
+    /**
+     * The last state the server sent, for repaints the server did not cause.
+     *
+     * Picking a chess piece has to light its destinations before anything new
+     * arrives, so the pick handlers repaint from this. It was referenced in
+     * four places and declared in none — a bare `paint(last)` that threw a
+     * ReferenceError the moment a real finger picked a piece, on every board
+     * with a pick. No suite ever saw it, because no suite ever picked without
+     * moving; the phone found it in one tap.
+     */
+    let last = null;
     /** A coin picked up but not yet committed. */
     let picked = null;
     /** A piece in hand, armed for a drop. Shogi only. */
@@ -421,11 +432,26 @@ export default {
     /** The die, tumbling. The value was decided on the server before this ran. */
     function paintLudoDie(s) {
       const dice = $('#bdDice');
-      const stamp = s.rolled ? `${s.turn}:${s.rolled.value}:${s.sixes}` : '';
+      const wantRoll = Boolean(s.you?.yourTurn && s.you?.needsThrow);
+      const stamp = s.rolled ? `${s.turn}:${s.rolled.value}:${s.sixes}` : `roll:${s.turn}:${wantRoll}`;
       if (dice.dataset.throw === stamp) return;
       dice.dataset.throw = stamp;
       dice.replaceChildren();
-      if (!s.rolled) return;
+      if (!s.rolled) {
+        // The button this board rolls with. The shared dice painter used to
+        // provide it and the rewrite dropped it — every desktop suite still
+        // passed, because "something to press" accepts any button, and the
+        // phone found the board unrollable in one visit.
+        if (wantRoll) {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'btn btn-primary bd-throw';
+          b.textContent = 'Roll';
+          b.addEventListener('click', () => { Net.action({ type: 'throw' }); Sound.play('click'); });
+          dice.appendChild(b);
+        }
+        return;
+      }
 
       const die = document.createElement('div');
       die.className = 'ld-die';
@@ -1210,7 +1236,7 @@ export default {
       );
     }
 
-    const off = Net.on('game:state', paint);
+    const off = Net.on('game:state', (s) => { last = s; paint(s); });
 
     return () => {
       off?.();

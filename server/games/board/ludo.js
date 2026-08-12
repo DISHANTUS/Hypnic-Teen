@@ -113,6 +113,8 @@ export const ludo = createBoardGame({
   }),
 
   init(state) {
+    state.linger = 0;
+    state.lingerThen = null;
     state.tokens = [];
     state.sixes = 0;
   },
@@ -162,8 +164,12 @@ export const ludo = createBoardGame({
       const moves = legalMoves(state, seat, value);
       if (!moves.length) {
         state.log.push(`${state.said} Nothing to move.`);
-        if (grace) { state.rolled = null; state.turnLeft = state.settings.turnSeconds; }
-        else { state.sixes = 0; passTurn(state); }
+        // The roll stays on screen for a beat before the turn moves on.
+        // Passing in the same action as the throw meant the client never
+        // received a state in which the roll existed — you pressed Roll, and
+        // your turn silently left without ever showing you the die.
+        state.linger = 1.4;
+        state.lingerThen = grace ? 'again' : 'pass';
       }
       state.dirty = true;
       return;
@@ -187,9 +193,29 @@ export const ludo = createBoardGame({
     }
   },
 
+  // The pause between a wasted roll and the turn moving on. Lives in tick
+  // rather than in a timer so a room that is not being watched still advances.
+  tick(state, dt) {
+    if (!(state.linger > 0)) return;
+    // The move already happened some other way — a timeout, a leave.
+    if (!state.rolled) { state.linger = 0; return; }
+    state.linger -= dt;
+    if (state.linger > 0) return;
+    state.linger = 0;
+    if (state.lingerThen === 'again') {
+      state.rolled = null;
+      state.turnLeft = state.settings.turnSeconds;
+      state.dirty = true;
+    } else {
+      state.sixes = 0;
+      passTurn(state);
+    }
+  },
+
   timedOut(state) {
     const seat = state.seats[state.turn];
     if (!seat) return;
+    if (state.linger > 0) return;   // the wasted roll is still being shown
     if (!state.rolled) { ludo.__spec.act(state, seat, { type: 'throw' }); return; }
     const moves = legalMoves(state, seat, state.rolled.value);
     if (!moves.length) { passTurn(state); return; }
