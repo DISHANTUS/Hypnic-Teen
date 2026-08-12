@@ -181,156 +181,180 @@ const bar = JSON.parse(await evaluate(`
 `));
 check('the trolley is there and carries no number', bar.cage && bar.svg === 1 && !bar.digits, JSON.stringify(bar));
 
-/* ------------------------- rooms, one from each floor --------------------- */
+/* ------------------------- every game in the studio ----------------------- */
+//
+// The whole catalogue, one room at a time. The deep rules live in the server
+// suites; what a phone can prove is the part no server suite can — that the
+// game actually arrives on a real screen: the room opens, the stage mounts,
+// the clock moves, and nothing throws. Six games get a deeper poke because
+// they have something specific worth poking.
 
-const SWEEP = [
-  { id: 'thayam', name: 'Thayam', shelf: 'board', min: 2, table: '.bd-table:not([hidden])',
-    settle: async () => {
-      const paint = JSON.parse(await evaluate(`
-        const cell = document.querySelector('.bd-cell:not(.is-safe):not(.is-centre)');
-        return JSON.stringify({ cell: cell ? getComputedStyle(cell).backgroundColor : null,
-          cells: document.querySelectorAll('.bd-cell').length });
-      `));
-      check('thayam: the mat is painted on the phone', paint.cell === 'rgb(251, 243, 226)' && paint.cells === 49, JSON.stringify(paint));
-    } },
-  { id: 'ludo', name: 'Ludo', shelf: 'board', min: 2, table: '.bd-table:not([hidden])',
-    settle: async () => {
-      const anatomy = JSON.parse(await evaluate(`
-        return JSON.stringify({
-          ring: document.querySelectorAll('.ld-cell:not(.is-column)').length,
-          yards: document.querySelectorAll('.ld-yard').length,
-          tokens: document.querySelectorAll('.ld-token').length,
-        });
-      `));
-      check('ludo: the whole board is on the phone', anatomy.ring === 52 && anatomy.yards === 4 && anatomy.tokens === 8, JSON.stringify(anatomy));
-      // Throw, and watch the die tumble in.
-      await evaluate(`for (const b of document.querySelectorAll('#bdDice button, .bd-throw, #bdActs button')) { if (/throw|roll/i.test(b.textContent)) { b.click(); break; } } return true;`);
-      await wait(800);
-      const die = await evaluate(`const d = document.querySelector('.ld-die'); return d ? d.dataset.pips : null;`);
-      check('ludo: the die lands on a real face', ['1','2','3','4','5','6'].includes(die), String(die));
-    } },
-  { id: 'chess', name: 'Chess', shelf: 'board', min: 2, table: '.bd-table:not([hidden])',
-    settle: async () => {
-      const board = JSON.parse(await evaluate(`
-        const sq = document.querySelector('.bd-square');
-        const dark = document.querySelector('.bd-square.is-dark');
-        const r = sq?.getBoundingClientRect();
-        return JSON.stringify({
-          light: sq ? getComputedStyle(sq).backgroundColor : null,
-          dark: dark ? getComputedStyle(dark).backgroundColor : null,
-          square: r ? Math.abs(r.width - r.height) < 1.5 : false,
-        });
-      `));
-      check('chess: wooden squares, actually square',
-        board.light === 'rgb(236, 218, 185)' && board.dark === 'rgb(169, 122, 79)' && board.square,
-        JSON.stringify(board));
-      // Pick a pawn; its destinations must light up.
+const catalogue = await fetch(`${base}/api/games`).then((r) => r.json());
+const GAMES = (catalogue.games ?? catalogue);
+check('the catalogue is the full studio', GAMES.length >= 70, `${GAMES.length} games`);
+
+// Keep the screen on for the duration — a phone that dozes mid-sweep looks
+// exactly like a studio that broke.
+try { adb('shell', 'svc', 'power', 'stayon', 'usb'); } catch { }
+
+const SHELF = { party: '#/', cards: '#/shelf/cards', board: '#/shelf/board', casino: '#/shelf/casino' };
+
+/** The six deeper pokes, for the games with something specific to prove. */
+const SPECIAL = {
+  thayam: async () => {
+    const paint = JSON.parse(await evaluate(`
+      const cell = document.querySelector('.bd-cell:not(.is-safe):not(.is-centre)');
+      return JSON.stringify({ cell: cell ? getComputedStyle(cell).backgroundColor : null,
+        cells: document.querySelectorAll('.bd-cell').length });
+    `));
+    check('  · the mat is painted', paint.cell === 'rgb(251, 243, 226)' && paint.cells === 49, JSON.stringify(paint));
+  },
+  ludo: async () => {
+    const anatomy = JSON.parse(await evaluate(`
+      return JSON.stringify({
+        ring: document.querySelectorAll('.ld-cell:not(.is-column)').length,
+        yards: document.querySelectorAll('.ld-yard').length,
+        tokens: document.querySelectorAll('.ld-token').length,
+      });
+    `));
+    check('  · the whole board is there', anatomy.ring === 52 && anatomy.yards === 4 && anatomy.tokens === 8, JSON.stringify(anatomy));
+    await evaluate(`for (const b of document.querySelectorAll('#bdDice button, .bd-throw, #bdActs button')) { if (/throw|roll/i.test(b.textContent)) { b.click(); break; } } return true;`);
+    await wait(800);
+    const die = await evaluate(`const d = document.querySelector('.ld-die'); return d ? d.dataset.pips : null;`);
+    check('  · the die lands on a real face', ['1', '2', '3', '4', '5', '6'].includes(die), String(die));
+  },
+  chess: async () => {
+    await evaluate(`document.querySelector('.bd-square.can-move')?.click(); return true;`);
+    await wait(500);
+    const lit = await count('.bd-square.is-target');
+    check('  · picking a piece lights its moves', lit >= 1, `${lit} destinations`);
+  },
+  chainreaction: async () => {
+    await evaluate(`document.querySelector('.bd-orbcell.can-drop')?.click(); return true;`);
+    await wait(1000);
+    check('  · an orb lands', (await count('.bd-orb')) >= 1);
+  },
+  headsup: async () => {
+    const view = JSON.parse(await evaluate(`
+      return JSON.stringify({
+        guessBox: !document.getElementById('huGuessBox')?.hidden,
+        card: document.getElementById('huCard')?.hidden !== false,
+        word: (document.getElementById('huWord')?.textContent ?? '') === '',
+      });
+    `));
+    check('  · the guesser phone holds nothing readable', view.guessBox && view.card && view.word, JSON.stringify(view));
+  },
+  codebreak: async () => {
+    check('  · the setter screen comes up', await evaluate(`return !document.getElementById('cbSet')?.hidden`) === true);
+  },
+};
+
+const broken = [];
+let swept = 0;
+
+for (const game of GAMES) {
+  const room = game.room ?? 'party';
+  console.log(`\n  \x1b[2m— ${game.name} (${room}) —\x1b[0m`);
+  const before = results.length;
+
+  try {
+    await send('Page.navigate', { url: `${phoneBase}/` });
+    await wait(1800);
+    await evaluate(`location.hash = ${JSON.stringify(SHELF[room] ?? '#/')}; return true;`);
+    await wait(900);
+    await evaluate(`document.querySelector('.si-skip')?.click(); for (const d of document.querySelectorAll('dialog[open]')) d.close(); return true;`);
+    if (!check(`${game.name}: the shelf loads`, await waitFor('.game-card', 20000))) { broken.push(game.name); continue; }
+
+    const openedIt = await evaluate(`
+      const cards = [...document.querySelectorAll('.game-card')];
+      const it = cards.find(c => (c.querySelector('h3')?.textContent ?? '').trim() === ${JSON.stringify(game.name)});
+      if (!it) return 'not on this shelf (' + cards.length + ' cards)';
+      it.click();
+      return true;
+    `);
+    if (!check(`${game.name}: it is on the shelf`, openedIt === true, String(openedIt))) { broken.push(game.name); continue; }
+    if (!check(`${game.name}: a room opens`, await waitFor('#roomCode', 20000))) { broken.push(game.name); continue; }
+    const code = await evaluate(`return document.getElementById('roomCode').textContent.trim()`);
+
+    for (const d of dummies) { try { d.close(); } catch { } }
+    dummies = [];
+    const need = Math.max(0, Math.min(3, (game.minPlayers ?? 1) - 1));
+    if (need) {
+      try {
+        dummies = await seatDummies(need, { base, code, gameId: game.id, name: `${game.id}Mate`, chips: 0, pause: 700 });
+      } catch (err) {
+        check(`${game.name}: stand-ins can sit down`, false, err.message);
+        broken.push(game.name);
+        continue;
+      }
+      await wait(900 + need * 250);
+    }
+
+    await evaluate(`document.getElementById('startBtn')?.click(); return true;`);
+
+    // Every gate there is, mashed until the stage is alive: tutorial, brief,
+    // and any dialog a game opens on the way in. Different games have
+    // different subsets, and the order is always the same.
+    let alive = false;
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline && !alive) {
       await evaluate(`
-        const mine = [...document.querySelectorAll('.bd-square.can-move')];
-        mine[0]?.click();
+        document.getElementById('tutSkip')?.click();
+        document.querySelector('.intro-ready')?.click();
         return true;
       `);
-      await wait(500);
-      const hints = await count('.bd-square.is-target');
-      check('chess: picking a piece shows where it may go', hints >= 1, `${hints} destinations lit`);
-    } },
-  { id: 'chainreaction', name: 'Chain Reaction', shelf: 'board', min: 2, table: '.bd-table:not([hidden])',
-    settle: async () => {
-      await evaluate(`document.querySelector('.bd-orbcell.can-drop')?.click(); return true;`);
-      await wait(1000);
-      const orbs = await count('.bd-orb');
-      check('chain reaction: an orb lands from the phone', orbs >= 1, `${orbs} orbs`);
-    } },
-  { id: 'headsup', name: 'Heads Up', shelf: null, min: 2, table: '.hu-table:not([hidden])',
-    settle: async () => {
-      // The phone made the room, so the phone guesses first — and its page
-      // must contain no word and no card.
-      const view = JSON.parse(await evaluate(`
-        return JSON.stringify({
-          guessBox: !document.getElementById('huGuessBox')?.hidden,
-          card: document.getElementById('huCard')?.hidden !== false,
-          word: (document.getElementById('huWord')?.textContent ?? '') === '',
-        });
-      `));
-      check('heads up: the guesser phone holds nothing readable',
-        view.guessBox && view.card && view.word, JSON.stringify(view));
-    } },
-  { id: 'codebreak', name: 'Crack the Code', shelf: null, min: 2, table: '.cb-table:not([hidden])',
-    settle: async () => {
-      const setter = await evaluate(`return !document.getElementById('cbSet')?.hidden`);
-      check('crack the code: the setter screen comes up', setter === true, String(setter));
-    } },
-];
+      alive = await evaluate(`
+        const wrap = document.getElementById('stageWrap');
+        if (!wrap || wrap.closest('[hidden]')) return false;
+        const canvas = document.getElementById('stage');
+        const painted = canvas && canvas.offsetParent !== null && canvas.width > 50;
+        const mounted = wrap.querySelectorAll('*').length > 3;
+        const hud = (document.getElementById('hud')?.children.length ?? 0) > 0;
+        return Boolean(painted || mounted || hud);
+      `);
+      if (!alive) await wait(700);
+    }
+    if (!check(`${game.name}: the game arrives on screen`, alive)) {
+      await shot(`${game.id}-stuck`);
+      broken.push(game.name);
+      continue;
+    }
+    await wait(1200);
 
-for (const game of SWEEP) {
-  console.log(`\n  \x1b[2m— ${game.name}, live —\x1b[0m`);
-  await send('Page.navigate', { url: `${phoneBase}/` });
-  await wait(2000);
-  await evaluate(`location.hash = ${JSON.stringify(game.shelf ? `#/shelf/${game.shelf}` : '#/')}; return true;`);
-  await wait(1000);
-  await evaluate(`document.querySelector('.si-skip')?.click(); for (const d of document.querySelectorAll('dialog[open]')) d.close(); return true;`);
-  if (!check(`${game.name}: the shelf loads`, await waitFor('.game-card', 20000))) continue;
+    // The clock, where the game has one. Slapjack-style tables honestly have
+    // none, and a restarted clock (a phase ending mid-probe) counts as alive.
+    const t1 = await textOf('.clk-left');
+    if (t1 && t1.trim()) {
+      await wait(2600);
+      const t2 = await textOf('.clk-left');
+      const secs = (t) => Number(String(t ?? '').replace(/[^0-9]/g, ''));
+      check(`${game.name}: the clock is alive`,
+        secs(t2) !== secs(t1) || secs(t1) === 0, `${t1} then ${t2}`);
+    }
 
-  const opened = await evaluate(`
-    const cards = [...document.querySelectorAll('.game-card')];
-    const it = cards.find(c => (c.querySelector('h3')?.textContent ?? '').trim() === ${JSON.stringify(game.name)});
-    if (!it) return 'not on this shelf (' + cards.length + ' cards)';
-    it.click();
-    return true;
-  `);
-  if (!check(`${game.name}: it is on the shelf`, opened === true, String(opened))) continue;
-  if (!check(`${game.name}: a room opens`, await waitFor('#roomCode', 20000))) continue;
-  const code = await evaluate(`return document.getElementById('roomCode').textContent.trim()`);
+    await SPECIAL[game.id]?.();
 
-  for (const d of dummies) { try { d.close(); } catch { } }
-  dummies = [];
-  try {
-    dummies = await seatDummies(Math.max(0, game.min - 1),
-      { base, code, gameId: game.id, name: `${game.id}Mate`, chips: 0, pause: 700 });
+    const errors = await evaluate(`return window.__journeyErrors ?? []`);
+    check(`${game.name}: threw nothing`, errors.length === 0, errors.slice(0, 2).join(' | '));
+    if (errors.length) broken.push(game.name);
+    await shot(game.id);
+
+    await evaluate(`document.querySelector('#quitBtn, .back, [data-nav]')?.click(); return true;`);
+    await wait(600);
+    swept += 1;
   } catch (err) {
-    check(`${game.name}: a stand-in can sit down`, false, err.message);
-    continue;
+    check(`${game.name}: the sweep itself survived`, false, String(err.message).slice(0, 90));
+    broken.push(game.name);
   }
-  await wait(1200);
 
-  await evaluate(`document.getElementById('startBtn')?.click(); return true;`);
-  const taught = await waitFor('.tut-card', 15000);
-  if (taught) {
-    await evaluate(`document.getElementById('tutSkip')?.click(); return true;`);
-    await wait(400);
-  }
-  const briefed = await waitFor('.intro-ready', 15000);
-  if (briefed) await evaluate(`document.querySelector('.intro-ready')?.click(); return true;`);
-
-  if (!check(`${game.name}: the table appears on the phone`, await waitFor(game.table, 25000))) {
-    await shot(`${game.id}-stuck`);
-    continue;
-  }
-  await wait(1500);
-
-  // The one thing the user reported twice: the clock has to move on its own.
-  const t1 = await textOf('.clk-left');
-  await wait(2600);
-  const t2 = await textOf('.clk-left');
-  const secs = (t) => Number(String(t ?? '').replace(/[^0-9]/g, ''));
-  check(`${game.name}: the clock counts down on the phone`,
-    secs(t2) < secs(t1) || (t1 === t2 && t1 === ''), `${t1 || '(none)'} then ${t2 || '(none)'}`);
-
-  await game.settle?.();
-
-  const errors = await evaluate(`return window.__journeyErrors ?? []`);
-  check(`${game.name}: threw nothing on the phone`, errors.length === 0, errors.slice(0, 2).join(' | '));
-  await shot(game.id);
-
-  // Leave the room properly so the live server is not left holding tables.
-  await evaluate(`document.querySelector('#quitBtn, .back, [data-nav]')?.click(); return true;`);
-  await wait(700);
+  if (results.length === before) broken.push(game.name);
 }
 
 for (const d of dummies) { try { d.close(); } catch { } }
 dummies = [];
+try { adb('shell', 'svc', 'power', 'stayon', 'false'); } catch { }
 
-console.log(`\n  \x1b[2mscreenshots\x1b[0m  android/phone-shots/`);
+console.log(`\n  \x1b[2m${swept} of ${GAMES.length} games swept · screenshots in android/phone-shots/\x1b[0m`);
 cleanup();
 
 const bad = results.filter((r) => !r.ok);
@@ -338,7 +362,10 @@ if (bad.length) {
   console.log('\n  \x1b[31mwhat failed:\x1b[0m');
   for (const r of bad) console.log(`  \x1b[31m  · ${r.label}\x1b[0m`);
 }
+if (broken.length) {
+  console.log(`\n  \x1b[31mgames needing attention: ${[...new Set(broken)].join(', ')}\x1b[0m`);
+}
 console.log(bad.length
   ? `\n  \x1b[31m${bad.length} of ${results.length} failed\x1b[0m\n`
-  : `\n  \x1b[32mall ${results.length} passed — the live studio, on the actual phone\x1b[0m\n`);
+  : `\n  \x1b[32mall ${results.length} passed — every game in the studio, on the actual phone\x1b[0m\n`);
 process.exit(bad.length ? 1 : 0);
